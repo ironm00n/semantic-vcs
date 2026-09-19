@@ -379,3 +379,127 @@ fn op_log_forge_export_and_classify() {
         "{classed}"
     );
 }
+
+fn rust_item(dir: &Path, name: &str) -> String {
+    let src = fs::read_to_string(dir.join("src/main.rs")).unwrap();
+    let needle = format!("fn {name}(");
+    let start = src
+        .find(&needle)
+        .unwrap_or_else(|| panic!("no {needle} in {src}"));
+    let rest = &src[start..];
+    let mut depth = 0i32;
+    let mut seen = false;
+    for (i, c) in rest.char_indices() {
+        match c {
+            '{' => {
+                depth += 1;
+                seen = true;
+            }
+            '}' => {
+                depth -= 1;
+                if seen && depth == 0 {
+                    return rest[..=i].to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("unclosed {name}");
+}
+
+#[test]
+fn edit_def_and_rename_merge_is_clean() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(
+        dir.path(),
+        &["rename", "--entity", "parse", "--new-name", "parse_config"],
+    );
+    json(dir.path(), &["new"]);
+    json(dir.path(), &["branch", "a"]);
+    json(
+        dir.path(),
+        &[
+            "rename",
+            "--entity",
+            "parse_config",
+            "--new-name",
+            "parse_cfg",
+        ],
+    );
+    json(dir.path(), &["branch", "b"]);
+    let main_b = rust_item(dir.path(), "main").replacen(
+        "    match load(&path) {",
+        "    let _ = parse_config(\"x\");\n    match load(&path) {",
+        1,
+    );
+    json(
+        dir.path(),
+        &[
+            "edit-def",
+            "--entity",
+            "main",
+            "--intent",
+            "feature",
+            "--definition",
+            &main_b,
+        ],
+    );
+    let merged = json(dir.path(), &["merge", "a"]);
+    assert_eq!(merged["conflicts"].as_array().unwrap().len(), 0, "{merged}");
+    let rendered = fs::read_to_string(dir.path().join("src/main.rs")).unwrap();
+    assert!(rendered.contains("let _ = parse_cfg(\"x\")"), "{rendered}");
+}
+
+#[test]
+fn both_sides_edit_load_is_a_binding_conflict() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(dir.path(), &["new"]);
+    json(dir.path(), &["branch", "a6"]);
+    let load_a = rust_item(dir.path(), "load").replacen(
+        "    let cfg = parse(&raw)?;",
+        "    let raw = normalize(&raw);\n    let cfg = parse(&raw)?;",
+        1,
+    );
+    json(
+        dir.path(),
+        &[
+            "edit-def",
+            "--entity",
+            "load",
+            "--intent",
+            "feature",
+            "--definition",
+            &load_a,
+        ],
+    );
+    json(dir.path(), &["branch", "b6"]);
+    let load_b =
+        rust_item(dir.path(), "load").replacen("    Ok(cfg)", "    log(&raw);\n    Ok(cfg)", 1);
+    json(
+        dir.path(),
+        &[
+            "edit-def",
+            "--entity",
+            "load",
+            "--intent",
+            "feature",
+            "--definition",
+            &load_b,
+        ],
+    );
+    let merged = json(dir.path(), &["merge", "a6"]);
+    let conflicts = merged["conflicts"].as_array().expect("conflicts");
+    assert_eq!(conflicts.len(), 1, "{merged}");
+    assert_eq!(conflicts[0]["name"], "load", "{merged}");
+    assert!(
+        conflicts[0]["conflict"].get("Binding").is_some(),
+        "{merged}"
+    );
+    let listed = json(dir.path(), &["conflicts"]);
+    assert_eq!(listed.as_array().unwrap().len(), 1, "{listed}");
+    let src = rust_item(dir.path(), "load");
+    assert!(src.contains("normalize(&raw)"), "{src}");
+    assert!(src.contains("log(&raw)"), "{src}");
+}
