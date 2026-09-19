@@ -372,7 +372,7 @@ fn text_renderings_read_as_sentences() {
     assert!(evolog.contains("v2") && evolog.contains("read_file renamed read → read_file"), "{evolog}");
     let blame = svc_repo::text::blame(&snap, &svc_repo::blame(&repo, read).unwrap());
     assert!(blame.contains("renamed read → read_file") && blame.contains("added"), "{blame}");
-    let status = svc_repo::text::status(&svc_repo::status(&repo).unwrap());
+    let status = svc_repo::text::status(&snap, &svc_repo::status(&repo).unwrap());
     assert!(status.contains("0 changes"), "{status}");
     assert_eq!(svc_repo::text::conflicts(&snap, &[]), "no conflicts");
 }

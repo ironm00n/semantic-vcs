@@ -170,7 +170,7 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
     let repo = Repo::discover(&cwd, Repo::default_langs()).ok()?;
     let snap = repo.current().ok()?;
     let out = match &cli.command {
-        Command::Status => status(&repo).map(|s| text::status(&s)),
+        Command::Status => status(&repo).and_then(|s| repo.current().map(|snap| text::status(&snap, &s))),
         Command::Log => log(&repo, None).map(|l| text::log(&snap, &l)),
         Command::Op(OpCommand::Log) => op_log(&repo).map(|l| text::log(&snap, &l)),
         Command::Heads => heads(&repo).map(|h| text::heads(&h)),
@@ -181,9 +181,33 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
         Command::Blame(arg) => resolve_entity(&repo, &arg.entity)
             .and_then(|id| blame(&repo, id))
             .map(|b| text::blame(&snap, &b)),
-        Command::Conflicts => list_conflicts(&repo).map(|c| text::conflicts(&snap, &c)),
+        Command::Conflicts => list_conflicts(&repo).map(|c| text::conflicts_named(&snap, repo.store(), repo.root_dir(), &c)),
         Command::Merge { change } => merge_repo(&repo, change)
-            .and_then(|m| repo.current().map(|s| text::merge(&s, &m))),
+            .and_then(|m| repo.current().map(|s| text::merge(&s, repo.store(), repo.root_dir(), &m))),
+        Command::Show { entity } => {
+            // SPEC §10 line 3: the canonical stream — `$n` local slots, `#name⟨hash⟩` refs.
+            return Some(show_canonical(&repo, entity).map(|v| {
+                format!("{entity}⟨{}⟩\n{}", v["short"].as_str().unwrap_or(""), v["canonical"].as_str().unwrap_or(""))
+            }));
+        }
+        Command::New
+        | Command::Branch { .. }
+        | Command::Describe { .. }
+        | Command::Undo
+        | Command::Move(_)
+        | Command::Relocate(_)
+        | Command::Extract(_)
+        | Command::Inline(_)
+        | Command::AddDef(_)
+        | Command::Delete(_)
+        | Command::EditDef(_) => {
+            // Run the verb, then read back what it recorded: the newest op-log line.
+            return Some(run_with(cli, &repo).and_then(|_| {
+                let snap = repo.current().map_err(|e| e.to_string())?;
+                let entries = op_log(&repo).map_err(|e| e.to_string())?;
+                Ok(entries.first().map(|e| text::op(&snap, e)).unwrap_or_default())
+            }));
+        }
         Command::Rename(args) => {
             return Some(rename_cmd(&repo, args).map(|v| {
                 let from = v["renamed"]["from"].as_str().unwrap_or("?").to_string();
@@ -219,6 +243,12 @@ fn run(cli: &Cli) -> Result<Value, String> {
     }
     let cwd = env::current_dir().map_err(|e| e.to_string())?;
     let repo = Repo::discover(&cwd, Repo::default_langs()).map_err(|e| e.to_string())?;
+    run_with(cli, &repo)
+}
+
+/// The verb dispatch over an already-open repository (redb admits one opener per process).
+fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
+    let repo = repo;
     match &cli.command {
         Command::Status => value(status(&repo)),
         Command::Describe { message } => value(describe(&repo, message)),
@@ -320,7 +350,7 @@ fn show_canonical(repo: &Repo, query: &str) -> Result<Value, String> {
     let id = resolve_entity(repo, query).map_err(|e| e.to_string())?;
     let snapshot = repo.current().map_err(|e| e.to_string())?;
     let canonical = show(repo.store(), &snapshot, id).map_err(|e| e.to_string())?;
-    Ok(json!({"id": id, "canonical": canonical}))
+    Ok(json!({"id": id, "short": id.short(), "canonical": canonical}))
 }
 
 fn mutation_value(m: svc_repo::Mutation) -> Result<Value, String> {

@@ -179,23 +179,25 @@ fn op_verb(snap: &Snapshot, o: &Op) -> String {
     .to_string()
 }
 
-pub fn status(s: &StatusOut) -> String {
+pub fn status(snap: &Snapshot, s: &StatusOut) -> String {
     let mut lines = vec![s.summary.clone()];
     for d in &s.deltas {
-        lines.push(format!("    {}", delta(d)));
+        lines.push(format!("    {}", delta(snap, d)));
     }
     lines.join("\n")
 }
 
-pub fn delta(d: &svc_core::Delta) -> String {
+pub fn delta(snap: &Snapshot, d: &svc_core::Delta) -> String {
     use svc_core::Delta;
+    // Alpha edits are the layout-only line of SPEC §10 line 2: bytes differ, content does not.
     match d {
-        Delta::Added(id) => format!("added ⟨{}⟩", id.short()),
+        Delta::Added(id) => format!("added {}", entity_ref(snap, *id)),
         Delta::Removed(id) => format!("removed ⟨{}⟩", id.short()),
         Delta::Renamed { from, to, .. } => format!("renamed {from} → {to}"),
-        Delta::Moved { id, .. } => format!("moved ⟨{}⟩", id.short()),
-        Delta::Relocated { id, from, to } => format!("relocated ⟨{}⟩ {}#{} → {}#{}", id.short(), from.0, from.1, to.0, to.1),
-        Delta::Edited(id, c) => format!("edited ⟨{}⟩: {}", id.short(), class(Some(*c))),
+        Delta::Moved { id, .. } => format!("moved {}", entity_ref(snap, *id)),
+        Delta::Relocated { id, from, to } => format!("relocated {} {}#{} → {}#{}", entity_ref(snap, *id), from.0, from.1, to.0, to.1),
+        Delta::Edited(id, ObservedClass::Alpha) => format!("{} edited: alpha (local renamed; content hash unchanged)", entity_ref(snap, *id)),
+        Delta::Edited(id, c) => format!("{} edited: {}", entity_ref(snap, *id), class(Some(*c))),
     }
 }
 
@@ -240,7 +242,7 @@ pub fn conflicts(snap: &Snapshot, cs: &[ConflictOut]) -> String {
     cs.iter().map(|c| conflict(snap, c)).collect::<Vec<_>>().join("\n")
 }
 
-pub fn merge(snap: &Snapshot, m: &MergeOut) -> String {
+pub fn merge(snap: &Snapshot, store: &dyn svc_core::Store, root: &std::path::Path, m: &MergeOut) -> String {
     let mut lines = vec![format!(
         "merged into change {} (snapshot {}): {}",
         m.change.short(),
@@ -251,7 +253,80 @@ pub fn merge(snap: &Snapshot, m: &MergeOut) -> String {
         lines.push(format!("    unified {} into {}", b.short(), a.short()));
     }
     for c in &m.conflicts {
-        lines.push(format!("    {}", conflict(snap, c)));
+        lines.push(format!("    {}", conflict_named(snap, store, root, c)));
     }
     lines.join("\n")
+}
+
+/// A binding conflict the way a reader needs it: the identifier, the use, and both binders,
+/// recovered from the rendered entity and its ident map — the record carries the slots
+/// (reliable) and positions (not yet), and the expo line is "`raw` at line 8 meant the
+/// `let raw` at line 2, now means the `let raw` at line 3".
+pub fn conflict_named(snap: &Snapshot, store: &dyn svc_core::Store, root: &std::path::Path, c: &ConflictOut) -> String {
+    let Conflict::Binding { id, was, now, at, .. } = &c.conflict else {
+        return conflict(snap, c);
+    };
+    let Ok((src, Some(map))) = svc_core::engine::render_entity(snap, store, *id, true) else {
+        return conflict(snap, c);
+    };
+    let text = String::from_utf8_lossy(&src).into_owned();
+    // Positions as the reader sees them: file line numbers when the rendered entity is
+    // found verbatim in the working copy, else lines within the item (the rendered bytes
+    // carry the blank lines that precede it; do not count those).
+    let file = snap.entities.get(id).map(|r| r.file.clone());
+    let base = file
+        .as_ref()
+        .and_then(|f| std::fs::read_to_string(root.join(f.as_str())).ok())
+        .and_then(|whole| whole.find(text.trim_start_matches('\n')).map(|i| whole[..i].matches('\n').count()));
+    let leading = text.len() - text.trim_start_matches('\n').len();
+    let where_ = |line: usize| match (&file, base) {
+        (Some(f), Some(b)) => format!("{}:{}", f.as_str(), b + line - leading),
+        _ => format!("line {}", line - leading),
+    };
+    let line_of = |off: usize| text[..off.min(text.len())].matches('\n').count() + 1;
+    let occurrences = |r: &IdentRef| -> Vec<(usize, String)> {
+        let mut v: Vec<(usize, String)> = map
+            .iter()
+            .filter(|(_, ident)| ident == r)
+            .map(|(range, _)| (range.start as usize, text[range.start as usize..range.end as usize].to_string()))
+            .collect();
+        v.sort();
+        v
+    };
+    let (now_occ, was_occ) = (occurrences(now), occurrences(was));
+    let (Some((now_decl, name)), Some((was_decl, was_name))) = (now_occ.first(), was_occ.first()) else {
+        return conflict(snap, c);
+    };
+    let binder = |off: usize, name: &str| {
+        let line = line_of(off);
+        let start = text[..off].rfind('\n').map_or(0, |i| i + 1);
+        if text[start..off].trim_start().starts_with("let ") {
+            format!("the `let {name}` at {}", where_(line))
+        } else {
+            format!("`{name}` bound at {}", where_(line))
+        }
+    };
+    // The use: the record's position when it lands on this identifier, else its last use.
+    let use_at = now_occ
+        .iter()
+        .find(|(off, _)| line_of(*off) == at.line as usize)
+        .or(now_occ.last())
+        .map(|(off, _)| line_of(*off))
+        .unwrap_or(at.line as usize);
+    format!(
+        "[{}] binding conflict in {}: `{name}` at {} meant {}, now means {}{}",
+        c.n,
+        c.name,
+        where_(use_at),
+        binder(*was_decl, was_name),
+        binder(*now_decl, name),
+        if was_name == name { " (shadowed)" } else { "" }
+    )
+}
+
+pub fn conflicts_named(snap: &Snapshot, store: &dyn svc_core::Store, root: &std::path::Path, cs: &[ConflictOut]) -> String {
+    if cs.is_empty() {
+        return "no conflicts".into();
+    }
+    cs.iter().map(|c| conflict_named(snap, store, root, c)).collect::<Vec<_>>().join("\n")
 }
