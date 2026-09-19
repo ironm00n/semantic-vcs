@@ -7,6 +7,7 @@ pub mod history;
 pub mod merge;
 pub mod repo;
 pub mod store;
+pub mod text;
 
 pub use history::*;
 pub use merge::{ConflictOut, MergeOut, Take, conflicts, lca, merge, merge_snapshots, resolve};
