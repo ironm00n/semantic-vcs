@@ -351,15 +351,38 @@ pub fn evolog(repo: &Repo, change: ChangeId) -> Result<Vec<EvologEntry>> {
 /// `undo` redoes.
 pub fn undo(repo: &Repo) -> Result<MutationOut> {
     let ops = repo.store().ops(OpIx(0), true)?;
-    let Some((_, last)) = ops.first() else {
-        return Err(Error::Other("nothing to undo".into()));
+    // Repeated `undo` keeps walking back (as `jj undo` does since 0.29) instead of undoing
+    // the previous undo: skip every op an earlier undo already reverted. An undo of a
+    // changeset reverts the whole group, so it cancels that many ops.
+    let entries: Vec<&OpLogEntry> = ops.iter().map(|(_, e)| e).collect(); // newest first
+    let mut i = 0;
+    let mut pending = 0usize;
+    let first = loop {
+        let Some(e) = entries.get(i) else {
+            return Err(Error::Other("nothing to undo".into()));
+        };
+        if matches!(e.op, Op::Undo) {
+            pending += 1;
+            i += 1;
+        } else if pending > 0 {
+            // reverted by an earlier undo — together with the rest of its changeset
+            pending -= 1;
+            let g = e.group;
+            i += 1;
+            while g.is_some() && entries.get(i).is_some_and(|n| n.group == g) {
+                i += 1;
+            }
+        } else {
+            break i;
+        }
     };
+    let last = entries[first];
     let target = match last.group {
-        Some(g) => ops
+        Some(g) => entries[first..]
             .iter()
-            .take_while(|(_, e)| e.group == Some(g))
+            .take_while(|e| e.group == Some(g))
             .last()
-            .map(|(_, e)| e)
+            .copied()
             .unwrap_or(last),
         None => last,
     };
@@ -586,4 +609,44 @@ pub fn op_entity(op: &Op) -> Option<EntityId> {
         | Op::EditDef { id, .. } => Some(*id),
         _ => None,
     }
+}
+
+/// Whole-word mentions of `word` still in the rendered working copy after a rename. Every
+/// reference svc resolved has already changed; what remains is what it could not resolve —
+/// method calls on typed receivers (`x.word(…)`, which need types), and strings, comments
+/// or unrelated bindings — and did not touch. The honest numbers to print next to
+/// "renamed" (SPEC §10 line 13), not to hide.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Mentions {
+    pub method_calls: usize,
+    pub other: usize,
+}
+
+pub fn untracked_mentions(repo: &Repo, word: &str) -> Result<Mentions> {
+    let snap = repo.current()?;
+    let is_ident = |c: char| c == '_' || c.is_ascii_alphanumeric();
+    let mut m = Mentions::default();
+    for path in snap.files.keys() {
+        let Ok(text) = std::fs::read_to_string(repo.root_dir().join(path.as_str())) else {
+            continue;
+        };
+        let mut from = 0;
+        while let Some(i) = text[from..].find(word) {
+            let start = from + i;
+            let end = start + word.len();
+            from = end;
+            let head = &text[..start];
+            let tail = &text[end..];
+            if head.chars().next_back().is_some_and(is_ident) || tail.chars().next().is_some_and(is_ident) {
+                continue;
+            }
+            let method_call = head.trim_end().ends_with('.') && tail.trim_start().starts_with('(');
+            if method_call {
+                m.method_calls += 1;
+            } else {
+                m.other += 1;
+            }
+        }
+    }
+    Ok(m)
 }

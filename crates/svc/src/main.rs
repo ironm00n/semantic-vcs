@@ -12,7 +12,7 @@ use svc_repo::{
     Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_status,
     changesets, checkout, conflicts as list_conflicts, describe, edit, evolog, heads, log,
     merge as merge_repo, new, op_log, op_restore, resolve as resolve_conflict,
-    resolve_entity, status, undo,
+    resolve_entity, status, undo, untracked_mentions,
 };
 
 mod agent;
@@ -174,6 +174,28 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
         Command::Conflicts => list_conflicts(&repo).map(|c| text::conflicts(&snap, &c)),
         Command::Merge { change } => merge_repo(&repo, change)
             .and_then(|m| repo.current().map(|s| text::merge(&s, &m))),
+        Command::Rename(args) => {
+            return Some(rename_cmd(&repo, args).map(|v| {
+                let from = v["renamed"]["from"].as_str().unwrap_or("?").to_string();
+                let calls = v["untracked_mentions"]["method_calls"].as_u64().unwrap_or(0);
+                let other = v["untracked_mentions"]["other"].as_u64().unwrap_or(0);
+                let plural = |n: u64, s: &str| if n == 1 { s.to_string() } else { format!("{s}s") };
+                let mut line = format!("renamed {from} → {}", args.new_name);
+                if calls > 0 {
+                    line.push_str(&format!(
+                        "\n{calls} method {} `.{from}(…)` left unchanged: receiver types are not resolved",
+                        plural(calls, "call")
+                    ));
+                }
+                if other > 0 {
+                    line.push_str(&format!(
+                        "\n{other} other {} of `{from}` left unchanged (strings, comments, unrelated bindings)",
+                        plural(other, "mention")
+                    ));
+                }
+                line
+            }));
+        }
         _ => return None,
     };
     Some(out.map_err(|e| e.to_string()))
@@ -355,11 +377,21 @@ fn resolve_parent(repo: &Repo, parent: &str) -> Result<Option<EntityId>, String>
 
 fn rename_cmd(repo: &Repo, args: &RenameArgs) -> Result<Value, String> {
     let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let old = repo.current().ok().and_then(|s| s.entities.get(&id).map(|r| r.name.clone()));
     let op = Op::Rename { id, new: args.new_name.clone() };
     let m = repo
         .mutate(op, None, |repo, cur| repo.amend(cur, rename(cur, id, &args.new_name)?))
         .map_err(|e| e.to_string())?;
-    mutation_value(m)
+    // Mentions of the old name svc did not resolve (method calls on typed receivers,
+    // strings, comments) are left as they were; say how many rather than hide it.
+    let untracked = match &old {
+        Some(old) if old != &args.new_name => untracked_mentions(repo, old).unwrap_or_default(),
+        _ => Default::default(),
+    };
+    let mut v = mutation_value(m)?;
+    v["renamed"] = json!({ "from": old, "to": args.new_name });
+    v["untracked_mentions"] = json!(untracked);
+    Ok(v)
 }
 
 fn move_cmd(repo: &Repo, args: &MoveArgs) -> Result<Value, String> {

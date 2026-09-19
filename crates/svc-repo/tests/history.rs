@@ -158,7 +158,7 @@ fn branch_is_a_sibling_of_the_current_change() {
 }
 
 #[test]
-fn undo_restores_the_view_and_redo_is_undo_again() {
+fn repeated_undo_walks_back_and_op_restore_is_the_redo() {
     let (dir, repo) = fresh();
     let v0 = repo.view().unwrap();
     svc_repo::new(&repo).unwrap();
@@ -166,19 +166,25 @@ fn undo_restores_the_view_and_redo_is_undo_again() {
     std::fs::write(dir.path().join("src/lib.rs"), "fn other() {}\n").unwrap();
     // Hand edits would be absorbed first; there is no `status` yet, so put them back.
     std::fs::write(dir.path().join("src/lib.rs"), LIB).unwrap();
+    svc_repo::new(&repo).unwrap();
+    let v2 = repo.view().unwrap();
 
     let u = svc_repo::undo(&repo).unwrap();
-    assert_eq!(repo.view().unwrap().root, v0.root);
-    assert_eq!(u.snapshot, v0.root);
+    assert_eq!(repo.view().unwrap().root, v1.root);
+    assert_eq!(u.snapshot, v1.root);
     let ops = svc_repo::op_log(&repo).unwrap();
     assert!(matches!(ops[0].op, Op::Undo));
     assert_eq!(read(dir.path(), "src/lib.rs"), LIB);
 
+    // A second undo keeps walking back (it does not undo the undo).
     svc_repo::undo(&repo).unwrap();
-    assert_eq!(repo.view().unwrap().root, v1.root);
-
-    svc_repo::op_restore(&repo, OpIx(0)).unwrap();
     assert_eq!(repo.view().unwrap().root, v0.root);
+    // Nothing older than init.
+    assert!(svc_repo::undo(&repo).is_err());
+
+    // Redo is `op restore <n>`: the view as it stood right after op n.
+    svc_repo::op_restore(&repo, OpIx(2)).unwrap();
+    assert_eq!(repo.view().unwrap().root, v2.root);
 }
 
 #[test]
