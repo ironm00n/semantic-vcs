@@ -36,7 +36,12 @@ fn copy_dir(from: &Path, to: &Path) {
 }
 
 fn output(dir: &Path, args: &[&str]) -> std::process::Output {
-    bin().current_dir(dir).args(args).arg("--json").output().unwrap()
+    bin()
+        .current_dir(dir)
+        .args(args)
+        .arg("--json")
+        .output()
+        .unwrap()
 }
 
 fn json(dir: &Path, args: &[&str]) -> Value {
@@ -92,7 +97,10 @@ fn init_status_and_list_defs_are_json() {
     let n = defs["definitions"].as_array().expect("definitions").len();
     assert_eq!(n, status["entities"].as_u64().unwrap() as usize);
     let err = stderr_json(dir.path(), &["init"]);
-    assert!(err["error"].as_str().unwrap().contains("already exists"), "{err}");
+    assert!(
+        err["error"].as_str().unwrap().contains("already exists"),
+        "{err}"
+    );
 }
 
 #[test]
@@ -128,7 +136,8 @@ fn workspace_add_list_forget_and_update_stale() {
     let rows = list.as_array().expect("workspace list");
     assert!(rows.iter().any(|r| r["name"] == "agent"), "{list}");
     assert!(
-        rows.iter().any(|r| r["name"] == "default" && r["current"] == true),
+        rows.iter()
+            .any(|r| r["name"] == "default" && r["current"] == true),
         "{list}"
     );
     let listed = text(dir.path(), &["workspace", "list"]);
@@ -139,7 +148,11 @@ fn workspace_add_list_forget_and_update_stale() {
     json(dir.path(), &["workspace", "forget", "agent"]);
     let after = json(dir.path(), &["workspace", "list"]);
     assert!(
-        after.as_array().unwrap().iter().all(|r| r["name"] != "agent"),
+        after
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["name"] != "agent"),
         "{after}"
     );
 }
@@ -191,7 +204,10 @@ fn show_search_heads_and_describe() {
     let change = status["change"].as_str().unwrap();
     let evo = json(dir.path(), &["evolog", change]);
     assert!(
-        evo.as_array().unwrap().iter().any(|e| e["message"] == "first change"),
+        evo.as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["message"] == "first change"),
         "{evo}"
     );
 }
@@ -210,7 +226,11 @@ fn new_blame_and_undo() {
     );
     let blame = json(dir.path(), &["blame", "--entity", "parse_config"]);
     assert!(
-        blame.as_array().unwrap().iter().any(|e| e["op"].get("Rename").is_some()),
+        blame
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["op"].get("Rename").is_some()),
         "{blame}"
     );
     json(dir.path(), &["undo"]);
@@ -218,7 +238,11 @@ fn new_blame_and_undo() {
     assert_eq!(after[0]["op"], "Undo", "{after}");
     let defs = json(dir.path(), &["list-defs"]);
     assert!(
-        defs["definitions"].as_array().unwrap().iter().any(|d| d["name"] == "parse"),
+        defs["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|d| d["name"] == "parse"),
         "{defs}"
     );
 }
@@ -245,18 +269,29 @@ fn add_def_delete_and_changeset() {
     );
     let defs = json(dir.path(), &["list-defs"]);
     assert!(
-        defs["definitions"].as_array().unwrap().iter().any(|d| d["name"] == "helper"),
+        defs["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|d| d["name"] == "helper"),
         "{defs}"
     );
     let status = json(dir.path(), &["changeset", "status"]);
     assert_eq!(status["name"], "run");
     assert!(!status["ops"].as_array().unwrap().is_empty(), "{status}");
-    json(dir.path(), &["delete", "--entity", "helper", "--intent", "refactor"]);
+    json(
+        dir.path(),
+        &["delete", "--entity", "helper", "--intent", "refactor"],
+    );
     json(dir.path(), &["changeset", "end"]);
     assert!(json(dir.path(), &["changeset", "status"]).is_null());
     let defs = json(dir.path(), &["list-defs"]);
     assert!(
-        defs["definitions"].as_array().unwrap().iter().all(|d| d["name"] != "helper"),
+        defs["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|d| d["name"] != "helper"),
         "{defs}"
     );
 }
@@ -289,5 +324,58 @@ fn list_defs_json_survives_a_closed_pipe() {
     assert!(
         status.success() || status.code() == Some(141) || status.code().is_none(),
         "unexpected exit: {status:?} stderr={err}"
+    );
+}
+
+#[test]
+fn op_log_forge_export_and_classify() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(
+        dir.path(),
+        &["rename", "--entity", "parse", "--new-name", "parse_config"],
+    );
+    let ops = json(dir.path(), &["op", "log"]);
+    assert!(
+        ops.as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["op"].get("Rename").is_some()),
+        "{ops}"
+    );
+    let catalog_path = dir.path().join(".svc/forge.json");
+    let exported = json(dir.path(), &["forge", "export"]);
+    assert!(
+        exported["path"]
+            .as_str()
+            .is_some_and(|p| p.ends_with("forge.json")),
+        "{exported}"
+    );
+    assert!(catalog_path.is_file(), "missing {}", catalog_path.display());
+    let catalog: Value = serde_json::from_slice(&fs::read(&catalog_path).unwrap()).unwrap();
+    let n_ops = ops.as_array().unwrap().len();
+    assert_eq!(
+        catalog["repositories"][0]["operations"]
+            .as_array()
+            .unwrap()
+            .len(),
+        n_ops,
+        "{catalog}"
+    );
+    let classed = json(
+        dir.path(),
+        &[
+            "classify",
+            "--entity",
+            "parse_config",
+            "--definition",
+            "fn parse_config(s: &str) -> String { s.to_string() }\n",
+        ],
+    );
+    assert!(
+        classed.get("class").is_some()
+            || classed.get("observed").is_some()
+            || classed.as_str().is_some(),
+        "{classed}"
     );
 }
