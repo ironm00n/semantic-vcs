@@ -21,9 +21,9 @@ mod render_impl;
 pub use classify::classify;
 pub use merge::{lca, merge};
 pub use ops::{
-    add_def, classify_def, commit_snapshot, delete, edit_def, extract_hoist, format_tokens, inline,
-    lookup, lookup_name, move_def, redefine, relocate, rename, rust_langs, show,
-    snapshot_working_copy, status_report, StatusReport,
+    StatusReport, add_def, classify_def, commit_snapshot, delete, edit_def, extract_hoist,
+    format_tokens, inline, lookup, lookup_name, move_def, redefine, relocate, rename, rust_langs,
+    show, snapshot_working_copy, status_report,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -43,11 +43,7 @@ pub fn parse(src: &[u8], lang: &dyn Lang) -> Result<tree_sitter::Tree> {
         .ok_or_else(|| Error::Parse("tree-sitter returned None".into()))
 }
 
-pub fn extract(
-    tree: &tree_sitter::Tree,
-    src: &[u8],
-    lang: &dyn Lang,
-) -> Result<Vec<RawEntity>> {
+pub fn extract(tree: &tree_sitter::Tree, src: &[u8], lang: &dyn Lang) -> Result<Vec<RawEntity>> {
     extract::extract(tree, src, lang)
 }
 
@@ -191,7 +187,16 @@ pub fn snapshot_files(
     let mut entities = BTreeMap::new();
     let mut file_recs = BTreeMap::new();
     for p in &parsed {
-        let (ents, file) = materialize(p.src, p.path.clone(), p.lang, store, &p.tree, &p.raw, &p.ids, &env)?;
+        let (ents, file) = materialize(
+            p.src,
+            p.path.clone(),
+            p.lang,
+            store,
+            &p.tree,
+            &p.raw,
+            &p.ids,
+            &env,
+        )?;
         entities.extend(ents);
         file_recs.insert(p.path.clone(), file);
     }
@@ -334,13 +339,12 @@ fn assign_ids(raw: &[RawEntity], prev: Option<&Snapshot>) -> Vec<EntityId> {
             })
         });
         let id = reuse.unwrap_or_else(EntityId::new);
-        if let Some(prev) = prev {
-            if let Some(rec) = prev.entities.get(&id) {
-                used.insert(id, rec.content);
-            }
+        if let Some(prev) = prev
+            && let Some(rec) = prev.entities.get(&id)
+        {
+            used.insert(id, rec.content);
         }
         ids.push(id);
     }
     ids
 }
-

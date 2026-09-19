@@ -3,7 +3,7 @@ use crate::delta::ObservedClass;
 use crate::ids::{ByteRange, BytesId};
 use crate::lang::Resolution;
 
-use super::align::{binder_sites, equal_lines, idents_in, is_site, slot_bijection, SlotKey};
+use super::align::{SlotKey, binder_sites, equal_lines, idents_in, is_site, slot_bijection};
 
 /// First applicable class. Aligns rendered whole items, not neutralized tokens.
 pub fn classify(
@@ -86,7 +86,11 @@ fn surviving_refs_ok(
     true
 }
 
-fn same_target(old: &IdentRef, new: &IdentRef, bijection: &std::collections::HashMap<SlotKey, SlotKey>) -> bool {
+fn same_target(
+    old: &IdentRef,
+    new: &IdentRef,
+    bijection: &std::collections::HashMap<SlotKey, SlotKey>,
+) -> bool {
     match (old, new) {
         (IdentRef::Entity(a), IdentRef::Entity(b)) => a == b,
         (IdentRef::Free(a), IdentRef::Free(b)) => a == b,

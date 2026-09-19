@@ -2,17 +2,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{Chunk, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
+use crate::entity::EntityRecord;
 use crate::error::{Error, Result};
 use crate::ids::{ChangeId, EntityId, RelPath};
 use crate::lang::Langs;
 use crate::op::Intent;
-use crate::entity::EntityRecord;
 use crate::snapshot::Snapshot;
 use crate::store::Store;
 
-use super::{
-    classify, env_from_snapshot, ingest_file_with_env, render_entity, snapshot_files,
-};
+use super::{classify, env_from_snapshot, ingest_file_with_env, render_entity, snapshot_files};
 
 pub fn lookup_name(snap: &Snapshot, name: &str) -> Result<EntityId> {
     let hits: Vec<_> = snap
@@ -94,7 +92,11 @@ pub fn delete(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapsh
     let tree = subtree(snap, id);
     let mut outside = Vec::new();
     for d in &tree {
-        outside.extend(referrers(snap, store, *d)?.into_iter().filter(|r| !tree.contains(r)));
+        outside.extend(
+            referrers(snap, store, *d)?
+                .into_iter()
+                .filter(|r| !tree.contains(r)),
+        );
     }
     if !outside.is_empty() {
         return Err(Error::Other(format!(
@@ -127,7 +129,11 @@ pub fn edit_def(
     id: EntityId,
     definition: &[u8],
 ) -> Result<(Snapshot, ObservedClass)> {
-    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?.clone();
+    let rec = snap
+        .entities
+        .get(&id)
+        .ok_or(Error::NoSuchEntity(id))?
+        .clone();
     let lang = langs
         .for_path(&rec.file)
         .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
@@ -231,7 +237,9 @@ pub fn format_tokens(snap: &Snapshot, tokens: &[Token], self_name: &str) -> Stri
             Token::Binder(s, _) => out.push_str(&format!("${}", s.0)),
             Token::Ident(IdentRef::Local(s, _)) => out.push_str(&format!("${}", s.0)),
             Token::Ident(IdentRef::Free(n)) => out.push_str(n),
-            Token::Ident(IdentRef::Entity(eid)) if *eid == EntityId::SELF => out.push_str(self_name),
+            Token::Ident(IdentRef::Entity(eid)) if *eid == EntityId::SELF => {
+                out.push_str(self_name)
+            }
             Token::Ident(IdentRef::Entity(eid)) | Token::Child(eid) => {
                 let name = snap
                     .entities
@@ -305,15 +313,23 @@ pub fn referrers(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Vec
         if *oid == id {
             continue;
         }
-        let in_content = store.get_content(rec.content)?.tokens.iter().any(|t| match t {
-            Token::Ident(IdentRef::Entity(e)) | Token::Child(e) => *e == id,
-            _ => false,
-        });
-        let in_bytes = || -> Result<bool> {
-            Ok(store.get_bytes_blob(rec.bytes)?.chunks().iter().any(|c| match c {
-                Chunk::Child(e) | Chunk::Name(e) => *e == id,
+        let in_content = store
+            .get_content(rec.content)?
+            .tokens
+            .iter()
+            .any(|t| match t {
+                Token::Ident(IdentRef::Entity(e)) | Token::Child(e) => *e == id,
                 _ => false,
-            }))
+            });
+        let in_bytes = || -> Result<bool> {
+            Ok(store
+                .get_bytes_blob(rec.bytes)?
+                .chunks()
+                .iter()
+                .any(|c| match c {
+                    Chunk::Child(e) | Chunk::Name(e) => *e == id,
+                    _ => false,
+                }))
         };
         if in_content || in_bytes()? {
             out.push(*oid);
@@ -328,10 +344,11 @@ fn subtree(snap: &Snapshot, id: EntityId) -> BTreeSet<EntityId> {
     while grow {
         grow = false;
         for (cid, rec) in &snap.entities {
-            if let Some(p) = rec.parent {
-                if out.contains(&p) && out.insert(*cid) {
-                    grow = true;
-                }
+            if let Some(p) = rec.parent
+                && out.contains(&p)
+                && out.insert(*cid)
+            {
+                grow = true;
             }
         }
     }
@@ -356,10 +373,7 @@ pub fn redefine(
     id: EntityId,
     text: &[u8],
 ) -> Result<(crate::ids::ContentId, crate::ids::BytesId)> {
-    let rec = snapshot
-        .entities
-        .get(&id)
-        .ok_or(Error::NoSuchEntity(id))?;
+    let rec = snapshot.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
     let lang = langs
         .for_path(&rec.file)
         .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
@@ -386,35 +400,39 @@ fn ingest_one_item(
     text: &[u8],
 ) -> Result<EntityRecord> {
     if super::parse(text, lang)?.root_node().has_error() {
-        return Err(Error::Parse(format!("{verb} definition does not parse as {}", lang.name())));
+        return Err(Error::Parse(format!(
+            "{verb} definition does not parse as {}",
+            lang.name()
+        )));
     }
-    let part = ingest_file_with_env(text, file.clone(), lang, store, snap.change, &env_from_snapshot(snap))?;
+    let part = ingest_file_with_env(
+        text,
+        file.clone(),
+        lang,
+        store,
+        snap.change,
+        &env_from_snapshot(snap),
+    )?;
     let mut roots = part.entities.into_values().filter(|r| r.parent.is_none());
     match (roots.next(), roots.next()) {
         (Some(rec), None) => Ok(rec),
-        _ => Err(Error::Other(format!("{verb} definition must parse to exactly one item"))),
+        _ => Err(Error::Other(format!(
+            "{verb} definition must parse to exactly one item"
+        ))),
     }
 }
 
 /// Keep the entity's leading trivia (blank lines / docs attached by extent)
 /// and tolerate a missing trailing newline (source_file vs item range tie).
-fn item_text(
-    store: &dyn Store,
-    snap: &Snapshot,
-    id: EntityId,
-    text: &[u8],
-) -> Result<Vec<u8>> {
+fn item_text(store: &dyn Store, snap: &Snapshot, id: EntityId, text: &[u8]) -> Result<Vec<u8>> {
     let (old, _) = super::render_entity(snap, store, id, false)?;
-    let lead = old
-        .iter()
-        .take_while(|b| b.is_ascii_whitespace())
-        .count();
+    let lead = old.iter().take_while(|b| b.is_ascii_whitespace()).count();
     let mut out = Vec::new();
     if !text.first().is_some_and(|b| b.is_ascii_whitespace()) {
         out.extend_from_slice(&old[..lead]);
     }
     out.extend_from_slice(text);
-    if !out.ends_with(&[b'\n']) {
+    if !out.ends_with(b"\n") {
         out.push(b'\n');
     }
     Ok(out)
@@ -427,7 +445,7 @@ fn add_def_text(parent: Option<EntityId>, text: &[u8]) -> Vec<u8> {
         out.extend_from_slice(b"\n\n");
     }
     out.extend_from_slice(text);
-    if !out.ends_with(&[b'\n']) {
+    if !out.ends_with(b"\n") {
         out.push(b'\n');
     }
     out

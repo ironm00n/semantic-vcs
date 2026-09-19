@@ -1,8 +1,8 @@
 use crate::delta::Delta;
 use crate::ids::EntityId;
+use crate::ids::{BytesId, ContentId};
 use crate::lang::RawEntity;
 use crate::snapshot::Snapshot;
-use crate::ids::{BytesId, ContentId};
 
 pub fn match_entities(
     prev: &Snapshot,
@@ -69,7 +69,10 @@ pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<Delta> {
                     });
                 }
                 if old.content != rec.content {
-                    out.push(Delta::Edited(*id, crate::delta::ObservedClass::BindingPreserving));
+                    out.push(Delta::Edited(
+                        *id,
+                        crate::delta::ObservedClass::BindingPreserving,
+                    ));
                 } else if old.bytes != rec.bytes {
                     out.push(Delta::Edited(*id, crate::delta::ObservedClass::Alpha));
                 }

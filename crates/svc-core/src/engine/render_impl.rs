@@ -8,11 +8,7 @@ use crate::store::Store;
 
 use super::Rendered;
 
-pub fn render(
-    snapshot: &Snapshot,
-    store: &dyn Store,
-    with_maps: bool,
-) -> Result<Rendered> {
+pub fn render(snapshot: &Snapshot, store: &dyn Store, with_maps: bool) -> Result<Rendered> {
     let mut files = BTreeMap::new();
     let mut maps = with_maps.then(BTreeMap::new);
     for (path, rec) in &snapshot.files {
@@ -45,10 +41,7 @@ fn expand(
     id: EntityId,
     with_map: bool,
 ) -> Result<(Vec<u8>, Option<Vec<(ByteRange, IdentRef)>>)> {
-    let rec = snapshot
-        .entities
-        .get(&id)
-        .ok_or(Error::NoSuchEntity(id))?;
+    let rec = snapshot.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
     let bytes = store.get_bytes_blob(rec.bytes)?;
     let mut out = Vec::new();
     let mut map = with_map.then(Vec::new);

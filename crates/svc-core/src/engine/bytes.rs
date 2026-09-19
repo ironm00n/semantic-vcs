@@ -24,10 +24,10 @@ pub fn bytes_from_span(
         holes.push((r, Hole::Name(id)));
     }
     for (r, ident) in &resolution.refs {
-        if let IdentRef::Entity(id) = ident {
-            if *id != EntityId::SELF {
-                holes.push((*r, Hole::Name(*id)));
-            }
+        if let IdentRef::Entity(id) = ident
+            && *id != EntityId::SELF
+        {
+            holes.push((*r, Hole::Name(*id)));
         }
     }
     holes.sort_by_key(|(r, _)| r.start);
@@ -105,7 +105,13 @@ fn remap_locals(
         if end_base <= base {
             return;
         }
-        out.push((ByteRange { start: base, end: end_base }, ident));
+        out.push((
+            ByteRange {
+                start: base,
+                end: end_base,
+            },
+            ident,
+        ));
     };
     for (r, slot, ns) in &resolution.slots {
         push(*r, IdentRef::Local(*slot, *ns), &mut out);

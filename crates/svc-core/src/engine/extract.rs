@@ -2,11 +2,7 @@ use crate::error::Result;
 use crate::ids::ByteRange;
 use crate::lang::{EntityKindRule, Lang, RawEntity};
 
-pub fn extract(
-    tree: &tree_sitter::Tree,
-    src: &[u8],
-    lang: &dyn Lang,
-) -> Result<Vec<RawEntity>> {
+pub fn extract(tree: &tree_sitter::Tree, src: &[u8], lang: &dyn Lang) -> Result<Vec<RawEntity>> {
     let mut raw = Vec::new();
     let mut nodes = Vec::new();
     collect(tree.root_node(), src, lang, None, &mut raw, &mut nodes);
@@ -24,10 +20,11 @@ pub fn find_node<'a>(
 ) -> Option<tree_sitter::Node<'a>> {
     let mut c = node.walk();
     for ch in node.named_children(&mut c) {
-        if (ch.start_byte() as u32) <= range.start && (ch.end_byte() as u32) >= range.end {
-            if let Some(hit) = find_node(ch, range) {
-                return Some(hit);
-            }
+        if (ch.start_byte() as u32) <= range.start
+            && (ch.end_byte() as u32) >= range.end
+            && let Some(hit) = find_node(ch, range)
+        {
+            return Some(hit);
         }
     }
     (byte_range(node) == range).then_some(node)

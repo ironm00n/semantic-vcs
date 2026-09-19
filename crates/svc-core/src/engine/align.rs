@@ -21,7 +21,10 @@ pub fn line_spans(src: &[u8]) -> Vec<ByteRange> {
         }
     }
     if (start as usize) < src.len() {
-        out.push(ByteRange { start, end: src.len() as u32 });
+        out.push(ByteRange {
+            start,
+            end: src.len() as u32,
+        });
     } else if src.is_empty() {
         out.push(ByteRange { start: 0, end: 0 });
     }
@@ -111,5 +114,8 @@ pub fn map_range(from: &[u8], to: &[u8], r: ByteRange) -> Option<ByteRange> {
         .into_iter()
         .find(|(o, _)| o.start <= r.start && r.end <= o.end)?;
     let start = n.start + (r.start - o.start);
-    Some(ByteRange { start, end: start + r.len() })
+    Some(ByteRange {
+        start,
+        end: start + r.len(),
+    })
 }

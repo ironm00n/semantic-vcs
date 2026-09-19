@@ -144,10 +144,10 @@ fn unify_add_add(a: &Snapshot, b: &Snapshot, rewrite: &mut HashMap<EntityId, Ent
         if a.entities.contains_key(bid) {
             continue;
         }
-        if let Some(aid) = a_by.get(&key(rec)) {
-            if !b.entities.contains_key(aid) {
-                rewrite.insert(*bid, *aid);
-            }
+        if let Some(aid) = a_by.get(&key(rec))
+            && !b.entities.contains_key(aid)
+        {
+            rewrite.insert(*bid, *aid);
         }
     }
 }
@@ -294,7 +294,14 @@ fn merge_content(
         }
     }
     // A throwaway snapshot: only the re-ingested content/bytes hashes are kept.
-    let part = ingest_file_with_env(&out, a.file.clone(), lang, store, crate::ids::ChangeId::new(), env)?;
+    let part = ingest_file_with_env(
+        &out,
+        a.file.clone(),
+        lang,
+        store,
+        crate::ids::ChangeId::new(),
+        env,
+    )?;
     let rec = part
         .entities
         .values()
@@ -306,7 +313,10 @@ fn merge_content(
 /// The item node of a rendered entity: the first top-level node that is an entity kind
 /// for `lang`. Leading doc comments and attributes belong to the entity's bytes, so
 /// `root.child(0)` is not it.
-fn item_node<'t>(tree: &'t tree_sitter::Tree, lang: &dyn crate::lang::Lang) -> Option<tree_sitter::Node<'t>> {
+fn item_node<'t>(
+    tree: &'t tree_sitter::Tree,
+    lang: &dyn crate::lang::Lang,
+) -> Option<tree_sitter::Node<'t>> {
     let root = tree.root_node();
     let mut c = root.walk();
     root.named_children(&mut c)
@@ -461,24 +471,19 @@ fn binding_post(
                 IdentRef::Entity(x) if *x == id => IdentRef::Entity(EntityId::SELF),
                 other => other.clone(),
             };
-            if let Some((_, was, was_at)) = stored.iter().find(|(_, was, _)| {
-                !ref_eq(was, &now, id)
-            }) {
-                if !stored
-                    .iter()
-                    .any(|(_, was, _)| ref_eq(was, &now, id))
-                {
-                    snap.conflicts.push(Conflict::Binding {
-                        id,
-                        ident: TokenIx(i as u32),
-                        name: source_name(&item, *r).unwrap_or_else(|| ref_name(ident)),
-                        at: line_col(&item, r.start),
-                        was: was.clone(),
-                        was_at: Some(*was_at),
-                        now,
-                        now_at: Some(line_col(&item, r.start)),
-                    });
-                }
+            if let Some((_, was, was_at)) = stored.iter().find(|(_, was, _)| !ref_eq(was, &now, id))
+                && !stored.iter().any(|(_, was, _)| ref_eq(was, &now, id))
+            {
+                snap.conflicts.push(Conflict::Binding {
+                    id,
+                    ident: TokenIx(i as u32),
+                    name: source_name(&item, *r).unwrap_or_else(|| ref_name(ident)),
+                    at: line_col(&item, r.start),
+                    was: was.clone(),
+                    was_at: Some(*was_at),
+                    now,
+                    now_at: Some(line_col(&item, r.start)),
+                });
             }
         }
     }

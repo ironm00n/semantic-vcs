@@ -4,10 +4,10 @@
 //! one atom (spurious content conflict) and the binding post-condition never runs.
 use std::collections::BTreeMap;
 
+use svc_core::Conflict;
 use svc_core::engine::{edit_def, lookup_name, merge, render, rust_langs, snapshot_files};
 use svc_core::ids::{ChangeId, RelPath};
 use svc_core::store::{MemStore, Store};
-use svc_core::Conflict;
 
 const BASE: &str = r#"fn read(path: &str) -> String { path.to_string() }
 fn parse(s: &str) -> String { s.to_string() }
@@ -60,20 +60,28 @@ fn o7_binding_conflict_survives_doc_comment_and_attribute() {
     let merged = merge(&store, &langs, base_id, a_id, b_id).unwrap();
 
     assert!(
-        !merged.conflicts.iter().any(|c| matches!(c, Conflict::Content { .. })),
+        !merged
+            .conflicts
+            .iter()
+            .any(|c| matches!(c, Conflict::Content { .. })),
         "non-overlapping statement edits must merge at atom level: {:?}",
         merged.conflicts
     );
     assert!(
-        merged
-            .conflicts
-            .iter()
-            .any(|c| matches!(c, Conflict::Binding { id, was, now, .. } if *id == load && was != now)),
+        merged.conflicts.iter().any(
+            |c| matches!(c, Conflict::Binding { id, was, now, .. } if *id == load && was != now)
+        ),
         "expected a binding conflict on `raw` in load: {:?}",
         merged.conflicts
     );
     let out = render(&merged, &store, &langs, false).unwrap();
     let text = String::from_utf8(out.files[&path].clone()).unwrap();
-    assert!(text.contains("let raw = normalize(&raw);") && text.contains("log(&raw);"), "{text}");
-    assert!(text.contains("/// Loads a config.\n#[inline]\nfn load"), "{text}");
+    assert!(
+        text.contains("let raw = normalize(&raw);") && text.contains("log(&raw);"),
+        "{text}"
+    );
+    assert!(
+        text.contains("/// Loads a config.\n#[inline]\nfn load"),
+        "{text}"
+    );
 }
