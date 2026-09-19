@@ -75,23 +75,22 @@ fn o5_replay_reproduces_every_snapshot() {
     assert!(report.ok(), "replay diverged: {report:?}");
 }
 
-/// DEBATE §14: two checkouts share one op log but start ops from different roots. A
-/// `checkout` between ops is the same thing to the log (a root switch with no entry), so
-/// [A: rename] [B: rename from A's *previous* root] [A: describe] must replay by following
-/// each entry's recorded `before.root`, not the last op's result.
+/// DEBATE §14: two checkouts share one op log but start ops from different roots. Two
+/// changes edited alternately look the same to the log (`edit` switches root without an
+/// entry), so [A: rename] [B: rename] [A: describe] must replay by following each entry's
+/// recorded `before.root`, not the last op's result.
 #[test]
 fn o5_follows_each_ops_recorded_root_across_checkouts() {
     let (_dir, repo) = fresh();
     svc_repo::new(&repo).unwrap();
-    let r0 = repo.view().unwrap().root;
-    rename_op(&repo, "read", "read_file"); // A, from r0
-    let r1 = repo.view().unwrap().root;
-    svc_repo::checkout(&repo, r0).unwrap(); // "checkout B", whose root is still r0
-    rename_op(&repo, "helper_base", "helper"); // B, from r0
-    svc_repo::checkout(&repo, r1).unwrap(); // back to A
-    svc_repo::describe(&repo, "renamed read").unwrap(); // A, from r1
+    let a = repo.current_change().unwrap();
+    rename_op(&repo, "read", "read_file"); // A
+    svc_repo::branch(&repo, "b").unwrap(); // B: a sibling change, now current
+    rename_op(&repo, "helper_base", "helper"); // B, from B's root
+    svc_repo::edit(&repo, &a.to_string()).unwrap(); // back to A's head: a root switch, no op
+    svc_repo::describe(&repo, "renamed read").unwrap(); // A, from A's root
 
     let report = svc_repo::replay(&repo).unwrap();
-    assert_eq!(report.ops, 5, "init, new, rename, rename, describe");
+    assert_eq!(report.ops, 6, "init, new, rename, branch, rename, describe");
     assert!(report.ok(), "diverged at {:?}", report.diverged_at);
 }
