@@ -44,6 +44,7 @@ async fn run_app(
     wire_log: bool,
 ) -> Result<(), String> {
     let mut app = App::new(svc);
+    app.refresh(); // before the agent can say Ready: the pre-seed needs the entity list
     let (ev_tx, mut ev_rx) = mpsc::unbounded_channel();
     let mut driver = None;
     let mut changeset_open = false;
@@ -57,6 +58,7 @@ async fn run_app(
         app.agent = Some(AgentLink {
             commands: cmd_tx,
             task,
+            preseed: std::env::var_os("SVC_AGENT_PRESEED").is_some(),
             running: false,
             tool_titles: Default::default(),
         });

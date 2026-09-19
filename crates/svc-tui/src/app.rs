@@ -50,6 +50,9 @@ impl QueueItem {
 pub struct AgentLink {
     pub commands: UnboundedSender<AgentCommand>,
     pub task: String,
+    /// Prepend the entity list to the first prompt (SUBMISSION: removes the discovery
+    /// round trip when the live run is long). `SVC_AGENT_PRESEED=1`.
+    pub preseed: bool,
     pub running: bool,
     pub tool_titles: HashMap<String, (String, Value)>,
 }
@@ -196,6 +199,18 @@ impl App {
         } else if self.queue_state.selected().is_none_or(|s| s >= n) {
             self.queue_state.select(Some(0));
         }
+    }
+
+    /// The entity list as the agent's `list_defs` would report it, for pre-seeding.
+    fn preseed_text(&self) -> Option<String> {
+        if self.defs.is_empty() {
+            return None;
+        }
+        let mut s = String::from("Definitions in this repository (svc list-defs; refer to them by name or id):\n");
+        for d in &self.defs {
+            s.push_str(&format!("- {:?} {} in {} (id {})\n", d.kind, d.name, d.file, d.id));
+        }
+        Some(s)
     }
 
     pub fn name_of(&self, id: &str) -> String {
@@ -365,9 +380,14 @@ impl App {
         match ev {
             AgentEvent::Ready { session_id } => {
                 self.status = format!("agent session {session_id}");
+                let seed = self.preseed_text();
                 if let Some(agent) = &mut self.agent {
                     agent.running = true;
-                    let _ = agent.commands.send(AgentCommand::Prompt(agent.task.clone()));
+                    let prompt = match seed {
+                        Some(defs) if agent.preseed => format!("{}\n\n{defs}", agent.task),
+                        _ => agent.task.clone(),
+                    };
+                    let _ = agent.commands.send(AgentCommand::Prompt(prompt));
                 }
             }
             AgentEvent::Message { text, .. } => {
@@ -679,6 +699,7 @@ mod tests {
         app.agent = Some(AgentLink {
             commands: tx,
             task: "rename read to read_file".into(),
+            preseed: false,
             running: false,
             tool_titles: Default::default(),
         });
@@ -703,6 +724,24 @@ mod tests {
         assert!(app.agent.as_ref().unwrap().running);
         assert_eq!(prompt_text(rx.try_recv().unwrap()), "rename read to read_file");
         assert!(rx.try_recv().is_err(), "exactly one prompt");
+    }
+
+    #[test]
+    fn preseed_puts_the_entity_list_in_the_first_prompt() {
+        let (mut app, mut rx) = app_with_agent();
+        app.agent.as_mut().unwrap().preseed = true;
+        app.defs = vec![Definition {
+            id: "01a0-read".into(),
+            name: "read".into(),
+            kind: svc_core::Kind::Fn,
+            file: "src/main.rs".into(),
+            parent: None,
+            ordinal: 3,
+        }];
+        app.on_agent_event(AgentEvent::Ready { session_id: "s1".into() });
+        let prompt = prompt_text(rx.try_recv().unwrap());
+        assert!(prompt.starts_with("rename read to read_file\n\nDefinitions in this repository"), "{prompt}");
+        assert!(prompt.contains("Fn read in src/main.rs (id 01a0-read)"), "{prompt}");
     }
 
     #[test]
@@ -800,6 +839,7 @@ mod tests {
             app.agent = Some(AgentLink {
                 commands: cmd_tx,
                 task: "edit validate".into(),
+                preseed: false,
                 running: false,
                 tool_titles: Default::default(),
             });
