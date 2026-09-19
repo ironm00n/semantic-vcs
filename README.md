@@ -40,8 +40,12 @@ Run the executable acceptance demo (Rust lines 1–7 and 9–11, plus the
 JavaScript replay) with:
 
 ```sh
-demo/demo-lines.sh target/debug/svc
+demo/run.sh target/debug/svc
 ```
+
+(`demo/run.sh` passes an absolute binary path into `demo/demo-lines.sh`, which `cd`s away.)
+
+The live A/B (stock dsh vs overlay, two processes, reset from `demo/pristine/`) is `demo/ab.sh`. Without a model credential it asserts identical starting trees and exits 0 with SKIP; `demo/recordings/line9.jsonl` is the scripted stand-in for the overlay arm. Plume fields: `PLUME.md`.
 
 Open the terminal review UI from an initialized repository with `svc tui`.
 It shows the entity tree, semantic event stream, and review queue; `q` exits.
