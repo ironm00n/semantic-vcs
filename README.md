@@ -60,8 +60,64 @@ cargo build -p svc && demo/self-host.sh
 
 The live A/B (stock dsh vs overlay, two processes, reset from `demo/pristine/`) is `demo/ab.sh`. Without a model credential it asserts identical starting trees and exits 0 with SKIP. `demo/recordings/line9.jsonl` records a completed live overlay run; `demo/recordings/line9.ops.jsonl` drives the deterministic in-TUI replay. Plume fields: `PLUME.md`.
 
-Open the terminal review UI from an initialized repository with `svc tui`.
-It shows the entity tree, semantic event stream, and review queue; `q` exits.
+Every verb prints a sentence by default and the machine form with `--json`.
+`svc rename` also says how many mentions it could not track:
+
+```text
+$ svc rename --entity parse --new-name parse_config
+renamed parse → parse_config
+1 method call `.parse(…)` left unchanged: receiver types are not resolved
+$ svc merge a6
+merged into change 8230 (snapshot 58f0): 1 conflict(s)
+    [0] binding conflict in load: `raw` at src/main.rs:73 meant the `let raw` at src/main.rs:67, now means the `let raw` at src/main.rs:68 (shadowed)
+```
+
+### The review TUI, with the agent inside it
+
+`svc tui` from an initialized repository shows the entity tree (left), the
+selected entity's source, canonical stream and history (right), and the review
+queue (bottom): every `edit_def`, green when declared and observed intent
+agree, red when they don't, plus every binding conflict. Keys: `j/k`, `tab`,
+`enter`, `a`/`r` allow or reject the pending ask, `p` asks an agent that ended
+its turn early to continue, `u` undo, `c` cancel, `q` quit.
+
+`svc tui --agent "<task>"` runs the task under dsh **inside** the TUI: the ops
+stream into the panes as they land, the `edit_def` permission request lands in
+the queue and is answered from there, and the whole run is one changeset that
+`svc undo` reverts in one step (SPEC §10 line 12). Without a model credential,
+`SVC_AGENT_COMMAND="node demo/replay-agent.mjs demo/recordings/line9.ops.jsonl"`
+hosts a scripted ACP agent that replays the three recorded ops through the real
+binary; that is what the acceptance script's line 12 gates. Any ACP-on-stdio
+agent works the same way; one that advertises an auth method (Devin's
+`devin acp`) is authenticated with `SVC_AGENT_API_KEY`.
+
+For a hands-on tour, `demo/play.sh` drops you in a scratch copy of the demo
+crate with `svc` on `PATH` and a cheat-sheet (`--tui`, `--agent`).
+
+### The forge
+
+`crates/svc-forge` is a read-only localhost browser for a semantic repository:
+snapshots, typed entities, typed operations, conflicts and the review queue.
+`svc forge export` writes its catalog from the store into `.svc/forge.json`
+(atomically, so it never contends with a writer), and the forge serves it:
+
+```sh
+svc forge export
+cargo run -p svc-forge -- --catalog .svc/forge.json   # http://127.0.0.1:7742
+```
+
+The acceptance script's F1–F5 export the demo repository, start the forge on an
+ephemeral port and check that `/operations` and `/reviews` match the store.
+
+### Real crates
+
+`svc init` on `syn` (97 files) ingests 7,365 entities in 14 s; on `tokio`
+(555 files) 11,786 entities in 19 s; `svc status` on either takes 0.06–0.15 s.
+Renaming `tokio`'s `asyncify` (30 call sites across 26 files) is one `svc log`
+line, 0.26 s, and the crate still passes `cargo check --features full`; git shows
+the same change as 26 files, 55 insertions, 55 deletions. Method calls on typed
+receivers are not resolved (no types), and `svc rename` says so rather than
+silently leaving 62 `.push_value(…)` calls behind.
 
 ## Agent harness
 
@@ -107,10 +163,20 @@ This is a hackathon prototype, not a replacement for Git today.
 - A live `svc agent` run requires a supported model credential. The ACP
   transport, permission flow, failure handling, and event stream are covered
   by a scripted fake-agent suite when no credential is available.
+- With `deepseek-chat`, one live run in three ends its turn after the first
+  op or narrates the tool calls instead of making them; the TUI's `p` key
+  re-prompts the same session. Ops are correct by construction either way.
+- `svc undo` restores `root` and the heads the op recorded but cannot remove a
+  head (the frozen `Store` API has no delete); repeated `undo` walks back
+  through a checkout's own ops, `svc op restore <n>` is the redo.
+- Named checkouts share one store and one op log; each checkout undoes its own
+  ops and refuses to mutate while behind its change's head. Concurrent writers
+  are serialised by one exclusive store session with a bounded wait
+  (`SVC_LOCK_TIMEOUT_MS`), not merged.
 
 ## Built with and dependencies
 
-Built at HackMIT 2026 with Codex, Claude Code, Muse, and DeepSeek Harness. Major dependencies are Rust, tree-sitter, tree-sitter-rust, tree-sitter-javascript, redb, postcard, BLAKE3, UUID, similar, clap, serde, ratatui, crossterm, tui-input, agent-client-protocol, Node.js 24, and `@deepseek-ai/dsh@0.1.5-rc.2`.
+Built at HackMIT 2026 with Codex, Claude Code, Muse, and DeepSeek Harness. Major dependencies are Rust, tree-sitter, tree-sitter-rust, tree-sitter-javascript, redb, postcard, BLAKE3, UUID, similar, clap, serde, ratatui, crossterm, tui-input, agent-client-protocol, axum, Node.js 24, and `@deepseek-ai/dsh@0.1.5-rc.2`.
 
 ## Prior art
 
