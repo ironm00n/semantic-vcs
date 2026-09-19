@@ -570,6 +570,7 @@ dependencies = [
  "blake3",
  "postcard",
  "serde",
+ "serde_json",
  "similar",
  "thiserror",
  "tree-sitter",
