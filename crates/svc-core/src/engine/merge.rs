@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use similar::{ChangeTag, MergeResolution, TextDiff, TextMerge};
 
-use crate::content::IdentRef;
+use crate::content::{IdentRef, Namespace};
 use crate::entity::{EntityRecord, FileRecord, SigKey};
 use crate::error::{Error, Result};
-use crate::ids::{AtomIx, ByteRange, EntityId, LineCol, RelPath, SnapshotId, TokenIx};
+use crate::ids::{AtomIx, ByteRange, EntityId, LineCol, RelPath, Slot, SnapshotId, TokenIx};
 use crate::lang::Langs;
 use crate::snapshot::{Conflict, Hunk, Merge, Side, Snapshot};
 use crate::store::Store;
@@ -42,15 +42,12 @@ pub fn merge(
     for id in ids {
         let o = base_s.entities.get(&id);
         let xa = a_s.entities.get(&id);
-        let xb = b_s
-            .entities
-            .get(&id)
-            .or_else(|| {
-                rewrite
-                    .iter()
-                    .find(|(_, v)| **v == id)
-                    .and_then(|(k, _)| b_s.entities.get(k))
-            });
+        let xb = b_s.entities.get(&id).or_else(|| {
+            rewrite
+                .iter()
+                .find(|(_, v)| **v == id)
+                .and_then(|(k, _)| b_s.entities.get(k))
+        });
         match (o, xa, xb) {
             (None, None, None) => {}
             (None, Some(rec), None) | (Some(_), Some(rec), None) if xb.is_none() && o.is_none() => {
@@ -321,7 +318,8 @@ fn merge_content(
         return Ok((a.content, a.bytes));
     }
     let mut out = Vec::new();
-    for (i, region) in merged.regions().iter().enumerate() {
+    let mut out_atom = 0usize;
+    for region in merged.regions() {
         let (side, srcs, range) = match region.resolution() {
             MergeResolution::Unchanged | MergeResolution::Both => {
                 (SideOrBase::Base, &oa, region.base_range())
@@ -331,10 +329,11 @@ fn merge_content(
             MergeResolution::Conflict => (SideOrBase::A, &aa, region.ours_range()),
             _ => (SideOrBase::A, &aa, region.ours_range()),
         };
-        atom_side.insert((id, i), side);
         for idx in range {
             if let Some(atom) = srcs.get(idx) {
+                atom_side.insert((id, out_atom), side);
                 out.extend_from_slice(atom);
+                out_atom += 1;
             }
         }
     }
@@ -381,12 +380,14 @@ fn src_atoms(src: &[u8], lang: &dyn crate::lang::Lang) -> Result<Vec<Vec<u8>>> {
     Ok(atoms)
 }
 
-fn merge_files(
-    o: &Snapshot,
-    a: &Snapshot,
-    b: &Snapshot,
-) -> BTreeMap<RelPath, FileRecord> {
-    let paths: BTreeSet<_> = o.files.keys().chain(a.files.keys()).chain(b.files.keys()).cloned().collect();
+fn merge_files(o: &Snapshot, a: &Snapshot, b: &Snapshot) -> BTreeMap<RelPath, FileRecord> {
+    let paths: BTreeSet<_> = o
+        .files
+        .keys()
+        .chain(a.files.keys())
+        .chain(b.files.keys())
+        .cloned()
+        .collect();
     let mut out = BTreeMap::new();
     for p in paths {
         let of = o.files.get(&p);
@@ -420,7 +421,8 @@ fn merge_files(
 }
 
 fn signature_pass(snap: &mut Snapshot) {
-    let mut seen: HashMap<(Option<EntityId>, crate::entity::Kind, String), EntityId> = HashMap::new();
+    let mut seen: HashMap<(Option<EntityId>, crate::entity::Kind, String), EntityId> =
+        HashMap::new();
     let mut extra = Vec::new();
     for (id, rec) in &snap.entities {
         let key = (rec.parent, rec.kind, rec.name.clone());
@@ -446,7 +448,7 @@ fn binding_post(
     a: &Snapshot,
     b: &Snapshot,
     snap: &mut Snapshot,
-    atom_side: &HashMap<(EntityId, usize), SideOrBase>,
+    _atom_side: &HashMap<(EntityId, usize), SideOrBase>,
 ) -> Result<()> {
     let rendered = render(snap, store, langs, true)?;
     let env = env_from_snapshot(snap);
@@ -459,7 +461,8 @@ fn binding_post(
         let Some(file) = rendered.files.get(&rec.file) else {
             continue;
         };
-        let (item, _map) = render_entity(snap, store, id, true)?;
+        let (item, map) = render_entity(snap, store, id, true)?;
+        let map = map.unwrap_or_default();
         let tree = match super::parse(&item, lang) {
             Ok(t) => t,
             Err(_) => continue,
@@ -467,37 +470,38 @@ fn binding_post(
         let Some(node) = tree.root_node().child(0) else {
             continue;
         };
+        let own_name = node
+            .child_by_field_name("name")
+            .map(super::extract::byte_range);
         let res = super::resolve(node, &item, lang, &env)?;
-        let side_of = |r: ByteRange| {
-            let atoms = atom_index_for(&item, r);
-            match atom_side.get(&(id, atoms)).copied().unwrap_or(SideOrBase::Base) {
-                SideOrBase::A => a,
-                SideOrBase::B => b,
-                SideOrBase::Base => base,
-            }
-        };
         for (i, (r, ident)) in res.refs.iter().enumerate() {
-            if matches!(ident, IdentRef::Free(_)) {
+            if matches!(ident, IdentRef::Free(_)) || own_name == Some(*r) {
                 continue;
             }
-            let origin = side_of(*r);
-            let stored = stored_ref(origin, store, id, &item, *r);
+            let stored: Vec<_> = [base, a, b]
+                .into_iter()
+                .filter_map(|origin| {
+                    stored_ref(origin, store, id, &item, &map, *r).map(|was| (origin, was))
+                })
+                .collect();
             // The declaration site is stored as `Entity(SELF)` (§2.3) and re-resolves to the
             // entity's own id; that is the same target, not a rebinding.
             let now = match ident {
                 IdentRef::Entity(x) if *x == id => IdentRef::Entity(EntityId::SELF),
                 other => other.clone(),
             };
-            if let Some(was) = stored {
-                let was_n = normalize_self(was.clone(), id);
-                let now_n = normalize_self(now.clone(), id);
-                if !ref_eq(&was_n, &now_n) {
+            if !stored.is_empty()
+                && !stored
+                    .iter()
+                    .any(|(origin, was)| ref_eq(was, &now, origin, snap, id))
+            {
+                if let Some((_, was)) = stored.into_iter().next() {
                     snap.conflicts.push(Conflict::Binding {
                         id,
                         ident: TokenIx(i as u32),
                         name: ref_name(ident),
                         at: line_col(&item, r.start),
-                        was: was.clone(),
+                        was,
                         was_at: None,
                         now,
                         now_at: Some(line_col(&item, r.start)),
@@ -510,31 +514,12 @@ fn binding_post(
     Ok(())
 }
 
-fn atom_index_for(src: &[u8], r: ByteRange) -> usize {
-    let mut n = 0;
-    let mut seen_brace = false;
-    for (i, b) in src.iter().enumerate() {
-        if !seen_brace && *b == b'{' {
-            seen_brace = true;
-            n = 1;
-            continue;
-        }
-        if seen_brace && *b == b';' && (i as u32) < r.start {
-            n += 1;
-        }
-    }
-    if !seen_brace {
-        0
-    } else {
-        n
-    }
-}
-
 fn stored_ref(
     origin: &Snapshot,
     store: &dyn Store,
     id: EntityId,
     merged_src: &[u8],
+    merged_map: &[(ByteRange, IdentRef)],
     r: ByteRange,
 ) -> Option<IdentRef> {
     if !origin.entities.contains_key(&id) {
@@ -543,16 +528,82 @@ fn stored_ref(
     let (orig_src, orig_map) = super::render_entity(origin, store, id, true).ok()?;
     let orig_map = orig_map.unwrap_or_default();
     let mapped = map_range(merged_src, &orig_src, r)?;
-    ident_at(&orig_map, mapped)
+    match ident_at(&orig_map, mapped)? {
+        IdentRef::Local(slot, ns) => {
+            let slots = slot_bijection(&orig_src, merged_src, &orig_map, merged_map);
+            let (slot, ns) = slots.get(&(slot, ns)).copied().unwrap_or((slot, ns));
+            Some(IdentRef::Local(slot, ns))
+        }
+        other => Some(other),
+    }
+}
+
+fn slot_bijection(
+    old_src: &[u8],
+    new_src: &[u8],
+    old_map: &[(ByteRange, IdentRef)],
+    new_map: &[(ByteRange, IdentRef)],
+) -> HashMap<(Slot, Namespace), (Slot, Namespace)> {
+    let old_lines = line_spans(old_src);
+    let new_lines = line_spans(new_src);
+    let old_s = String::from_utf8_lossy(old_src);
+    let new_s = String::from_utf8_lossy(new_src);
+    let diff = TextDiff::from_lines(old_s.as_ref(), new_s.as_ref());
+    let old_sites = binder_sites(old_map);
+    let new_sites = binder_sites(new_map);
+    let mut old_i = 0usize;
+    let mut new_i = 0usize;
+    let mut out = HashMap::new();
+    for change in diff.iter_all_changes() {
+        match change.tag() {
+            ChangeTag::Equal => {
+                if let (Some(old_line), Some(new_line)) =
+                    (old_lines.get(old_i), new_lines.get(new_i))
+                {
+                    let old_ids = idents_in(old_map, *old_line);
+                    let new_ids = idents_in(new_map, *new_line);
+                    for ((old_r, old), (new_r, new)) in old_ids.iter().zip(new_ids.iter()) {
+                        if let (IdentRef::Local(os, ons), IdentRef::Local(ns, nns)) = (old, new)
+                            && old_sites.get(&(*os, *ons)) == Some(old_r)
+                            && new_sites.get(&(*ns, *nns)) == Some(new_r)
+                        {
+                            out.entry((*os, *ons)).or_insert((*ns, *nns));
+                        }
+                    }
+                }
+                old_i += 1;
+                new_i += 1;
+            }
+            ChangeTag::Delete => old_i += 1,
+            ChangeTag::Insert => new_i += 1,
+        }
+    }
+    out
+}
+
+fn binder_sites(map: &[(ByteRange, IdentRef)]) -> HashMap<(Slot, Namespace), ByteRange> {
+    let mut out = HashMap::new();
+    for (r, ident) in map {
+        if let IdentRef::Local(slot, ns) = ident {
+            out.entry((*slot, *ns)).or_insert(*r);
+        }
+    }
+    out
+}
+
+fn idents_in(map: &[(ByteRange, IdentRef)], line: ByteRange) -> Vec<(ByteRange, IdentRef)> {
+    map.iter()
+        .filter(|(r, _)| line.start <= r.start && r.end <= line.end)
+        .cloned()
+        .collect()
 }
 
 fn ident_at(map: &[(ByteRange, IdentRef)], r: ByteRange) -> Option<IdentRef> {
     map.iter()
         .find(|(mr, _)| mr.start == r.start && mr.end == r.end)
         .or_else(|| {
-            map.iter().find(|(mr, _)| {
-                mr.start < r.end && r.start < mr.end
-            })
+            map.iter()
+                .find(|(mr, _)| mr.start < r.end && r.start < mr.end)
         })
         .map(|(_, i)| i.clone())
 }
@@ -613,20 +664,20 @@ fn line_spans(src: &[u8]) -> Vec<ByteRange> {
     out
 }
 
-fn ref_eq(a: &IdentRef, b: &IdentRef) -> bool {
+fn ref_eq(a: &IdentRef, b: &IdentRef, old: &Snapshot, new: &Snapshot, owner: EntityId) -> bool {
     match (a, b) {
-        (IdentRef::Entity(x), IdentRef::Entity(y)) => x == y,
+        (IdentRef::Entity(x), IdentRef::Entity(y)) => {
+            entity_name(old, owner, *x) == entity_name(new, owner, *y)
+        }
         (IdentRef::Free(x), IdentRef::Free(y)) => x == y,
         (IdentRef::Local(x, xn), IdentRef::Local(y, yn)) => x == y && xn == yn,
         _ => false,
     }
 }
 
-fn normalize_self(ident: IdentRef, id: EntityId) -> IdentRef {
-    match ident {
-        IdentRef::Entity(e) if e == EntityId::SELF || e == id => IdentRef::Entity(EntityId::SELF),
-        other => other,
-    }
+fn entity_name(snapshot: &Snapshot, owner: EntityId, id: EntityId) -> Option<&str> {
+    let id = if id == EntityId::SELF { owner } else { id };
+    snapshot.entities.get(&id).map(|rec| rec.name.as_str())
 }
 
 fn ref_name(ident: &IdentRef) -> String {

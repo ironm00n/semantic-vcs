@@ -59,6 +59,34 @@ enum ChangeSetCommand {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    if matches!(cli.command, Command::Tui) {
+        let root = match env::current_dir().and_then(|path| path.canonicalize()) {
+            Ok(root) => root,
+            Err(error) => {
+                eprintln!("svc: could not resolve repository root: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        let svc_bin = match env::current_exe() {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!("svc: could not locate its executable: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        return match svc_tui::run(svc_tui::TuiOptions {
+            svc_bin,
+            root,
+            agent: None,
+            wire_log: false,
+        }) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("svc: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if let Command::Agent { task } = &cli.command {
         let runtime = match tokio::runtime::Runtime::new() {
             Ok(runtime) => runtime,
@@ -158,6 +186,14 @@ fn parse_take(value: &str) -> Result<Take, String> {
         "base" => Ok(Take::Base),
         _ => Err("--take must be a, b, or base".into()),
     }
+}
+
+fn definition_bytes(definition: &str) -> Vec<u8> {
+    let mut bytes = definition.as_bytes().to_vec();
+    if !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
+    }
+    bytes
 }
 
 fn list_defs(repo: &Repo) -> Result<Value, String> {
@@ -321,6 +357,7 @@ fn add_def_cmd(repo: &Repo, args: &AddDefArgs) -> Result<Value, String> {
         .transpose()?
         .flatten();
     let intent = parse_intent(&args.intent);
+    let definition = definition_bytes(&args.definition);
     let op = Op::AddDef {
         id,
         parent,
@@ -332,7 +369,7 @@ fn add_def_cmd(repo: &Repo, args: &AddDefArgs) -> Result<Value, String> {
         .mutate(op, None, |repo, cur| {
             let next = add_def(
                 repo.store(), repo.langs(), cur, id, parent, args.ordinal,
-                args.definition.as_bytes(), intent,
+                &definition, intent,
             )?;
             repo.amend(cur, next)
         })
@@ -354,8 +391,9 @@ fn edit_def_cmd(repo: &Repo, args: &EditDefArgs) -> Result<Value, String> {
     repo.absorb().map_err(|e| e.to_string())?;
     let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
     let current = repo.current().map_err(|e| e.to_string())?;
+    let definition = definition_bytes(&args.definition);
     let observed = classify_def(
-        repo.store(), repo.langs(), &current, id, args.definition.as_bytes(),
+        repo.store(), repo.langs(), &current, id, &definition,
     )
     .map_err(|e| e.to_string())?;
     let intent = parse_intent(&args.intent);
@@ -367,7 +405,7 @@ fn edit_def_cmd(repo: &Repo, args: &EditDefArgs) -> Result<Value, String> {
     let m = repo
         .mutate(op, Some(observed), |repo, cur| {
             let (next, _) = edit_def(
-                repo.store(), repo.langs(), cur, id, args.definition.as_bytes(),
+                repo.store(), repo.langs(), cur, id, &definition,
             )?;
             repo.amend(cur, next)
         })
@@ -378,8 +416,9 @@ fn edit_def_cmd(repo: &Repo, args: &EditDefArgs) -> Result<Value, String> {
 fn classify_cmd(repo: &Repo, args: &ClassifyArgs) -> Result<Value, String> {
     let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
     let current = repo.current().map_err(|e| e.to_string())?;
+    let definition = definition_bytes(&args.definition);
     let observed = classify_def(
-        repo.store(), repo.langs(), &current, id, args.definition.as_bytes(),
+        repo.store(), repo.langs(), &current, id, &definition,
     )
     .map_err(|e| e.to_string())?;
     Ok(json!({"observed": observed, "committed": false}))

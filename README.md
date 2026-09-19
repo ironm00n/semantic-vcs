@@ -36,6 +36,16 @@ demo/git-twin/build.sh
 
 It creates two non-overlapping branches. One shadows `raw` with a normalized value; the other adds `log(&raw)` intending the original binding. Git merges cleanly and the crate compiles, but the log call now resolves to the new shadow.
 
+Run the executable acceptance demo (Rust lines 1–7 and 9–11, plus the
+JavaScript replay) with:
+
+```sh
+demo/demo-lines.sh target/debug/svc
+```
+
+Open the terminal review UI from an initialized repository with `svc tui`.
+It shows the entity tree, semantic event stream, and review queue; `q` exits.
+
 ## Agent harness
 
 Build `svc`, provide an absolute binary path and a supported model credential, then launch dsh:
@@ -69,12 +79,17 @@ Canonical content replaces local names with slots and cross-definition names wit
 
 This is a hackathon prototype, not a replacement for Git today.
 
-- Rust is the verified first language; JavaScript support is in progress.
+- Rust and JavaScript are both verified by round-trip, alpha-renaming,
+  extraction-kind, rename-propagation, and CLI acceptance tests.
 - Lexical binding is tracked. Type-relative resolution—methods, fields, associated items, and trait dispatch—is deliberately outside the current model.
 - `macro_rules!` bodies and several dynamic-language constructs are treated conservatively or as opaque text.
 - The store versions language definitions, not build files such as `Cargo.toml` or prose such as this README.
 - The classifier checks surviving-reference capture, not behavioral equivalence or task completion.
-- Some CLI verbs remain integration work while the merge and operation lanes land.
+- Cross-file JavaScript import/export resolution is not modeled in v1; keep
+  semantic rename demonstrations within one module.
+- A live `svc agent` run requires a supported model credential. The ACP
+  transport, permission flow, failure handling, and event stream are covered
+  by a scripted fake-agent suite when no credential is available.
 
 ## Built with and dependencies
 

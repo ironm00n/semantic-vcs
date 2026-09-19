@@ -98,3 +98,27 @@ fn layout_local_rename_is_not_semantic() {
     assert_eq!(report.semantic, 0, "{:?}", report.deltas);
     assert_eq!(report.layout, 1, "{:?}", report.deltas);
 }
+
+#[test]
+fn redefine_without_trailing_newline_keeps_callee_entity() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, SRC.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let load_id = lookup_name(&snap, "load").unwrap();
+    let parse_id = lookup_name(&snap, "parse").unwrap();
+    let text = b"fn load(path: &str) -> usize { parse(path) + 1 }";
+    assert_ne!(text.last(), Some(&b'\n'));
+    let (content, _) = redefine(&store, &langs, &snap, load_id, text).unwrap();
+    let c = store.get_content(content).unwrap();
+    assert!(
+        c.tokens.iter().any(|t| match t {
+            Token::Ident(IdentRef::Entity(id)) => *id == parse_id,
+            _ => false,
+        }),
+        "callee must resolve to parse's entity id, got {:?}",
+        c.tokens
+    );
+}
