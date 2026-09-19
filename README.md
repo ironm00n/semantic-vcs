@@ -100,11 +100,13 @@ that `ingest(render(s))` is a fixpoint that mints no new ids.
 ### Identity across re-parses
 
 When the working copy is re-ingested (`svc status`/`absorb`), parsed items are
-matched to the previous snapshot by `(parent, kind, name)` first, then by
-`ContentId` if exactly one unmatched previous entity has the same canonical
-body (`engine/diff_impl.rs`). Anything else is `Added`/`Removed`. A rename done
-*as text* therefore survives as the same entity when the body is unchanged;
-a rename done as `svc rename` never needs matching at all. O10 pins the
+matched to the previous snapshot by `(parent, kind, name)` (`assign_ids` in
+`engine/mod.rs`); anything else is `Added`/`Removed`. A rename done *as text*
+is therefore a delete plus an add with a fresh id — the store cannot tell it
+from one — while `svc rename` keeps the id and needs no matching at all. That
+asymmetry is the argument for making rename an operation. (A `ContentId`
+fallback matcher exists in `engine/diff_impl.rs` but is not on the ingest
+path.) O10 pins the
 parent/child invariant: every `parent = Some(p)` has exactly one `Child(e)` in
 `p`'s chunk list and token stream, and vice versa.
 

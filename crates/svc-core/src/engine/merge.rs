@@ -353,15 +353,25 @@ fn a_change_dummy(a: &EntityRecord) -> crate::ids::ChangeId {
     crate::ids::ChangeId::new()
 }
 
+/// The item node of a rendered entity: the first top-level node that is an entity kind
+/// for `lang`. Leading doc comments and attributes belong to the entity's bytes, so
+/// `root.child(0)` is not it.
+fn item_node<'t>(tree: &'t tree_sitter::Tree, lang: &dyn crate::lang::Lang) -> Option<tree_sitter::Node<'t>> {
+    let root = tree.root_node();
+    let mut c = root.walk();
+    root.named_children(&mut c)
+        .find(|n| lang.entity_kinds().iter().any(|r| r.node_kind == n.kind()))
+}
+
 fn src_atoms(src: &[u8], lang: &dyn crate::lang::Lang) -> Result<Vec<Vec<u8>>> {
     let tree = parse(src, lang)?;
-    let Some(item) = tree.root_node().named_child(0) else {
+    let Some(item) = item_node(&tree, lang) else {
         return Ok(vec![src.to_vec()]);
     };
     let Some(body) = item.child_by_field_name("body") else {
         return Ok(vec![src.to_vec()]);
     };
-    // Atom 0 is the signature up to and including the body's opening brace (design §5.3).
+    // Atom 0 is the signature up to and including the body's opening brace.
     let open = body.start_byte() + usize::from(src.get(body.start_byte()) == Some(&b'{'));
     let mut atoms = Vec::new();
     atoms.push(src.get(..open).unwrap_or(src).to_vec());
@@ -482,7 +492,7 @@ fn binding_post(
             Ok(t) => t,
             Err(_) => continue,
         };
-        let Some(node) = tree.root_node().child(0) else {
+        let Some(node) = item_node(&tree, lang) else {
             continue;
         };
         let own_name = node
