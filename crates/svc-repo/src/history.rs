@@ -255,17 +255,22 @@ pub fn op_log(repo: &Repo) -> Result<Vec<OpOut>> {
 }
 
 /// `svc log`: the op view scoped to one change (DECISIONS §20) — every op that moved that
-/// change's head — newest first. Defaults to the current change.
+/// change's head or ran on it (a no-op `edit-def` still happened and still queues for
+/// review) — newest first. Defaults to the current change.
 pub fn log(repo: &Repo, change: Option<ChangeId>) -> Result<Vec<OpOut>> {
     let change = match change {
         Some(c) => c,
         None => repo.current_change()?,
     };
-    Ok(repo
-        .store()
+    let store = repo.store();
+    let on_change = |e: &OpLogEntry| {
+        e.before.heads.get(&change) != e.after.heads.get(&change)
+            || store.get_snapshot(e.after.root).is_ok_and(|s| s.change == change)
+    };
+    Ok(store
         .ops(OpIx(0), true)?
         .iter()
-        .filter(|(_, e)| e.before.heads.get(&change) != e.after.heads.get(&change))
+        .filter(|(_, e)| on_change(e))
         // The change's birth is not one of its events.
         .filter(|(_, e)| !matches!(e.op, Op::New { .. } | Op::Branch { .. }))
         .map(|(ix, e)| op_out(*ix, e))

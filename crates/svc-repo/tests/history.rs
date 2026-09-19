@@ -370,3 +370,22 @@ fn text_renderings_read_as_sentences() {
     assert!(status.contains("0 changes"), "{status}");
     assert_eq!(svc_repo::text::conflicts(&snap, &[]), "no conflicts");
 }
+
+#[test]
+fn an_identical_edit_def_is_still_an_event_on_the_change() {
+    let (_dir, repo) = fresh();
+    svc_repo::new(&repo).unwrap();
+    let read = svc_repo::resolve_entity(&repo, "read").unwrap();
+    let m = repo
+        .mutate(
+            Op::EditDef { id: read, definition: "same".into(), intent: Intent::Docs },
+            Some(svc_core::ObservedClass::Alpha),
+            |repo, cur| repo.amend(cur, cur.clone()),
+        )
+        .unwrap();
+    assert_eq!(m.entry.before.root, m.entry.after.root, "no-op amend");
+    let log = svc_repo::log(&repo, None).unwrap();
+    assert_eq!(log.len(), 1, "{log:?}");
+    assert!(matches!(log[0].op, Op::EditDef { .. }));
+    assert!(!log[0].flagged);
+}
