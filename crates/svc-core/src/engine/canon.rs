@@ -42,7 +42,7 @@ pub fn resolve_locals(
 ) -> Resolution {
     let mut slots = Vec::new();
     let mut next: HashMap<Namespace, u32> = HashMap::new();
-    collect_binders(item, src, lang, None, &mut slots, &mut next);
+    collect_binders(item, src, lang, None, &mut slots, &mut next, item.id());
     let slot_at: HashMap<(u32, u32), (Slot, Namespace)> = slots
         .iter()
         .map(|(r, s, ns)| ((r.start, r.end), (*s, *ns)))
@@ -55,7 +55,7 @@ pub fn resolve_locals(
         })
         .collect();
     let mut refs = Vec::new();
-    collect_refs(item, src, lang, None, &slot_at, &by_name, &mut refs);
+    collect_refs(item, src, lang, None, &slot_at, &by_name, &mut refs, item.id());
     Resolution { slots, refs }
 }
 
@@ -66,7 +66,11 @@ fn collect_binders<'a>(
     field: Option<&str>,
     slots: &mut Vec<(ByteRange, Slot, Namespace)>,
     next: &mut HashMap<Namespace, u32>,
+    root_id: usize,
 ) {
+    if skip_nested_item(node, lang, root_id) {
+        return;
+    }
     for role in lang.roles(node, field, src, &crate::lang::Env::default()) {
         if let Role::Binder {
             namespace,
@@ -88,7 +92,7 @@ fn collect_binders<'a>(
     let mut c = node.walk();
     if c.goto_first_child() {
         loop {
-            collect_binders(c.node(), src, lang, c.field_name(), slots, next);
+            collect_binders(c.node(), src, lang, c.field_name(), slots, next, root_id);
             if !c.goto_next_sibling() {
                 break;
             }
@@ -104,7 +108,11 @@ fn collect_refs<'a>(
     slot_at: &HashMap<(u32, u32), (Slot, Namespace)>,
     by_name: &HashMap<(String, Namespace), Slot>,
     refs: &mut Vec<(ByteRange, IdentRef)>,
+    root_id: usize,
 ) {
+    if skip_nested_item(node, lang, root_id) {
+        return;
+    }
     if is_ident_leaf(node) {
         let r = byte_range(node);
         if slot_at.contains_key(&(r.start, r.end)) {
@@ -134,6 +142,7 @@ fn collect_refs<'a>(
                 slot_at,
                 by_name,
                 refs,
+                root_id,
             );
             if !c.goto_next_sibling() {
                 break;
@@ -176,6 +185,21 @@ fn node_is_wildcard(node: tree_sitter::Node<'_>) -> bool {
     matches!(node.kind(), "_" | "remaining_field_pattern")
 }
 
+/// Nested `function`/`class`/`impl` items are separate entities. JS
+/// `variable_declarator` is an entity kind at module scope only; inside a
+/// function it is a local and must not be a resolver barrier.
+fn skip_nested_item(node: tree_sitter::Node<'_>, lang: &dyn Lang, root_id: usize) -> bool {
+    if node.id() == root_id {
+        return false;
+    }
+    if node.kind() == "variable_declarator" {
+        return false;
+    }
+    lang.entity_kinds()
+        .iter()
+        .any(|r| r.node_kind == node.kind())
+}
+
 fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {
     matches!(
         node.kind(),
@@ -187,6 +211,8 @@ fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {
             | "crate"
             | "lifetime"
             | "shorthand_field_identifier"
+            | "shorthand_property_identifier"
+            | "shorthand_property_identifier_pattern"
     )
 }
 
@@ -260,12 +286,17 @@ fn leaf_token(
             return Some(Token::Ident(ident.clone()));
         }
     }
-    if is_ident_leaf(node) {
+    if is_ident_leaf(node)
+        || matches!(
+            node.kind(),
+            "field_identifier" | "property_identifier" | "property_identifier_pattern"
+        )
+    {
         return Some(Token::Ident(IdentRef::Free(text.as_ref().into())));
     }
     let kind = node.kind();
     if kind.chars().all(|c| c.is_ascii_alphabetic() || c == '_') {
-        Some(Token::Kw(kind.into()))
+        Some(Token::Kw(text.as_ref().into()))
     } else if matches!(
         kind,
         "string_literal"

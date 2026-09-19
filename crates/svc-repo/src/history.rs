@@ -7,6 +7,8 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use svc_core::delta::Delta;
+use svc_core::engine::status_report;
 use svc_core::{
     ChangeId, ChangeSetId, EntityId, EntityRecord, Error, Intent, ObservedClass, Op, OpIx,
     OpLogEntry, RelPath, Result, Snapshot, SnapshotId, Timestamp, View,
@@ -117,6 +119,46 @@ fn child_of(cur: &Snapshot, cur_id: SnapshotId, change: ChangeId) -> Snapshot {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StatusOut {
+    pub summary: String,
+    pub entities: usize,
+    pub layout: usize,
+    pub semantic: usize,
+    pub clean: bool,
+    pub change: ChangeId,
+    pub snapshot: SnapshotId,
+    /// Semantic deltas versus the snapshot before this status (layout-only ordinal shifts suppressed).
+    pub deltas: Vec<Delta>,
+    pub absorbed: bool,
+}
+
+/// `svc status`: absorb hand edits into the current change (recording an `Absorb` op) and
+/// report what changed. Identical content is a no-op.
+pub fn status(repo: &Repo) -> Result<StatusOut> {
+    let (report, snap, absorbed) = match repo.absorb()? {
+        Some((prev, id)) => {
+            let next = repo.store().get_snapshot(id)?;
+            (status_report(&prev, &next), next, true)
+        }
+        None => {
+            let cur = repo.current()?;
+            (status_report(&cur, &cur), cur, false)
+        }
+    };
+    Ok(StatusOut {
+        summary: report.summary(),
+        entities: report.entities,
+        layout: report.layout,
+        semantic: report.semantic,
+        clean: report.deltas.is_empty(),
+        change: snap.change,
+        snapshot: snap.id(),
+        deltas: report.deltas,
+        absorbed,
+    })
+}
+
 /// `svc new`: start the next change on top of the current one.
 pub fn new(repo: &Repo) -> Result<MutationOut> {
     let change = ChangeId::new();
@@ -224,6 +266,8 @@ pub fn log(repo: &Repo, change: Option<ChangeId>) -> Result<Vec<OpOut>> {
         .ops(OpIx(0), true)?
         .iter()
         .filter(|(_, e)| e.before.heads.get(&change) != e.after.heads.get(&change))
+        // The change's birth is not one of its events.
+        .filter(|(_, e)| !matches!(e.op, Op::New { .. } | Op::Branch { .. }))
         .map(|(ix, e)| op_out(*ix, e))
         .collect())
 }
@@ -505,6 +549,6 @@ pub fn resolve_entity(repo: &Repo, arg: &str) -> Result<EntityId> {
     }
 }
 
-fn parse_entity_id(s: &str) -> Option<EntityId> {
+pub fn parse_entity_id(s: &str) -> Option<EntityId> {
     s.parse::<uuid::Uuid>().ok().map(EntityId)
 }

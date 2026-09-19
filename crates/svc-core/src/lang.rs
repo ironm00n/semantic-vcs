@@ -110,6 +110,10 @@ pub trait Lang: Send + Sync {
     fn opaque_nodes(&self) -> &'static [&'static str];
     fn commutative_parents(&self) -> &'static [CommutativeRule];
     fn trivia_kinds(&self) -> &'static [&'static str];
+    /// Override the table kind for nodes that share a grammar kind (JS getters/setters).
+    fn refine_kind(&self, _node: tree_sitter::Node<'_>, _src: &[u8]) -> Option<Kind> {
+        None
+    }
 }
 
 pub struct Langs {

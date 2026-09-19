@@ -5,7 +5,14 @@ here=$(cd "$(dirname "$0")" && pwd)
 work="$here/work"
 
 if [[ -e "$work" ]]; then
-  echo "refusing to replace $work; remove it before rebuilding" >&2
+  if git -C "$work" rev-parse --git-dir >/dev/null 2>&1 \
+      && grep -q 'let raw = normalize' "$work/src/main.rs" \
+      && grep -q 'log(&raw)' "$work/src/main.rs"; then
+    cargo check -q --manifest-path "$work/Cargo.toml"
+    echo "existing git twin is merged, compilable, and still contains the binding bug"
+    exit 0
+  fi
+  echo "refusing to replace unrecognized $work; remove it before rebuilding" >&2
   exit 1
 fi
 

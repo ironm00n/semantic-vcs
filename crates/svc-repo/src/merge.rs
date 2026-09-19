@@ -16,6 +16,7 @@ use svc_core::{
     Bytes, ChangeId, Chunk, Conflict, Content, EntityId, EntityRecord, Error, FileRecord,
     IdentRef, Merge, Op, RelPath, Result, Side, SigKey, Snapshot, SnapshotId, Store, Token,
 };
+use svc_core::engine::merge as merge_engine;
 
 use crate::repo::Repo;
 
@@ -428,6 +429,42 @@ fn assign_ordinals(
     }
 }
 
+fn densify_ordinals(snap: &mut Snapshot) {
+    let groups: BTreeSet<(RelPath, Option<EntityId>)> = snap
+        .entities
+        .values()
+        .map(|r| (r.file.clone(), r.parent))
+        .collect();
+    for (file, parent) in groups {
+        let mut ids: Vec<(u32, EntityId)> = snap
+            .entities
+            .iter()
+            .filter(|(_, r)| r.file == file && r.parent == parent)
+            .map(|(id, r)| (r.ordinal, *id))
+            .collect();
+        ids.sort();
+        for (i, (_, id)) in ids.iter().enumerate() {
+            if let Some(rec) = snap.entities.get_mut(id) {
+                rec.ordinal = i as u32;
+            }
+        }
+    }
+}
+
+fn unified_from(b: &Snapshot, merged: &Snapshot) -> Vec<(EntityId, EntityId)> {
+    b.entities
+        .iter()
+        .filter(|(id, _)| !merged.entities.contains_key(id))
+        .filter_map(|(bid, rec)| {
+            merged
+                .entities
+                .iter()
+                .find(|(_, r)| r.parent == rec.parent && r.kind == rec.kind && r.name == rec.name)
+                .map(|(aid, _)| (*bid, *aid))
+        })
+        .collect()
+}
+
 pub fn conflict_entity(c: &Conflict) -> Option<EntityId> {
     match c {
         Conflict::Attr { id, .. }
@@ -480,19 +517,14 @@ pub fn merge(repo: &Repo, other: &str) -> Result<MergeOut> {
         },
         None,
         |repo, cur| {
-            let base = repo.store().get_snapshot(base_id)?;
             let b = repo.store().get_snapshot(other_id)?;
-            let merged = merge_snapshots(repo.store(), &base, cur, &b)?;
-            let snap = Snapshot {
-                parents: vec![cur.id(), other_id],
-                predecessors: Vec::new(),
-                change,
-                entities: merged.entities,
-                files: merged.files,
-                conflicts: merged.conflicts,
-                message: String::new(),
-            };
-            report = Some((conflicts_out(&snap), merged.unified));
+            let mut snap = merge_engine(repo.store(), repo.langs(), base_id, cur.id(), other_id)?;
+            snap.parents = vec![cur.id(), other_id];
+            snap.change = change;
+            snap.predecessors = Vec::new();
+            densify_ordinals(&mut snap);
+            let unified = unified_from(&b, &snap);
+            report = Some((conflicts_out(&snap), unified));
             repo.commit_snapshot(&snap)
         },
     )?;

@@ -2207,11 +2207,13 @@ dependencies = [
 name = "svc"
 version = "0.1.0"
 dependencies = [
+ "agent-client-protocol",
  "clap",
  "serde",
  "serde_json",
  "svc-core",
  "svc-repo",
+ "tokio",
 ]
 
 [[package]]
@@ -2235,6 +2237,7 @@ dependencies = [
  "similar",
  "thiserror 2.0.20",
  "tree-sitter",
+ "tree-sitter-javascript",
  "tree-sitter-rust",
  "uuid",
 ]
@@ -2530,6 +2533,16 @@ dependencies = [
  "regex",
  "serde_json",
  "streaming-iterator",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-javascript"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68204f2abc0627a90bdf06e605f5c470aa26fdcb2081ea553a04bdad756693f5"
+dependencies = [
+ "cc",
  "tree-sitter-language",
 ]
 

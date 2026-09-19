@@ -276,11 +276,12 @@ impl Store for RedbStore {
 
     fn resolve_prefix(&self, prefix: &str) -> Result<ChangeId> {
         let p = prefix.to_ascii_lowercase();
+        let hex = p.replace('-', "");
         let mut hits: Vec<ChangeId> = self
             .heads()?
             .into_iter()
             .map(|(id, _)| id)
-            .filter(|id| id.short().starts_with(&p) || id.to_string().replace('-', "").starts_with(&p))
+            .filter(|id| id.short().starts_with(&p) || id.to_string().replace('-', "").starts_with(&hex))
             .collect();
         hits.sort();
         hits.dedup();

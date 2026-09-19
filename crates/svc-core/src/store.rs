@@ -9,6 +9,7 @@ use crate::ids::{
 };
 use crate::op::OpLogEntry;
 use crate::snapshot::Snapshot;
+use serde::{Deserialize, Serialize};
 
 pub trait Store: Send + Sync {
     fn put_blob(&self, bytes: &[u8]) -> Result<[u8; 32]>;
@@ -70,7 +71,7 @@ pub trait Store: Send + Sync {
     fn set_render_pending(&self, v: bool) -> Result<()>;
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 struct MemInner {
     blobs: BTreeMap<[u8; 32], Vec<u8>>,
     snapshots: BTreeMap<[u8; 32], Snapshot>,
@@ -97,6 +98,19 @@ impl MemStore {
         self.inner
             .lock()
             .map_err(|_| Error::Other("memstore poisoned".into()))
+    }
+
+    pub fn dump(&self) -> Result<Vec<u8>> {
+        let g = self.lock()?;
+        postcard::to_stdvec(&*g).map_err(|e| Error::Other(e.to_string()))
+    }
+
+    pub fn load(bytes: &[u8]) -> Result<Self> {
+        let inner: MemInner =
+            postcard::from_bytes(bytes).map_err(|e| Error::Other(e.to_string()))?;
+        Ok(Self {
+            inner: Mutex::new(inner),
+        })
     }
 }
 
