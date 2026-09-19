@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{Chunk, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
-use crate::entity::{EntityRecord, Kind, SigKey};
+use crate::entity::{EntityRecord, FileRecord, Kind, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{ChangeId, EntityId, RelPath};
 use crate::lang::Langs;
@@ -86,6 +86,11 @@ fn refuse_duplicate(snap: &Snapshot, id: EntityId, key: &SigKey) -> Result<()> {
 
 pub fn relocate(snap: &Snapshot, id: EntityId, file: RelPath, ordinal: u32) -> Result<Snapshot> {
     let mut next = snap.clone();
+    // Render iterates `snapshot.files`, not entities. A path that never had a
+    // FileRecord would swallow the item on disk even though the entity moved.
+    if !next.files.contains_key(&file) {
+        next.files.insert(file.clone(), FileRecord::default());
+    }
     let rec = next.entities.get_mut(&id).ok_or(Error::NoSuchEntity(id))?;
     rec.file = file;
     rec.ordinal = ordinal;
