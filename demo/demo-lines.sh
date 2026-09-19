@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scripted run of SPEC §10 demo lines 1–7 and 9–11 against the built `svc` binary, on a scratch
+# Scripted run of SPEC §10 demo lines 1–9 and 10–11 (8: init/status/alpha/show/rename; merge beat pending) against the built `svc` binary, on a scratch
 # copy of demo/config. Prints one PASS/FAIL per observable; exit status is the number of failures.
 #
 #   cargo build -p svc && demo/demo-lines.sh [path/to/svc]
@@ -70,6 +70,25 @@ svcj edit-def --entity validate --intent refactor --definition "$VAL7" >/dev/nul
 l7="$(svcj log)"
 check "7  declared refactor / observed binding-changing / flagged" 'echo "$l7" | jq -e ".[0].declared == \"Refactor\" and .[0].observed == \"BindingChanging\" and .[0].flagged"'
 svcj undo >/dev/null
+echo "== line 8: JS twin (config-js) — init/status/alpha/show/rename"
+JSWORK="$(mktemp -d)"
+cp -r "$HERE/config-js/." "$JSWORK/" && rm -rf "$JSWORK/.svc"
+cd "$JSWORK"
+j1="$(svcj init >/dev/null; svcj status)"
+check "8a JS init: entities, 0 changes"  'echo "$j1" | jq -e ".entities > 0 and .semantic == 0 and .layout == 0"'
+sed -i 's/export function read(path)/export function read(input)/; s/readFileSync(path,/readFileSync(input,/' src/config.js
+j2="$(svcj status)"
+check "8b JS local rename is layout-only" 'echo "$j2" | jq -e ".semantic == 0"'
+svcj new >/dev/null
+j3="$("$SVC" show read 2>&1)"
+check "8c JS canonical stream has slots"  'echo "$j3" | grep -q "\$0"'
+svcj rename --entity read --new-name read_file >/dev/null
+check "8d JS rename propagates to caller" 'grep -q "read_file(path)" src/config.js && ! grep -q "[ (]read(path)" src/config.js'
+# NOTE (muse): the rename/add-call merge beat belongs here once codex's
+# binding-provenance fix lands (every JS merge currently emits spurious
+# Bindings — see the coordination-board inbox); the replay must stay in config.js
+# because cross-file import propagation is a documented v1 skip.
+cd "$WORK"
 
 echo "== line 9 (scripted stand-in for the agent): three ops in one changeset"
 svcj new >/dev/null
