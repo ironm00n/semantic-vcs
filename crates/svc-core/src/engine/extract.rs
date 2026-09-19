@@ -22,9 +22,6 @@ pub fn find_node<'a>(
     node: tree_sitter::Node<'a>,
     range: ByteRange,
 ) -> Option<tree_sitter::Node<'a>> {
-    if byte_range(node) == range {
-        return Some(node);
-    }
     let mut c = node.walk();
     for ch in node.named_children(&mut c) {
         if (ch.start_byte() as u32) <= range.start && (ch.end_byte() as u32) >= range.end {
@@ -33,7 +30,7 @@ pub fn find_node<'a>(
             }
         }
     }
-    None
+    (byte_range(node) == range).then_some(node)
 }
 
 fn collect<'a>(

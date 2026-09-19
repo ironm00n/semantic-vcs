@@ -132,7 +132,8 @@ pub fn edit_def(
         .for_path(&rec.file)
         .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
     let env = env_from_snapshot(snap);
-    let part = ingest_file_with_env(definition, rec.file.clone(), lang, store, snap.change, &env)?;
+    let definition = item_text(store, snap, id, definition)?;
+    let part = ingest_file_with_env(&definition, rec.file.clone(), lang, store, snap.change, &env)?;
     let roots: Vec<_> = part
         .entities
         .iter()
@@ -401,7 +402,8 @@ pub fn redefine(
         .for_path(&rec.file)
         .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
     let env = env_from_snapshot(snapshot);
-    let part = ingest_file_with_env(text, rec.file.clone(), lang, store, snapshot.change, &env)?;
+    let text = item_text(store, snapshot, id, text)?;
+    let part = ingest_file_with_env(&text, rec.file.clone(), lang, store, snapshot.change, &env)?;
     let roots: Vec<_> = part
         .entities
         .iter()
@@ -420,4 +422,28 @@ pub fn redefine(
         )));
     }
     Ok((new_rec.content, new_rec.bytes))
+}
+
+/// Keep the entity's leading trivia (blank lines / docs attached by extent)
+/// and tolerate a missing trailing newline (source_file vs item range tie).
+fn item_text(
+    store: &dyn Store,
+    snap: &Snapshot,
+    id: EntityId,
+    text: &[u8],
+) -> Result<Vec<u8>> {
+    let (old, _) = super::render_entity(snap, store, id, false)?;
+    let lead = old
+        .iter()
+        .take_while(|b| b.is_ascii_whitespace())
+        .count();
+    let mut out = Vec::new();
+    if !text.first().is_some_and(|b| b.is_ascii_whitespace()) {
+        out.extend_from_slice(&old[..lead]);
+    }
+    out.extend_from_slice(text);
+    if !out.ends_with(&[b'\n']) {
+        out.push(b'\n');
+    }
+    Ok(out)
 }

@@ -489,7 +489,9 @@ fn binding_post(
                 other => other.clone(),
             };
             if let Some(was) = stored {
-                if !ref_eq(&was, &now) {
+                let was_n = normalize_self(was.clone(), id);
+                let now_n = normalize_self(now.clone(), id);
+                if !ref_eq(&was_n, &now_n) {
                     snap.conflicts.push(Conflict::Binding {
                         id,
                         ident: TokenIx(i as u32),
@@ -617,6 +619,13 @@ fn ref_eq(a: &IdentRef, b: &IdentRef) -> bool {
         (IdentRef::Free(x), IdentRef::Free(y)) => x == y,
         (IdentRef::Local(x, xn), IdentRef::Local(y, yn)) => x == y && xn == yn,
         _ => false,
+    }
+}
+
+fn normalize_self(ident: IdentRef, id: EntityId) -> IdentRef {
+    match ident {
+        IdentRef::Entity(e) if e == EntityId::SELF || e == id => IdentRef::Entity(EntityId::SELF),
+        other => other,
     }
 }
 
