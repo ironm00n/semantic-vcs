@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use svc_core::engine::{edit_def, lookup_name, merge, rust_langs, snapshot_files};
 use svc_core::ids::{ChangeId, RelPath};
+use svc_core::lang::Langs;
 use svc_core::store::{MemStore, Store};
-use svc_core::{Conflict, IdentRef};
+use svc_core::{Conflict, IdentRef, JsLang, RustLang};
 
 const BASE: &str = r#"
 fn read(path: &str) -> String { path.to_string() }
@@ -133,5 +134,53 @@ fn o7_git_twin_load_is_a_binding_conflict_on_raw() {
         }),
         "expected a Binding conflict on raw with was_at, got {:?}",
         merged.conflicts
+    );
+}
+
+fn js_langs() -> Langs {
+    Langs::new(vec![Box::new(RustLang), Box::new(JsLang)])
+}
+
+/// Comment-only both-sides on the JS twin: constructor param `path` shares a
+/// name with `src/main.js`'s `const path`. Re-resolution must not treat the
+/// param as the module binding.
+#[test]
+fn js_comment_only_both_sides_is_not_a_binding_conflict() {
+    let store = MemStore::new();
+    let langs = js_langs();
+    let cfg = RelPath::new("src/config.js").unwrap();
+    let main = RelPath::new("src/main.js").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        cfg.clone(),
+        include_bytes!("../../../demo/config-js/src/config.js").to_vec(),
+    );
+    files.insert(
+        main.clone(),
+        include_bytes!("../../../demo/config-js/src/main.js").to_vec(),
+    );
+    let base = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let mut a_files = files.clone();
+    a_files.get_mut(&cfg).unwrap().extend_from_slice(b"\n// a\n");
+    let mut b_files = files.clone();
+    b_files.get_mut(&cfg).unwrap().extend_from_slice(b"\n// b\n");
+    let a = snapshot_files(&store, &langs, &a_files, Some(&base), ChangeId::new()).unwrap();
+    let b = snapshot_files(&store, &langs, &b_files, Some(&base), ChangeId::new()).unwrap();
+    let merged = merge(
+        &store,
+        &langs,
+        store.put_snapshot(&base).unwrap(),
+        store.put_snapshot(&a).unwrap(),
+        store.put_snapshot(&b).unwrap(),
+    )
+    .unwrap();
+    let binds: Vec<_> = merged
+        .conflicts
+        .iter()
+        .filter(|c| matches!(c, Conflict::Binding { .. }))
+        .collect();
+    assert!(
+        binds.is_empty(),
+        "comment-only JS merge must not invent Binding conflicts: {binds:?}"
     );
 }
