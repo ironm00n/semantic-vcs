@@ -8,6 +8,7 @@ pub mod entity;
 pub mod error;
 pub mod ids;
 pub mod lang;
+pub mod lang_rust;
 pub mod op;
 pub mod snapshot;
 pub mod store;
@@ -26,6 +27,7 @@ pub use lang::{
     Barrier, BinderClass, CommutativeRule, EntityKindRule, Env, Lang, Langs, Locator, RawEntity,
     Resolution, Role, Visibility, When,
 };
+pub use lang_rust::RustLang;
 pub use op::{Intent, Op, OpLogEntry, View};
 pub use snapshot::{AtomLocal, Conflict, Hunk, Merge, Side, Snapshot};
 pub use store::{MemStore, Store};

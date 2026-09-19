@@ -2,11 +2,16 @@ use std::collections::BTreeMap;
 
 use crate::content::{Bytes, Content, IdentRef};
 use crate::delta::{Delta, ObservedClass};
-use crate::error::Result;
-use crate::ids::{ByteRange, BytesId, ContentId, EntityId, RelPath, SnapshotId};
+use crate::entity::{EntityRecord, FileRecord};
+use crate::error::{Error, Result};
+use crate::ids::{ByteRange, BytesId, ChangeId, ContentId, EntityId, RelPath, SnapshotId};
 use crate::lang::{Env, Lang, Langs, RawEntity, Resolution};
 use crate::snapshot::Snapshot;
 use crate::store::Store;
+
+mod bytes;
+mod extract;
+mod render;
 
 #[derive(Clone, Debug, Default)]
 pub struct Rendered {
@@ -15,13 +20,22 @@ pub struct Rendered {
     pub maps: Option<BTreeMap<EntityId, Vec<(ByteRange, IdentRef)>>>,
 }
 
+pub fn parse(src: &[u8], lang: &dyn Lang) -> Result<tree_sitter::Tree> {
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&lang.language())
+        .map_err(|e| Error::Parse(e.to_string()))?;
+    parser
+        .parse(src, None)
+        .ok_or_else(|| Error::Parse("tree-sitter returned None".into()))
+}
+
 pub fn extract(
     tree: &tree_sitter::Tree,
     src: &[u8],
     lang: &dyn Lang,
 ) -> Result<Vec<RawEntity>> {
-    let _ = (tree, src, lang);
-    todo!("extract")
+    extract::extract(tree, src, lang)
 }
 
 pub fn env_at(
@@ -50,8 +64,12 @@ pub fn to_bytes(
     children: &[(ByteRange, EntityId)],
     own_name: Option<EntityId>,
 ) -> Result<Bytes> {
-    let _ = (item, src, resolution, children, own_name);
-    todo!("to_bytes")
+    let extent = extract::byte_range(item);
+    let name = own_name.and_then(|id| {
+        item.child_by_field_name("name")
+            .map(|n| (extract::byte_range(n), id))
+    });
+    bytes::bytes_from_span(src, extent, children, name, resolution)
 }
 
 pub fn canonicalize(
@@ -95,11 +113,10 @@ pub fn match_entities(
 pub fn render(
     snapshot: &Snapshot,
     store: &dyn Store,
-    langs: &Langs,
+    _langs: &Langs,
     with_maps: bool,
 ) -> Result<Rendered> {
-    let _ = (snapshot, store, langs, with_maps);
-    todo!("render")
+    render::render(snapshot, store, with_maps)
 }
 
 pub fn render_entity(
@@ -108,8 +125,7 @@ pub fn render_entity(
     id: EntityId,
     with_map: bool,
 ) -> Result<(Vec<u8>, Option<Vec<(ByteRange, IdentRef)>>)> {
-    let _ = (snapshot, store, id, with_map);
-    todo!("render_entity")
+    render::render_entity(snapshot, store, id, with_map)
 }
 
 pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<Delta> {
@@ -126,4 +142,69 @@ pub fn merge(
 ) -> Result<Snapshot> {
     let _ = (store, langs, base, a, b);
     todo!("merge")
+}
+
+/// Parse one file into a snapshot. Content hashes are empty until canonicalize lands.
+pub fn ingest_file(
+    src: &[u8],
+    path: RelPath,
+    lang: &dyn Lang,
+    store: &dyn Store,
+    change: ChangeId,
+) -> Result<Snapshot> {
+    let tree = parse(src, lang)?;
+    let raw = extract(&tree, src, lang)?;
+    let ids: Vec<EntityId> = (0..raw.len()).map(|_| EntityId::new()).collect();
+    let empty = Content::default();
+    let empty_id = store.put_content(&empty)?;
+
+    let mut entities = BTreeMap::new();
+    for (i, ent) in raw.iter().enumerate() {
+        let children: Vec<(ByteRange, EntityId)> = ent
+            .children
+            .iter()
+            .map(|&c| (raw[c].bytes_range, ids[c]))
+            .collect();
+        let own_name = ent.name_range.map(|r| (r, EntityId::SELF));
+        let bytes = bytes::bytes_from_span(
+            src,
+            ent.bytes_range,
+            &children,
+            own_name,
+            &Resolution::default(),
+        )?;
+        let bytes_id = store.put_bytes_blob(&bytes)?;
+        let ordinal = raw
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.parent_idx == ent.parent_idx && o.item_range.start < ent.item_range.start)
+            .count() as u32;
+        entities.insert(
+            ids[i],
+            EntityRecord {
+                name: ent.name.clone(),
+                kind: ent.kind,
+                parent: ent.parent_idx.map(|p| ids[p]),
+                file: path.clone(),
+                ordinal,
+                content: empty_id,
+                bytes: bytes_id,
+            },
+        );
+    }
+
+    let roots: Vec<_> = raw.iter().filter(|e| e.parent_idx.is_none()).cloned().collect();
+    let trailing = render::trailing_for(src, &roots);
+    let mut files = BTreeMap::new();
+    files.insert(path, FileRecord { trailing });
+
+    Ok(Snapshot {
+        parents: Vec::new(),
+        predecessors: Vec::new(),
+        change,
+        entities,
+        files,
+        conflicts: Vec::new(),
+        message: String::new(),
+    })
 }
