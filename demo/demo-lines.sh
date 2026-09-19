@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scripted run of SPEC §10 demo lines 1–12 against the built `svc` binary, on a scratch
+# Scripted run of SPEC §10 demo lines 1–12 (+ the forge, done-criterion 1) against the built `svc` binary, on a scratch
 # copy of demo/config. Prints one PASS/FAIL per observable; exit status is the number of failures.
 #
 #   cargo build -p svc && demo/demo-lines.sh [path/to/svc]
@@ -141,6 +141,25 @@ if command -v script >/dev/null && command -v node >/dev/null; then
   check "12d undo reverts the whole run"                   '! grep -q "read_file\|check_retries" src/main.rs'
 else
   echo "SKIP  12 (needs script(1) and node)"
+fi
+
+echo "== forge (done-criterion 1): svc forge export writes the catalog from this store; svc-forge serves it"
+f1="$(svcj forge export)"
+check "F1 export writes .svc/forge.json"          'echo "$f1" | jq -e ".path | endswith(\".svc/forge.json\")" && test -s .svc/forge.json'
+check "F2 catalog carries every op and the head" 'jq -e --argjson n "$(svcj op log | jq length)" ".repositories[0] | (.operations | length) == \$n and .head == .snapshots[0].id and (.snapshots[0].entities | length) > 0" .svc/forge.json'
+check "F3 review queue = edit-defs + binding conflicts" 'jq -e --argjson n "$(svcj op log | jq "[.[] | select(.op | type == \"object\" and has(\"EditDef\"))] | length")" ".repositories[0].review_queue | map(select(.EditReview)) | length == \$n" .svc/forge.json'
+FORGE="$(dirname "$SVC")/svc-forge"
+if [ -x "$FORGE" ] && command -v curl >/dev/null; then
+  port=$((20000 + RANDOM % 20000))
+  "$FORGE" --catalog .svc/forge.json --bind "127.0.0.1:$port" >/dev/null 2>&1 &
+  fpid=$!
+  for _ in $(seq 1 40); do curl -sf "http://127.0.0.1:$port/api/repositories" >/dev/null 2>&1 && break; sleep 0.25; done
+  slug="$(curl -sf "http://127.0.0.1:$port/api/repositories" | jq -r ".[0].slug")"
+  check "F4 forge serves this repository"          'test -n "$slug" && test "$slug" != null'
+  check "F5 /operations and /reviews match the store" 'test "$(curl -sf "http://127.0.0.1:$port/api/repositories/$slug/operations" | jq length)" = "$(svcj op log | jq length)" && test "$(curl -sf "http://127.0.0.1:$port/api/repositories/$slug/reviews" | jq length)" = "$(jq ".repositories[0].review_queue | length" .svc/forge.json)"'
+  kill "$fpid" 2>/dev/null; wait "$fpid" 2>/dev/null
+else
+  echo "SKIP  F4-F5 (no svc-forge binary beside svc; cargo build -p svc-forge)"
 fi
 
 echo

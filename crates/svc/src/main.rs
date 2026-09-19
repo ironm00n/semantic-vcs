@@ -34,6 +34,8 @@ enum Command {
     Undo,
     #[command(subcommand)] Op(OpCommand),
     #[command(subcommand)] Changeset(ChangeSetCommand),
+    /// The local forge (crates/svc-forge): `export` writes its catalog from this store.
+    #[command(subcommand)] Forge(ForgeCommand),
     Checkout { snapshot: String }, Render, Rename(RenameArgs), Move(MoveArgs),
     Relocate(RelocateArgs), Extract(ExtractArgs), Inline(EntityArg), AddDef(AddDefArgs),
     Delete(DeleteArgs), EditDef(EditDefArgs), Classify(ClassifyArgs), Agent { task: String },
@@ -42,6 +44,7 @@ enum Command {
 }
 
 #[derive(Subcommand)] enum OpCommand { Log, Restore { index: u64 } }
+#[derive(Subcommand)] enum ForgeCommand { Export { #[arg(long)] out: Option<std::path::PathBuf> } }
 #[derive(Subcommand)]
 enum ChangeSetCommand {
     Begin { name: String, #[arg(long, default_value = "refactor")] intent: String, #[arg(long)] force: bool },
@@ -173,6 +176,8 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
         Command::Status => status(&repo).and_then(|s| repo.current().map(|snap| text::status(&snap, &s))),
         Command::Log => log(&repo, None).map(|l| text::log(&snap, &l)),
         Command::Op(OpCommand::Log) => op_log(&repo).map(|l| text::log(&snap, &l)),
+        Command::Forge(ForgeCommand::Export { out }) => svc_repo::forge::export(&repo, out.as_deref())
+            .map(|p| format!("wrote {} — serve it with: cargo run -p svc-forge -- --catalog {}", p.display(), p.display())),
         Command::Heads => heads(&repo).map(|h| text::heads(&h)),
         Command::Evolog { change } => repo
             .resolve_change(change)
@@ -271,6 +276,7 @@ fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
             value(changeset_begin(&repo, name, parse_intent(intent), None, *force))
         }
         Command::Changeset(ChangeSetCommand::End) => value(changeset_end(&repo)),
+        Command::Forge(ForgeCommand::Export { out }) => svc_repo::forge::export(&repo, out.as_deref()).map(|p| json!({"path": p})).map_err(|e| e.to_string()),
         Command::Changeset(ChangeSetCommand::Status) => value(changeset_status(&repo)),
         Command::Changeset(ChangeSetCommand::List) => value(changesets(&repo)),
         Command::Checkout { snapshot } => {

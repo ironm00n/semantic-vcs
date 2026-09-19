@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/svc-core", "crates/svc", "crates/svc-repo", "crates/svc-agent", "crates/svc-tui"]
+members = ["crates/svc-core", "crates/svc", "crates/svc-repo", "crates/svc-agent", "crates/svc-tui", "crates/svc-forge"]
 
 [workspace.package]
 edition = "2024"

@@ -1,0 +1,19 @@
+{
+  "repositories": [{
+    "slug": "svc",
+    "name": "svc",
+    "path": "/home/hacker/hackmit2026",
+    "description": "Compiler-grade version control, dogfooded locally.",
+    "head": "demo-head",
+    "snapshots": [{
+      "id": "demo-head",
+      "change": "demo-change",
+      "message": "Serve the local semantic forge",
+      "parents": [],
+      "entities": [],
+      "conflicts": []
+    }],
+    "operations": [],
+    "review_queue": []
+  }]
+}
