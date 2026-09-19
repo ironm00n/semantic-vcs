@@ -711,3 +711,58 @@ fn js_trap_computed_member_name_keeps_source_text() {
         Some("[k]".to_string())
     );
 }
+
+/// Private `#p` lives in its own namespace: `this.#p` is neither a binder
+/// nor a lexical reference, so a same-name local renames clean past it.
+#[test]
+fn js_trap_private_names_are_not_lexical_refs() {
+    let src = "let p = 1;\nclass C {\n  #p = 2;\n  m() {\n    return this.#p + p;\n  }\n}\n";
+    // End to end: renaming the module-scope `p` leaves `this.#p` byte-exact.
+    // (Method bodies resolve inside their own `JsMethod` child entity, so a
+    // per-item probe of the class node cannot see them — snapshot level only.)
+    let store = MemStore::new();
+    let langs = Langs::new(vec![Box::new(JsLang)]);
+    let mut files = BTreeMap::new();
+    files.insert(RelPath::new("src/main.js").unwrap(), src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let p_id = lookup_name(&snap, "p").unwrap();
+    let snap = rename(&snap, p_id, "q").unwrap();
+    let rendered = render(&snap, &store, &langs, false).unwrap();
+    let text: String = rendered
+        .files
+        .values()
+        .flat_map(|b| String::from_utf8(b.clone()))
+        .collect();
+    assert!(text.contains("this.#p"), "private use rewritten:\n{text}");
+    assert!(text.contains("+ q"), "lexical use not renamed:\n{text}");
+}
+
+/// Kind-less `for (h of list)` binds nothing: the target and body uses
+/// resolve outward, so renaming the outer `h` reaches into the loop.
+#[test]
+fn js_trap_kindless_for_of_assigns_outer() {
+    let src = "let h = 0;\nfor (h of list) {\n  log(h);\n}\n";
+    // Target `h`, body `h`, plus `list` and `log` — all free, no new binder.
+    //
+    // NOTE (filed to cursor): a top-level `for` is file tail, not an entity,
+    // so `rename` of the module-scope `h` does not reach the loop today
+    // (`let q = 0; for (h of list)…`). Roles shape holds; propagation is an
+    // engine/tail question, out of the lane.
+    assert_eq!(
+        free_ref_names(src),
+        ["h".to_string(), "h".to_string(), "list".to_string(), "log".to_string()]
+    );
+}
+
+/// C-style `for (let i …)` scopes its counter: inner uses (including the
+/// `i++` update) are local, and the outer `i` still reads after the loop.
+#[test]
+fn js_trap_c_style_for_let_shadows_outer() {
+    let src = "let i = 99;\nfor (let i = 0; i < 1; i++) {\n  log(i);\n}\nlog(i);\n";
+    // Free names: the two `log` calls and the final outer `i` only. The
+    // loop's declarator, condition, update, and body uses are all local.
+    assert_eq!(
+        free_ref_names(src),
+        ["i".to_string(), "log".to_string(), "log".to_string()]
+    );
+}
