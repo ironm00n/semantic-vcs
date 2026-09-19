@@ -4,7 +4,7 @@ use super::extract::byte_range;
 use crate::content::{Content, IdentRef, Namespace, Token};
 use crate::error::Result;
 use crate::ids::{ByteRange, EntityId, Slot};
-use crate::lang::{Env, Lang, Locator, Resolution, Role};
+use crate::lang::{Env, Lang, Locator, Resolution, Role, When};
 
 pub fn canonicalize(
     item: tree_sitter::Node<'_>,
@@ -185,6 +185,7 @@ fn collect_refs<'a>(
                         && b.visible_from <= r.start
                         && b.scope.start <= r.start
                         && r.end <= b.scope.end
+                        && !blocked_by_barrier(node, b, ns, src, lang, root_id)
                 })
                 .max_by_key(|b| (b.scope.start, b.range.start));
             if let Some(binder) =
@@ -197,6 +198,7 @@ fn collect_refs<'a>(
                 refs.push((r, IdentRef::Free(name.into())));
             }
         }
+        return;
     }
     let mut c = node.walk();
     if c.goto_first_child() {
@@ -369,6 +371,38 @@ fn enclosing_scope(
     byte_range(root)
 }
 
+fn blocked_by_barrier(
+    from: tree_sitter::Node<'_>,
+    binder: &BinderInfo,
+    ns: Namespace,
+    src: &[u8],
+    lang: &dyn Lang,
+    root_id: usize,
+) -> bool {
+    let mut current = from.parent();
+    while let Some(parent) = current {
+        for role in lang.roles(parent, None, src, &crate::lang::Env::default()) {
+            if let Role::Scope { barriers, .. } = role {
+                let blocks = barriers
+                    .iter()
+                    .any(|b| b.ns == ns && b.when == When::Always);
+                if blocks {
+                    let scope = byte_range(parent);
+                    let inside = scope.start <= binder.range.start && binder.range.end <= scope.end;
+                    if !inside {
+                        return true;
+                    }
+                }
+            }
+        }
+        if parent.id() == root_id {
+            break;
+        }
+        current = parent.parent();
+    }
+    false
+}
+
 fn is_pattern_constructor(
     node: tree_sitter::Node<'_>,
     pattern_root: tree_sitter::Node<'_>,
@@ -455,6 +489,7 @@ fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {
             | "super"
             | "crate"
             | "lifetime"
+            | "label"
             | "statement_identifier"
             | "shorthand_field_identifier"
             | "shorthand_property_identifier"

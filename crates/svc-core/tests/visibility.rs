@@ -189,3 +189,54 @@ fn type_position_foo_is_the_struct_not_the_fn() {
     );
     assert!(n_fn >= 1, "Foo() must be the function: {foos:?}");
 }
+
+#[test]
+fn rust_break_label_resolves_to_the_loop() {
+    let src = "fn f() { 'a: loop { break 'a; } }\n";
+    let refs = rust_item_refs(src);
+    let labels: Vec<_> = refs
+        .iter()
+        .filter(|(n, _)| n == "'a")
+        .cloned()
+        .collect();
+    assert!(
+        labels
+            .iter()
+            .any(|(_, ident)| matches!(ident, IdentRef::Local(_, Namespace::Label))),
+        "break 'a should be the loop label: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_break_label_does_not_enter_a_closure() {
+    let src = "fn f() { 'a: loop { let _c = || { break 'a; }; } }\n";
+    let refs = rust_item_refs(src);
+    let inside: Vec<_> = refs
+        .iter()
+        .filter(|(n, _)| n == "'a")
+        .cloned()
+        .collect();
+    assert!(
+        !inside
+            .iter()
+            .any(|(_, ident)| matches!(ident, IdentRef::Local(_, Namespace::Label))),
+        "closure must not see the outer label: {inside:?} from {refs:?}"
+    );
+}
+
+#[test]
+fn js_break_label_does_not_enter_an_arrow() {
+    let src = "function f(){ loop: while (true) { const g = () => { break loop; }; } }\n";
+    let refs = js_item_refs(src);
+    let labels: Vec<_> = refs
+        .iter()
+        .filter(|(n, ident)| {
+            n == "loop" && matches!(ident, IdentRef::Local(_, Namespace::Label))
+        })
+        .cloned()
+        .collect();
+    assert!(
+        labels.is_empty(),
+        "arrow must not see the outer label: {refs:?}"
+    );
+}

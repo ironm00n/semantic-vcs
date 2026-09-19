@@ -238,11 +238,18 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
         "lifetime" => vec![Role::Reference {
             namespace: Namespace::Lifetime,
         }],
-        "label" => vec![Role::Binder {
-            namespace: Namespace::Label,
-            visibility: Visibility::Whole,
-            locator: Locator::Itself,
-        }],
+        "label" => match node.parent().map(|p| p.kind()) {
+            Some("break_expression") | Some("continue_expression") => {
+                vec![Role::Reference {
+                    namespace: Namespace::Label,
+                }]
+            }
+            _ => vec![Role::Binder {
+                namespace: Namespace::Label,
+                visibility: Visibility::Whole,
+                locator: Locator::Itself,
+            }],
+        },
         "block" => vec![Role::Scope {
             opens: &[Namespace::Type, Namespace::Value, Namespace::Macro, Namespace::Label],
             barriers: &[],
