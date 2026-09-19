@@ -1,15 +1,16 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use similar::{ChangeTag, MergeResolution, TextDiff, TextMerge};
+use similar::{MergeResolution, TextMerge};
 
-use crate::content::{IdentRef, Namespace};
+use crate::content::IdentRef;
 use crate::entity::{EntityRecord, FileRecord, SigKey};
 use crate::error::{Error, Result};
-use crate::ids::{AtomIx, ByteRange, EntityId, LineCol, RelPath, Slot, SnapshotId, TokenIx};
+use crate::ids::{AtomIx, ByteRange, EntityId, LineCol, RelPath, SnapshotId, TokenIx};
 use crate::lang::Langs;
-use crate::snapshot::{Conflict, Hunk, Merge, Side, Snapshot};
+use crate::snapshot::{AttrValue, Conflict, Hunk, Merge, Side, Snapshot};
 use crate::store::Store;
 
+use super::align::{equal_lines, map_range, slot_bijection};
 use super::{env_from_snapshot, ingest_file_with_env, parse, render, render_entity};
 
 /// Per-entity 3-way merge plus the §5.4 binding post-condition.
@@ -183,56 +184,16 @@ fn merge_record(
     conflicts: &mut Vec<Conflict>,
     atom_side: &mut HashMap<(EntityId, usize), SideOrBase>,
 ) -> Result<EntityRecord> {
-    let name = three(o.name.clone(), a.name.clone(), b.name.clone()).unwrap_or_else(|| {
-        conflicts.push(Conflict::Attr {
-            id,
-            sides: Merge::three_way(
-                crate::snapshot::AttrValue::Name(o.name.clone()),
-                crate::snapshot::AttrValue::Name(a.name.clone()),
-                crate::snapshot::AttrValue::Name(b.name.clone()),
-            ),
-        });
-        a.name.clone()
-    });
-    let parent = three(o.parent, a.parent, b.parent).unwrap_or_else(|| {
-        conflicts.push(Conflict::Attr {
-            id,
-            sides: Merge::three_way(
-                crate::snapshot::AttrValue::Parent(o.parent),
-                crate::snapshot::AttrValue::Parent(a.parent),
-                crate::snapshot::AttrValue::Parent(b.parent),
-            ),
-        });
-        a.parent
-    });
-    let file = three(o.file.clone(), a.file.clone(), b.file.clone()).unwrap_or_else(|| {
-        conflicts.push(Conflict::Attr {
-            id,
-            sides: Merge::three_way(
-                crate::snapshot::AttrValue::File(o.file.clone()),
-                crate::snapshot::AttrValue::File(a.file.clone()),
-                crate::snapshot::AttrValue::File(b.file.clone()),
-            ),
-        });
-        a.file.clone()
-    });
-    let ordinal = three(o.ordinal, a.ordinal, b.ordinal).unwrap_or_else(|| {
-        conflicts.push(Conflict::Attr {
-            id,
-            sides: Merge::three_way(
-                crate::snapshot::AttrValue::Ordinal(o.ordinal),
-                crate::snapshot::AttrValue::Ordinal(a.ordinal),
-                crate::snapshot::AttrValue::Ordinal(b.ordinal),
-            ),
-        });
-        a.ordinal
-    });
-    let (content, bytes) = if a.content == o.content && a.bytes == o.bytes {
-        (b.content, b.bytes)
-    } else if b.content == o.content && b.bytes == o.bytes {
-        (a.content, a.bytes)
-    } else if a.content == b.content && a.bytes == b.bytes {
-        (a.content, a.bytes)
+    let sides = (o, a, b);
+    let name = merge_attr(sides, id, conflicts, |r| r.name.clone(), AttrValue::Name);
+    let parent = merge_attr(sides, id, conflicts, |r| r.parent, AttrValue::Parent);
+    let file = merge_attr(sides, id, conflicts, |r| r.file.clone(), AttrValue::File);
+    let ordinal = merge_attr(sides, id, conflicts, |r| r.ordinal, AttrValue::Ordinal);
+    let body = |r: &EntityRecord| (r.content, r.bytes);
+    let (content, bytes) = if body(a) == body(o) || body(a) == body(b) {
+        body(b)
+    } else if body(b) == body(o) {
+        body(a)
     } else {
         merge_content(
             store, langs, env, o, a, b, id, o_src, a_src, b_src, conflicts, atom_side,
@@ -246,6 +207,24 @@ fn merge_record(
         ordinal,
         content,
         bytes,
+    })
+}
+
+/// Three-way merge of one record attribute; on a real conflict, record it and keep A's.
+fn merge_attr<T: PartialEq + Clone>(
+    (o, a, b): (&EntityRecord, &EntityRecord, &EntityRecord),
+    id: EntityId,
+    conflicts: &mut Vec<Conflict>,
+    get: impl Fn(&EntityRecord) -> T,
+    wrap: impl Fn(T) -> AttrValue,
+) -> T {
+    let (vo, va, vb) = (get(o), get(a), get(b));
+    three(vo.clone(), va.clone(), vb.clone()).unwrap_or_else(|| {
+        conflicts.push(Conflict::Attr {
+            id,
+            sides: Merge::three_way(wrap(vo), wrap(va.clone()), wrap(vb)),
+        });
+        va
     })
 }
 
@@ -558,73 +537,13 @@ fn stored_ref(
     let at = line_col(&orig_src, mapped.start);
     let ident = match ident_at(&orig_map, mapped)? {
         IdentRef::Local(slot, ns) => {
-            let slots = slot_bijection(&orig_src, merged_src, &orig_map, merged_map);
+            let slots = slot_bijection(&equal_lines(&orig_src, merged_src), &orig_map, merged_map);
             let (slot, ns) = slots.get(&(slot, ns)).copied().unwrap_or((slot, ns));
             IdentRef::Local(slot, ns)
         }
         other => other,
     };
     Some((ident, at))
-}
-
-fn slot_bijection(
-    old_src: &[u8],
-    new_src: &[u8],
-    old_map: &[(ByteRange, IdentRef)],
-    new_map: &[(ByteRange, IdentRef)],
-) -> HashMap<(Slot, Namespace), (Slot, Namespace)> {
-    let old_lines = line_spans(old_src);
-    let new_lines = line_spans(new_src);
-    let old_s = String::from_utf8_lossy(old_src);
-    let new_s = String::from_utf8_lossy(new_src);
-    let diff = TextDiff::from_lines(old_s.as_ref(), new_s.as_ref());
-    let old_sites = binder_sites(old_map);
-    let new_sites = binder_sites(new_map);
-    let mut old_i = 0usize;
-    let mut new_i = 0usize;
-    let mut out = HashMap::new();
-    for change in diff.iter_all_changes() {
-        match change.tag() {
-            ChangeTag::Equal => {
-                if let (Some(old_line), Some(new_line)) =
-                    (old_lines.get(old_i), new_lines.get(new_i))
-                {
-                    let old_ids = idents_in(old_map, *old_line);
-                    let new_ids = idents_in(new_map, *new_line);
-                    for ((old_r, old), (new_r, new)) in old_ids.iter().zip(new_ids.iter()) {
-                        if let (IdentRef::Local(os, ons), IdentRef::Local(ns, nns)) = (old, new)
-                            && old_sites.get(&(*os, *ons)) == Some(old_r)
-                            && new_sites.get(&(*ns, *nns)) == Some(new_r)
-                        {
-                            out.entry((*os, *ons)).or_insert((*ns, *nns));
-                        }
-                    }
-                }
-                old_i += 1;
-                new_i += 1;
-            }
-            ChangeTag::Delete => old_i += 1,
-            ChangeTag::Insert => new_i += 1,
-        }
-    }
-    out
-}
-
-fn binder_sites(map: &[(ByteRange, IdentRef)]) -> HashMap<(Slot, Namespace), ByteRange> {
-    let mut out = HashMap::new();
-    for (r, ident) in map {
-        if let IdentRef::Local(slot, ns) = ident {
-            out.entry((*slot, *ns)).or_insert(*r);
-        }
-    }
-    out
-}
-
-fn idents_in(map: &[(ByteRange, IdentRef)], line: ByteRange) -> Vec<(ByteRange, IdentRef)> {
-    map.iter()
-        .filter(|(r, _)| line.start <= r.start && r.end <= line.end)
-        .cloned()
-        .collect()
 }
 
 fn ident_at(map: &[(ByteRange, IdentRef)], r: ByteRange) -> Option<IdentRef> {
@@ -635,62 +554,6 @@ fn ident_at(map: &[(ByteRange, IdentRef)], r: ByteRange) -> Option<IdentRef> {
                 .find(|(mr, _)| mr.start < r.end && r.start < mr.end)
         })
         .map(|(_, i)| i.clone())
-}
-
-fn map_range(from: &[u8], to: &[u8], r: ByteRange) -> Option<ByteRange> {
-    let from_lines = line_spans(from);
-    let to_lines = line_spans(to);
-    let fi = from_lines
-        .iter()
-        .position(|l| l.start <= r.start && r.end <= l.end)?;
-    let from_s = String::from_utf8_lossy(from);
-    let to_s = String::from_utf8_lossy(to);
-    let diff = TextDiff::from_lines(from_s.as_ref(), to_s.as_ref());
-    let mut f = 0usize;
-    let mut t = 0usize;
-    for change in diff.iter_all_changes() {
-        match change.tag() {
-            ChangeTag::Equal => {
-                if f == fi {
-                    let o = from_lines.get(f)?;
-                    let n = to_lines.get(t)?;
-                    let off = r.start.saturating_sub(o.start);
-                    let len = r.end.saturating_sub(r.start);
-                    let start = n.start.saturating_add(off);
-                    return Some(ByteRange {
-                        start,
-                        end: start.saturating_add(len),
-                    });
-                }
-                f += 1;
-                t += 1;
-            }
-            ChangeTag::Delete => f += 1,
-            ChangeTag::Insert => t += 1,
-        }
-    }
-    None
-}
-
-fn line_spans(src: &[u8]) -> Vec<ByteRange> {
-    let mut out = Vec::new();
-    let mut start = 0u32;
-    for (i, b) in src.iter().enumerate() {
-        if *b == b'\n' {
-            let end = (i + 1) as u32;
-            out.push(ByteRange { start, end });
-            start = end;
-        }
-    }
-    if (start as usize) < src.len() {
-        out.push(ByteRange {
-            start,
-            end: src.len() as u32,
-        });
-    } else if src.is_empty() {
-        out.push(ByteRange { start: 0, end: 0 });
-    }
-    out
 }
 
 fn ref_eq(a: &IdentRef, b: &IdentRef, old: &Snapshot, new: &Snapshot, owner: EntityId) -> bool {

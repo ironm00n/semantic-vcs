@@ -9,6 +9,7 @@ use crate::lang::{Env, Lang, Langs, RawEntity, Resolution};
 use crate::snapshot::Snapshot;
 use crate::store::Store;
 
+mod align;
 mod bytes;
 mod canon;
 mod classify;
