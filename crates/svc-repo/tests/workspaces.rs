@@ -149,3 +149,43 @@ fn a_crashed_render_in_a_named_checkout_finishes_on_open() {
     assert!(read(b.path(), "src/lib.rs").contains("fn read_file("), "render finished on open");
     assert!(!wb.store().render_pending().unwrap());
 }
+
+/// DEBATE §15.3: `undo` in a checkout walks that checkout's own ops. B's undo reverts B's
+/// rename and leaves A's alone even though A's op is newer in the shared log; A's undo
+/// then reverts A's. Neither ever moves the other's root.
+#[test]
+fn undo_is_per_checkout() {
+    let (a, repo) = fresh();
+    svc_repo::new(&repo).unwrap();
+    let b = tempfile::tempdir().unwrap();
+    workspace::add(&repo, "agent", b.path(), None).unwrap();
+    drop(repo);
+    let wb = Repo::discover(b.path(), Repo::default_langs()).unwrap();
+    svc_repo::new(&wb).unwrap(); // B on its own change
+    let b_change = wb.current_change().unwrap();
+    rename_read(&wb); // B: read → read_file
+    drop(wb);
+    let wa = Repo::discover(a.path(), Repo::default_langs()).unwrap();
+    let a_change = wa.current_change().unwrap();
+    let id = svc_repo::resolve_entity(&wa, "main").unwrap();
+    wa.mutate(Op::Rename { id, new: "entry".into() }, None, |repo, cur| {
+        let mut next = cur.clone();
+        next.entities.get_mut(&id).unwrap().name = "entry".into();
+        repo.amend(cur, next)
+    })
+    .unwrap(); // A: main → entry, the newest op in the shared log
+    drop(wa);
+
+    let wb = Repo::discover(b.path(), Repo::default_langs()).unwrap();
+    svc_repo::undo(&wb).unwrap();
+    assert_eq!(wb.current_change().unwrap(), b_change, "B stays on its own change (a global undo would land it on A's)");
+    assert!(read(b.path(), "src/lib.rs").contains("fn read("), "B undid its own rename");
+    assert!(read(a.path(), "src/lib.rs").contains("fn entry("), "A's checkout untouched by B's undo");
+    drop(wb);
+
+    let wa = Repo::discover(a.path(), Repo::default_langs()).unwrap();
+    svc_repo::undo(&wa).unwrap();
+    assert_eq!(wa.current_change().unwrap(), a_change);
+    assert!(read(a.path(), "src/lib.rs").contains("fn main("), "A undid its own rename");
+    assert!(read(b.path(), "src/lib.rs").contains("fn read("), "B still at its undone state");
+}

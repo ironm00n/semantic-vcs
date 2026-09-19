@@ -350,7 +350,10 @@ pub fn evolog(repo: &Repo, change: ChangeId) -> Result<Vec<EvologEntry>> {
 /// the whole group is undone in one step (SPEC §5.6). The undo is itself an op, so a second
 /// `undo` redoes.
 pub fn undo(repo: &Repo) -> Result<MutationOut> {
-    let ops = repo.store().ops(OpIx(0), true)?;
+    // Each checkout undoes its own ops (DEBATE §15.3): another checkout's entry carries
+    // *its* root in `before`, and restoring that here would silently switch checkouts.
+    // Unattributed entries from before op attribution count as the default checkout's.
+    let ops = repo.redb().own_ops(OpIx(0), true)?;
     // Repeated `undo` keeps walking back (as `jj undo` does since 0.29) instead of undoing
     // the previous undo: skip every op an earlier undo already reverted. An undo of a
     // changeset reverts the whole group, so it cancels that many ops.
