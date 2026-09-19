@@ -15,11 +15,12 @@ pub trait Store: Send + Sync {
     fn put_blob(&self, bytes: &[u8]) -> Result<[u8; 32]>;
     fn get_blob(&self, id: &[u8; 32]) -> Result<Vec<u8>>;
 
+    /// `ContentId` is the blob hash: `Content::id` and `put_blob` must hash the same bytes.
     fn put_content(&self, c: &Content) -> Result<ContentId> {
         let id = c.id();
         let bytes = postcard::to_stdvec(c).map_err(|e| Error::Other(e.to_string()))?;
-        self.put_blob(&bytes)?;
-        let _ = id;
+        let stored = self.put_blob(&bytes)?;
+        debug_assert_eq!(stored, id.0, "ContentId is not the blob hash");
         Ok(id)
     }
 
@@ -31,7 +32,8 @@ pub trait Store: Send + Sync {
     fn put_bytes_blob(&self, b: &Bytes) -> Result<BytesId> {
         let id = b.id();
         let bytes = postcard::to_stdvec(b).map_err(|e| Error::Other(e.to_string()))?;
-        self.put_blob(&bytes)?;
+        let stored = self.put_blob(&bytes)?;
+        debug_assert_eq!(stored, id.0, "BytesId is not the blob hash");
         Ok(id)
     }
 

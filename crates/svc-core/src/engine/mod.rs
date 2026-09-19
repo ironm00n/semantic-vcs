@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use crate::content::{Bytes, Content, IdentRef, Namespace};
-use crate::delta::ObservedClass;
 use crate::entity::{EntityRecord, FileRecord};
 use crate::error::{Error, Result};
 use crate::ids::{ByteRange, BytesId, ChangeId, ContentId, EntityId, RelPath};
@@ -50,14 +49,6 @@ pub fn extract(
     lang: &dyn Lang,
 ) -> Result<Vec<RawEntity>> {
     extract::extract(tree, src, lang)
-}
-
-pub fn env_at(
-    _store: &dyn Store,
-    snapshot: &Snapshot,
-    _parent: Option<EntityId>,
-) -> Result<Env> {
-    Ok(env_from_snapshot(snapshot))
 }
 
 /// Name + refined Kind for Muse's JS lane tests (nested `let`s stay locals).
@@ -356,28 +347,3 @@ fn assign_ids(raw: &[RawEntity], prev: Option<&Snapshot>) -> Vec<EntityId> {
     ids
 }
 
-pub fn classify_legacy(
-    old: &Content,
-    new: &Content,
-    old_bytes: BytesId,
-    new_bytes: BytesId,
-    old_render: &[u8],
-    new_render: &[u8],
-    old_res: &Resolution,
-    new_res: &Resolution,
-    old_map: &[(ByteRange, IdentRef)],
-    new_map: &[(ByteRange, IdentRef)],
-) -> ObservedClass {
-    classify(
-        old,
-        new,
-        old_bytes,
-        new_bytes,
-        old_render,
-        new_render,
-        old_res,
-        new_res,
-        old_map,
-        new_map,
-    )
-}

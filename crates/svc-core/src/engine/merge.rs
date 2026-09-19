@@ -11,7 +11,7 @@ use crate::snapshot::{AttrValue, Conflict, Hunk, Merge, Side, Snapshot};
 use crate::store::Store;
 
 use super::align::{equal_lines, map_range, slot_bijection};
-use super::{env_from_snapshot, ingest_file_with_env, parse, render, render_entity};
+use super::{env_from_snapshot, ingest_file_with_env, parse, render_entity};
 
 /// Per-entity 3-way merge plus the §5.4 binding post-condition.
 pub fn merge(
@@ -29,7 +29,6 @@ pub fn merge(
 
     let mut entities: BTreeMap<EntityId, EntityRecord> = BTreeMap::new();
     let mut conflicts = Vec::new();
-    let mut atom_side: HashMap<(EntityId, usize), SideOrBase> = HashMap::new();
 
     let ids: BTreeSet<EntityId> = base_s
         .entities
@@ -115,7 +114,6 @@ pub fn merge(
                     &render_entity(&a_s, store, id, false)?.0,
                     &render_entity(&b_s, store, id, false)?.0,
                     &mut conflicts,
-                    &mut atom_side,
                 )?;
                 entities.insert(id, rec);
             }
@@ -135,16 +133,8 @@ pub fn merge(
         message: String::new(),
     };
     signature_pass(&mut snap);
-    binding_post(store, langs, &base_s, &a_s, &b_s, &mut snap, &atom_side)?;
-    let _ = change;
+    binding_post(store, langs, &base_s, &a_s, &b_s, &mut snap)?;
     Ok(snap)
-}
-
-#[derive(Clone, Copy)]
-enum SideOrBase {
-    Base,
-    A,
-    B,
 }
 
 fn unify_add_add(a: &Snapshot, b: &Snapshot, rewrite: &mut HashMap<EntityId, EntityId>) {
@@ -182,7 +172,6 @@ fn merge_record(
     a_src: &[u8],
     b_src: &[u8],
     conflicts: &mut Vec<Conflict>,
-    atom_side: &mut HashMap<(EntityId, usize), SideOrBase>,
 ) -> Result<EntityRecord> {
     let sides = (o, a, b);
     let name = merge_attr(sides, id, conflicts, |r| r.name.clone(), AttrValue::Name);
@@ -195,9 +184,7 @@ fn merge_record(
     } else if body(b) == body(o) {
         body(a)
     } else {
-        merge_content(
-            store, langs, env, o, a, b, id, o_src, a_src, b_src, conflicts, atom_side,
-        )?
+        merge_content(store, langs, env, a, id, o_src, a_src, b_src, conflicts)?
     };
     Ok(EntityRecord {
         name,
@@ -244,15 +231,12 @@ fn merge_content(
     store: &dyn Store,
     langs: &Langs,
     env: &crate::lang::Env,
-    o: &EntityRecord,
     a: &EntityRecord,
-    b: &EntityRecord,
     id: EntityId,
     o_src: &[u8],
     a_src: &[u8],
     b_src: &[u8],
     conflicts: &mut Vec<Conflict>,
-    atom_side: &mut HashMap<(EntityId, usize), SideOrBase>,
 ) -> Result<(crate::ids::ContentId, crate::ids::BytesId)> {
     let lang = langs
         .for_path(&a.file)
@@ -297,39 +281,26 @@ fn merge_content(
         return Ok((a.content, a.bytes));
     }
     let mut out = Vec::new();
-    let mut out_atom = 0usize;
     for region in merged.regions() {
-        let (side, srcs, range) = match region.resolution() {
-            MergeResolution::Unchanged | MergeResolution::Both => {
-                (SideOrBase::Base, &oa, region.base_range())
-            }
-            MergeResolution::Ours => (SideOrBase::A, &aa, region.ours_range()),
-            MergeResolution::Theirs => (SideOrBase::B, &ba, region.theirs_range()),
-            MergeResolution::Conflict => (SideOrBase::A, &aa, region.ours_range()),
-            _ => (SideOrBase::A, &aa, region.ours_range()),
+        let (srcs, range) = match region.resolution() {
+            MergeResolution::Unchanged | MergeResolution::Both => (&oa, region.base_range()),
+            MergeResolution::Theirs => (&ba, region.theirs_range()),
+            _ => (&aa, region.ours_range()),
         };
         for idx in range {
             if let Some(atom) = srcs.get(idx) {
-                atom_side.insert((id, out_atom), side);
                 out.extend_from_slice(atom);
-                out_atom += 1;
             }
         }
     }
-    let part = ingest_file_with_env(&out, a.file.clone(), lang, store, a_change_dummy(a), env)?;
+    // A throwaway snapshot: only the re-ingested content/bytes hashes are kept.
+    let part = ingest_file_with_env(&out, a.file.clone(), lang, store, crate::ids::ChangeId::new(), env)?;
     let rec = part
         .entities
         .values()
         .find(|r| r.parent.is_none())
         .ok_or_else(|| Error::Other("merged item produced no entity".into()))?;
-    let _ = o;
-    let _ = b;
     Ok((rec.content, rec.bytes))
-}
-
-fn a_change_dummy(a: &EntityRecord) -> crate::ids::ChangeId {
-    let _ = a;
-    crate::ids::ChangeId::new()
 }
 
 /// The item node of a rendered entity: the first top-level node that is an entity kind
@@ -437,9 +408,7 @@ fn binding_post(
     a: &Snapshot,
     b: &Snapshot,
     snap: &mut Snapshot,
-    _atom_side: &HashMap<(EntityId, usize), SideOrBase>,
 ) -> Result<()> {
-    let rendered = render(snap, store, langs, true)?;
     let env = env_from_snapshot(snap);
     let ids: Vec<_> = snap.entities.keys().copied().collect();
     for id in ids {
@@ -460,9 +429,6 @@ fn binding_post(
             continue;
         }
         let Some(lang) = langs.for_path(&rec.file) else {
-            continue;
-        };
-        let Some(file) = rendered.files.get(&rec.file) else {
             continue;
         };
         let (item, map) = render_entity(snap, store, id, true)?;
@@ -515,7 +481,6 @@ fn binding_post(
                 }
             }
         }
-        let _ = (file, rec);
     }
     Ok(())
 }

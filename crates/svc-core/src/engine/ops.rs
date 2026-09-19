@@ -91,11 +91,10 @@ pub fn extract_hoist(
 
 pub fn delete(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapshot> {
     let tree = subtree(snap, id);
-    let outside: Vec<_> = tree
-        .iter()
-        .flat_map(|d| referrers(snap, store, *d).into_iter())
-        .filter(|r| !tree.contains(r))
-        .collect();
+    let mut outside = Vec::new();
+    for d in &tree {
+        outside.extend(referrers(snap, store, *d)?.into_iter().filter(|r| !tree.contains(r)));
+    }
     if !outside.is_empty() {
         return Err(Error::Other(format!(
             "delete refused: {} referrers outside the subtree",
@@ -110,7 +109,7 @@ pub fn delete(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapsh
 }
 
 pub fn inline(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapshot> {
-    let refs = referrers(snap, store, id);
+    let refs = referrers(snap, store, id)?;
     if refs.len() != 1 {
         return Err(Error::Other(format!(
             "inline requires a single use; found {}",
@@ -185,9 +184,8 @@ pub fn add_def(
     parent: Option<EntityId>,
     ordinal: u32,
     definition: &[u8],
-    intent: Intent,
+    _intent: Intent,
 ) -> Result<Snapshot> {
-    let _ = intent;
     let file = match parent {
         Some(p) => snap
             .entities
@@ -273,13 +271,7 @@ pub fn format_tokens(snap: &Snapshot, tokens: &[Token], self_name: &str) -> Stri
 }
 
 pub fn status_report(prev: &Snapshot, next: &Snapshot) -> StatusReport {
-    let deltas = super::diff(prev, next)
-        .into_iter()
-        .filter(|d| match d {
-            Delta::Relocated { .. } => !commutative_layout(prev, next, d),
-            _ => true,
-        })
-        .collect::<Vec<_>>();
+    let deltas = super::diff(prev, next);
     let mut layout = 0usize;
     let mut semantic = 0usize;
     for d in &deltas {
@@ -295,10 +287,6 @@ pub fn status_report(prev: &Snapshot, next: &Snapshot) -> StatusReport {
         layout,
         semantic,
     }
-}
-
-fn commutative_layout(_prev: &Snapshot, _next: &Snapshot, _d: &Delta) -> bool {
-    true
 }
 
 #[derive(Clone, Debug)]
@@ -334,31 +322,28 @@ pub fn snapshot_working_copy(
     snapshot_files(store, langs, files, prev, change)
 }
 
-pub fn referrers(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Vec<EntityId> {
+/// Entities whose content or bytes mention `id`. A missing blob is an error, not "no referrer".
+pub fn referrers(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Vec<EntityId>> {
     let mut out = Vec::new();
     for (oid, rec) in &snap.entities {
         if *oid == id {
             continue;
         }
-        if let Ok(c) = store.get_content(rec.content) {
-            if c.tokens.iter().any(|t| match t {
-                Token::Ident(IdentRef::Entity(e)) | Token::Child(e) => *e == id,
-                _ => false,
-            }) {
-                out.push(*oid);
-                continue;
-            }
-        }
-        if let Ok(b) = store.get_bytes_blob(rec.bytes) {
-            if b.chunks().iter().any(|c| match c {
+        let in_content = store.get_content(rec.content)?.tokens.iter().any(|t| match t {
+            Token::Ident(IdentRef::Entity(e)) | Token::Child(e) => *e == id,
+            _ => false,
+        });
+        let in_bytes = || -> Result<bool> {
+            Ok(store.get_bytes_blob(rec.bytes)?.chunks().iter().any(|c| match c {
                 Chunk::Child(e) | Chunk::Name(e) => *e == id,
                 _ => false,
-            }) {
-                out.push(*oid);
-            }
+            }))
+        };
+        if in_content || in_bytes()? {
+            out.push(*oid);
         }
     }
-    out
+    Ok(out)
 }
 
 fn subtree(snap: &Snapshot, id: EntityId) -> BTreeSet<EntityId> {
