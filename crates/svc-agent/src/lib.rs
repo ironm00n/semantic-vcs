@@ -50,6 +50,13 @@ impl AgentConfig {
         }
     }
 
+    /// A further `--patch` overlay, e.g. the runtime one that pins the plugin's absolute path.
+    pub fn with_patch(mut self, overlay: &Path) -> Self {
+        self.args.push("--patch".into());
+        self.args.push(overlay.display().to_string());
+        self
+    }
+
     /// Any command that speaks ACP on stdio (used by the tests' fake agent).
     pub fn command(command: impl Into<PathBuf>, args: Vec<String>, cwd: &Path) -> Self {
         Self {

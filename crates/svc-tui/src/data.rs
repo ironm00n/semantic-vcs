@@ -74,6 +74,16 @@ impl Svc {
         self.json(&["undo"])
     }
 
+    /// Open the group every op of this agent run is stamped with (SPEC §5.6), so `u` and
+    /// `svc undo` revert the run whole.
+    pub fn changeset_begin(&self, name: &str) -> Result<serde_json::Value, String> {
+        self.json(&["changeset", "begin", name])
+    }
+
+    pub fn changeset_end(&self) -> Result<serde_json::Value, String> {
+        self.json(&["changeset", "end"])
+    }
+
     pub fn root_exists(&self) -> bool {
         Path::new(&self.root).join(".svc").is_dir()
     }

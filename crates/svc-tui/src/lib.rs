@@ -46,7 +46,12 @@ async fn run_app(
     let mut app = App::new(svc);
     let (ev_tx, mut ev_rx) = mpsc::unbounded_channel();
     let mut driver = None;
+    let mut changeset_open = false;
     if let Some((config, task)) = agent {
+        match app.svc.changeset_begin(&task) {
+            Ok(_) => changeset_open = true,
+            Err(e) => app.error = Some(format!("changeset begin: {e}")),
+        }
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         driver = Some(tokio::spawn(svc_agent::run(config, ev_tx, cmd_rx, wire_log)));
         app.agent = Some(AgentLink {
@@ -88,6 +93,9 @@ async fn run_app(
     }
     if let Some(d) = driver {
         let _ = tokio::time::timeout(Duration::from_secs(3), d).await;
+    }
+    if changeset_open {
+        app.svc.changeset_end().map_err(|e| format!("changeset end: {e}"))?;
     }
     Ok(())
 }
