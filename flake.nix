@@ -6,9 +6,31 @@
   outputs = { nixpkgs, ... }:
     let
       forAllSystems = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-linux" ];
+      pkgsFor = system: nixpkgs.legacyPackages.${system};
+      packageFor = system:
+        let pkgs = pkgsFor system;
+        in pkgs.rustPlatform.buildRustPackage {
+          pname = "svc";
+          version = "0.1.0";
+          src = ./.;
+          cargoLock.lockFile = ./Cargo.lock;
+          cargoBuildFlags = [ "-p" "svc" ];
+          cargoTestFlags = [ "--workspace" ];
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = [ pkgs.openssl ];
+          meta = {
+            description = "Compiler-grade version control";
+            license = pkgs.lib.licenses.agpl3Plus;
+            mainProgram = "svc";
+          };
+        };
     in {
+      packages = forAllSystems (system: { default = packageFor system; });
+
+      checks = forAllSystems (system: { package = packageFor system; });
+
       devShells = forAllSystems (system:
-        let pkgs = nixpkgs.legacyPackages.${system};
+        let pkgs = pkgsFor system;
         in {
           default = pkgs.mkShell {
             packages = with pkgs; [
@@ -24,5 +46,7 @@
             ];
           };
         });
+
+      formatter = forAllSystems (system: (pkgsFor system).nixfmt-tree);
     };
 }
