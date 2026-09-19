@@ -4,9 +4,11 @@
 //! functions returning serialisable records. The CLI is a thin layer over these.
 
 pub mod history;
+pub mod merge;
 pub mod repo;
 pub mod store;
 
 pub use history::*;
+pub use merge::{MergeOut, Take, conflicts, lca, merge, merge_snapshots, resolve};
 pub use repo::{Mutation, Repo};
 pub use store::RedbStore;
