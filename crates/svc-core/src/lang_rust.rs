@@ -137,6 +137,11 @@ impl Lang for RustLang {
                 None => format!("impl<{ty}>"),
             });
         }
+        // Opaque items are named by their text; a byte-offset fallback would give every
+        // `use` below an edited line a new identity.
+        if matches!(node.kind(), "use_declaration" | "extern_crate_declaration") {
+            return Some(text(src, node));
+        }
         ENTITY_KINDS
             .iter()
             .find(|r| r.node_kind == node.kind())
