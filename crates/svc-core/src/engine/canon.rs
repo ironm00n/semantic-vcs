@@ -158,11 +158,18 @@ fn collect_refs<'a>(
             // declaration site recorded as slot, not a ref
         } else {
             let name = String::from_utf8_lossy(&src[r.start as usize..r.end as usize]).into_owned();
-            let ns = match node.kind() {
-                "type_identifier" | "primitive_type" => Namespace::Type,
-                "lifetime" => Namespace::Lifetime,
-                _ => Namespace::Value,
-            };
+            let ns = lang
+                .roles(node, field, src, &crate::lang::Env::default())
+                .into_iter()
+                .find_map(|role| match role {
+                    Role::Reference { namespace } => Some(namespace),
+                    _ => None,
+                })
+                .unwrap_or(match node.kind() {
+                    "type_identifier" | "primitive_type" => Namespace::Type,
+                    "lifetime" => Namespace::Lifetime,
+                    _ => Namespace::Value,
+                });
             let local = binders
                 .iter()
                 .filter(|b| {
@@ -200,7 +207,6 @@ fn collect_refs<'a>(
             }
         }
     }
-    let _ = (lang, field);
 }
 
 fn locate<'a>(node: tree_sitter::Node<'a>, loc: Locator) -> Vec<tree_sitter::Node<'a>> {
@@ -439,6 +445,7 @@ fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {
             | "super"
             | "crate"
             | "lifetime"
+            | "statement_identifier"
             | "shorthand_field_identifier"
             | "shorthand_property_identifier"
             | "shorthand_property_identifier_pattern"

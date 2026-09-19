@@ -93,3 +93,25 @@ fn js_let_is_block_scoped_not_function_scoped() {
     assert_eq!(locals.len(), 1, "inner use is Local: {refs:?}");
     assert_eq!(frees_named(&refs, "x"), 1, "use after the block is Free: {refs:?}");
 }
+
+#[test]
+fn js_break_label_is_not_the_same_named_var() {
+    let src = "function f(){ var loop = 1; loop: while (true) { break loop; } }\n";
+    let refs = js_item_refs(src);
+    let value = refs
+        .iter()
+        .filter(|(n, ident)| n == "loop" && matches!(ident, IdentRef::Local(_, Namespace::Value)))
+        .count();
+    let labels: Vec<_> = refs
+        .iter()
+        .filter(|(n, _)| n == "loop")
+        .cloned()
+        .collect();
+    assert!(
+        !labels
+            .iter()
+            .any(|(_, ident)| matches!(ident, IdentRef::Local(_, Namespace::Value))),
+        "break loop must not resolve as the var: {labels:?}"
+    );
+    assert_eq!(value, 0, "{labels:?}");
+}
