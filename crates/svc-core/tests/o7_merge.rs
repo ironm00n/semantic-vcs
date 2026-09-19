@@ -51,19 +51,21 @@ fn o7_demo_line_6_is_a_binding_conflict_on_raw() {
         .conflicts
         .iter()
         .filter_map(|c| match c {
-            Conflict::Binding { id, name, was, now, .. } if *id == load => {
-                Some((name.clone(), was.clone(), now.clone()))
+            Conflict::Binding { id, name, was, was_at, now, .. } if *id == load => {
+                Some((name.clone(), was.clone(), now.clone(), was_at.is_some()))
             }
             _ => None,
         })
         .collect();
     assert!(
-        binds.iter().any(|(name, was, now)| name == "raw" && was != now),
-        "expected a Binding conflict on raw, got {:?}",
+        binds.iter().any(|(name, was, now, located)| {
+            name == "raw" && was != now && *located
+        }),
+        "expected a Binding conflict on raw with was_at, got {:?}",
         merged.conflicts
     );
     assert!(
-        binds.iter().any(|(_, was, now)| {
+        binds.iter().any(|(_, was, now, _)| {
             matches!(
                 (was, now),
                 (IdentRef::Local(a, _), IdentRef::Local(b, _)) if a != b
@@ -114,8 +116,8 @@ fn o7_git_twin_load_is_a_binding_conflict_on_raw() {
         .conflicts
         .iter()
         .filter_map(|c| match c {
-            Conflict::Binding { id, name, was, now, .. } if *id == load => {
-                Some((name.clone(), was.clone(), now.clone()))
+            Conflict::Binding { id, name, was, was_at, now, .. } if *id == load => {
+                Some((name.clone(), was.clone(), now.clone(), was_at.is_some()))
             }
             _ => None,
         })
@@ -126,8 +128,10 @@ fn o7_git_twin_load_is_a_binding_conflict_on_raw() {
         merged.conflicts
     );
     assert!(
-        binds.iter().any(|(name, was, now)| name == "raw" && was != now),
-        "expected a Binding conflict on raw, got {:?}",
+        binds.iter().any(|(name, was, now, located)| {
+            name == "raw" && was != now && *located
+        }),
+        "expected a Binding conflict on raw with was_at, got {:?}",
         merged.conflicts
     );
 }

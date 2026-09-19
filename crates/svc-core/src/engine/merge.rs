@@ -496,7 +496,8 @@ fn binding_post(
             let stored: Vec<_> = [base, a, b]
                 .into_iter()
                 .filter_map(|origin| {
-                    stored_ref(origin, store, id, &item, &map, *r).map(|was| (origin, was))
+                    stored_ref(origin, store, id, &item, &map, *r)
+                        .map(|(was, was_at)| (origin, was, was_at))
                 })
                 .collect();
             // The declaration site is stored as `Entity(SELF)` (§2.3) and re-resolves to the
@@ -505,19 +506,20 @@ fn binding_post(
                 IdentRef::Entity(x) if *x == id => IdentRef::Entity(EntityId::SELF),
                 other => other.clone(),
             };
-            if !stored.is_empty()
-                && !stored
+            if let Some((_, was, was_at)) = stored.iter().find(|(origin, was, _)| {
+                !ref_eq(was, &now, origin, snap, id)
+            }) {
+                if !stored
                     .iter()
-                    .any(|(origin, was)| ref_eq(was, &now, origin, snap, id))
-            {
-                if let Some((_, was)) = stored.into_iter().next() {
+                    .any(|(origin, was, _)| ref_eq(was, &now, origin, snap, id))
+                {
                     snap.conflicts.push(Conflict::Binding {
                         id,
                         ident: TokenIx(i as u32),
                         name: source_name(&item, *r).unwrap_or_else(|| ref_name(ident)),
                         at: line_col(&item, r.start),
-                        was,
-                        was_at: None,
+                        was: was.clone(),
+                        was_at: Some(*was_at),
                         now,
                         now_at: Some(line_col(&item, r.start)),
                     });
@@ -536,21 +538,23 @@ fn stored_ref(
     merged_src: &[u8],
     merged_map: &[(ByteRange, IdentRef)],
     r: ByteRange,
-) -> Option<IdentRef> {
+) -> Option<(IdentRef, LineCol)> {
     if !origin.entities.contains_key(&id) {
         return None;
     }
     let (orig_src, orig_map) = super::render_entity(origin, store, id, true).ok()?;
     let orig_map = orig_map.unwrap_or_default();
     let mapped = map_range(merged_src, &orig_src, r)?;
-    match ident_at(&orig_map, mapped)? {
+    let at = line_col(&orig_src, mapped.start);
+    let ident = match ident_at(&orig_map, mapped)? {
         IdentRef::Local(slot, ns) => {
             let slots = slot_bijection(&orig_src, merged_src, &orig_map, merged_map);
             let (slot, ns) = slots.get(&(slot, ns)).copied().unwrap_or((slot, ns));
-            Some(IdentRef::Local(slot, ns))
+            IdentRef::Local(slot, ns)
         }
-        other => Some(other),
-    }
+        other => other,
+    };
+    Some((ident, at))
 }
 
 fn slot_bijection(
