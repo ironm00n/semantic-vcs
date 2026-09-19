@@ -581,15 +581,18 @@ fn js_scripted_agent_stand_in() {
             "patch": {"find": "  if (config.retries > 10)",
                        "replace": "  checkRetries(config)\n  if (config.retries > 10)"}}),
     ];
-    let out: String = lines
-        .iter()
-        .map(|v| serde_json::to_string(v).unwrap())
-        .collect::<Vec<_>>()
-        .join("\n")
-        + "\n";
+    // The recording is a pinned demo artifact: compare against it read-only.
+    // (An earlier revision rewrote the file with `serde_json::to_string`,
+    // whose sorted keys dirtied the tree on every test run.)
     let dest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../demo/recordings/js-agent.jsonl");
-    std::fs::write(&dest, &out).unwrap_or_else(|e| panic!("{dest:?}: {e}"));
+    let recorded = std::fs::read_to_string(&dest).unwrap_or_else(|e| panic!("{dest:?}: {e}"));
+    let recorded: Vec<serde_json::Value> = recorded
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let expected: Vec<serde_json::Value> = lines.iter().cloned().collect();
+    assert_eq!(recorded, expected, "js-agent.jsonl drifted from the scripted run");
 }
 
 /// Trap T5: `default` in a specifier is an anonymous token — the visible
