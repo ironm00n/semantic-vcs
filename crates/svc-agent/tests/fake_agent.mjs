@@ -14,6 +14,10 @@ const request = (method, params) =>
   });
 const notify = (method, params) => send({ jsonrpc: '2.0', method, params });
 
+// FAKE_AUTH=<key>: advertise an auth method and refuse session/new until `authenticate`
+// carries that key in `_meta.api_key` — the shape Devin's `devin acp` uses.
+const wantKey = process.env.FAKE_AUTH;
+let authed = !wantKey;
 process.stderr.write('fake agent up\n');
 
 rl.on('line', async (line) => {
@@ -27,9 +31,14 @@ rl.on('line', async (line) => {
   const reply = (result) => send({ jsonrpc: '2.0', id: msg.id, result });
   switch (msg.method) {
     case 'initialize':
-      reply({ protocolVersion: 1, agentCapabilities: {}, authMethods: [], agentInfo: { name: 'fake', version: '0' } });
+      reply({ protocolVersion: 1, agentCapabilities: {}, authMethods: wantKey ? [{ id: 'fake-key', name: 'Fake key' }] : [], agentInfo: { name: 'fake', version: '0' } });
+      break;
+    case 'authenticate':
+      if (msg.params.methodId === 'fake-key' && msg.params._meta?.api_key === wantKey) { authed = true; reply({}); }
+      else send({ jsonrpc: '2.0', id: msg.id, error: { code: -32000, message: 'Authentication failed: invalid api key' } });
       break;
     case 'session/new':
+      if (!authed) { send({ jsonrpc: '2.0', id: msg.id, error: { code: -32000, message: 'authenticate first' } }); break; }
       if (!msg.params.cwd.startsWith('/')) { send({ jsonrpc: '2.0', id: msg.id, error: { code: -32602, message: 'cwd must be absolute' } }); break; }
       reply({ sessionId: 'sess-1' });
       break;

@@ -52,3 +52,28 @@ fn a_dead_agent_is_an_error_not_a_hang() {
     let err = run_one_shot(cfg, "x", |_| {}, |_| true, false).unwrap_err();
     assert!(err.contains("exited") || err.contains("closed"), "{err}");
 }
+
+/// Devin's `devin acp` advertises an auth method and refuses `session/new` until
+/// `authenticate` carries the key in `_meta.api_key`; the fake agent does the same under
+/// `FAKE_AUTH`. With the key on the config the run completes; without it, `session/new`
+/// is refused and that is the error the caller sees — never a hang.
+#[test]
+fn authenticates_when_the_agent_advertises_a_method() {
+    let mut cfg = config();
+    cfg.env.insert("FAKE_AUTH".into(), "s3cret".into());
+    cfg.api_key = Some("s3cret".into());
+    let reason = run_one_shot(cfg, "rename read to read_file", |_| {}, |_| true, false).unwrap();
+    assert_eq!(reason, "end_turn");
+
+    let mut cfg = config();
+    cfg.env.insert("FAKE_AUTH".into(), "s3cret".into());
+    cfg.api_key = None;
+    let err = run_one_shot(cfg, "rename read to read_file", |_| {}, |_| true, false).unwrap_err();
+    assert!(err.to_string().contains("authenticate first"), "{err}");
+
+    let mut cfg = config();
+    cfg.env.insert("FAKE_AUTH".into(), "s3cret".into());
+    cfg.api_key = Some("wrong".into());
+    let err = run_one_shot(cfg, "rename read to read_file", |_| {}, |_| true, false).unwrap_err();
+    assert!(err.to_string().contains("invalid api key"), "{err}");
+}

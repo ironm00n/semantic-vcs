@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    CancelNotification, ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest,
+    AuthenticateRequest, CancelNotification, ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest,
     RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SelectedPermissionOutcome, SessionNotification, SessionUpdate, StopReason, TextContent,
 };
@@ -26,6 +26,9 @@ pub struct AgentConfig {
     pub env: BTreeMap<String, String>,
     /// Absolute; goes in `session/new`, not the child's cwd.
     pub cwd: PathBuf,
+    /// Sent as `authenticate._meta.api_key` when the agent advertises an auth method
+    /// (Devin's `devin acp`); from `SVC_AGENT_API_KEY` by default.
+    pub api_key: Option<String>,
 }
 
 impl AgentConfig {
@@ -47,6 +50,7 @@ impl AgentConfig {
             ],
             env,
             cwd: repo_root.to_path_buf(),
+            api_key: std::env::var("SVC_AGENT_API_KEY").ok(),
         }
     }
 
@@ -64,6 +68,7 @@ impl AgentConfig {
             args,
             env: BTreeMap::new(),
             cwd: cwd.to_path_buf(),
+            api_key: std::env::var("SVC_AGENT_API_KEY").ok(),
         }
     }
 }
@@ -226,6 +231,7 @@ pub async fn run(
     let perm_tx = events.clone();
     let main_tx = events.clone();
     let cwd = config.cwd.clone();
+    let api_key = config.api_key.clone();
 
     let result = agent_client_protocol::Client
         .builder()
@@ -269,6 +275,16 @@ pub async fn run(
                     "reason": "unsupported protocol version",
                     "version": init.protocol_version,
                 })));
+            }
+            // Agents that advertise an auth method (Devin's `devin acp`: `devin-browser`)
+            // refuse `session/new` until `authenticate`; dsh advertises none, so this is a
+            // no-op there. The key rides in `_meta.api_key`, as Devin expects.
+            if let (Some(key), Some(method)) = (api_key.clone(), init.auth_methods.first()) {
+                let mut meta = agent_client_protocol::schema::v1::Meta::new();
+                meta.insert("api_key".into(), Value::String(key));
+                cx.send_request(AuthenticateRequest::new(method.id().clone()).meta(meta))
+                    .block_task()
+                    .await?;
             }
             let session = cx
                 .send_request(NewSessionRequest::new(cwd))
