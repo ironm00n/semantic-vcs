@@ -4,7 +4,7 @@
 //! its own `root` row ([`crate::store::WorkspaceRow`]). Snapshots, heads, branches and the
 //! op log are shared, so an op in one checkout is visible to `svc log` in every other.
 //!
-//! The redb lock still serialises processes (design decision §11): two checkouts run *sequential*
+//! The redb lock still serialises processes: two checkouts run *sequential*
 //! CLI invocations against one file, they do not write simultaneously.
 
 use std::path::{Path, PathBuf};

@@ -1,4 +1,4 @@
-//! Everything the TUI knows comes from `svc … --json` subprocesses (design decision §11: the TUI
+//! Everything the TUI knows comes from `svc … --json` subprocesses (the TUI
 //! never holds the redb lock, so the agent's own `svc` calls can proceed while it runs).
 
 use std::path::{Path, PathBuf};
@@ -105,7 +105,7 @@ impl Svc {
         self.json(&["undo"])
     }
 
-    /// Open the group every op of this agent run is stamped with (design §5.6), so `u` and
+    /// Open the group every op of this agent run is stamped with, so `u` and
     /// `svc undo` revert the run whole.
     pub fn changeset_begin(&self, name: &str) -> Result<serde_json::Value, String> {
         self.json(&["changeset", "begin", name])

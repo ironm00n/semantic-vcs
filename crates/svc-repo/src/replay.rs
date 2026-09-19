@@ -93,7 +93,7 @@ impl Replay<'_> {
     fn apply(&mut self, e: &OpLogEntry) -> Result<()> {
         // The entry records which root it started from. With several checkouts on one op
         // log (or a `checkout` between ops) that is not necessarily the last op's result:
-        // switch to it first — a checkout switch, not a content change (design note §14).
+        // switch to it first — a checkout switch, not a content change.
         if let Some(mapped) = self.snaps.get(&e.before.root).copied() {
             if mapped != self.store.root()? {
                 self.store.set_root(mapped)?;

@@ -20,7 +20,7 @@ pub enum Pane {
     Queue,
 }
 
-/// design §7: every `edit_def` queues (green when declared and observed agree, red when they
+/// Every `edit_def` queues (green when declared and observed agree, red when they
 /// don't), binding conflicts queue, nothing else. The permission ask and the verdict are one
 /// item in two states.
 pub enum QueueItem {
@@ -50,7 +50,7 @@ impl QueueItem {
 pub struct AgentLink {
     pub commands: UnboundedSender<AgentCommand>,
     pub task: String,
-    /// Prepend the entity list to the first prompt (SUBMISSION: removes the discovery
+    /// Prepend the entity list to the first prompt (removes the discovery
     /// round trip when the live run is long). `SVC_AGENT_PRESEED=1`.
     pub preseed: bool,
     pub running: bool,

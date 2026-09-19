@@ -1,7 +1,7 @@
 //! A checked-out repository: the `.svc/` store plus the working copy around it.
 //!
 //! Every mutating verb goes through [`Repo::mutate`], which snapshots the working copy
-//! before, commits, records the op, and renders after (design §4). Nothing here decides
+//! before, commits, records the op, and renders after. Nothing here decides
 //! what a snapshot *contains* — that is `svc_core::engine`'s job; this module only moves
 //! bytes between disk and store and keeps `root`/`heads`/the op log consistent.
 
@@ -25,7 +25,7 @@ pub const IGNORE_FILE: &str = ".svcignore";
 /// Directories never walked, on top of `.svcignore`.
 const ALWAYS_IGNORED: &[&str] = &[STORE_DIR, ".git", ".jj", "target", "node_modules"];
 
-/// How long `open` keeps retrying redb's lock (design decision §11) unless `SVC_LOCK_TIMEOUT_MS`
+/// How long `open` keeps retrying redb's lock unless `SVC_LOCK_TIMEOUT_MS`
 /// or [`Repo::open_with`] says otherwise. One `Repo` is one exclusive store session: redb
 /// refuses a second handle on the file, from another process or this one, until the first
 /// is dropped. Every verb is therefore serialised and atomic with respect to every other.
@@ -54,7 +54,7 @@ pub struct Mutation {
     pub entry: OpLogEntry,
     /// The snapshot the op produced (equal to `entry.after.root` unless the op was a no-op).
     pub snapshot: SnapshotId,
-    /// Set when a stale `open_changeset` row was closed on the way (design §5.6).
+    /// Set when a stale `open_changeset` row was closed on the way.
     pub closed_stale_changeset: Option<ChangeSetId>,
 }
 
@@ -305,7 +305,7 @@ impl Repo {
         Ok(pats)
     }
 
-    /// Bytes-in → snapshot-out. Delegates to `svc_core::engine::snapshot_files` (design note §7).
+    /// Bytes-in → snapshot-out. Delegates to `svc_core::engine::snapshot_files`.
     fn snapshot_files(
         &self,
         files: &BTreeMap<RelPath, Vec<u8>>,
@@ -321,7 +321,7 @@ impl Repo {
         Ok(rendered.files == self.tracked_files()?)
     }
 
-    /// Reconcile hand edits into the current change (design §2.5, §4's wrapper): re-snapshot
+    /// Reconcile hand edits into the current change: re-snapshot
     /// the tracked files against the current snapshot, amend unless identical, and record an
     /// `Absorb` op whose `after.root` is the new snapshot (so O5 can replay it). Returns the
     /// previous snapshot and the new id when something was absorbed.
@@ -360,7 +360,7 @@ impl Repo {
     }
 
     /// Rewrites the current change: `next` gets `cur` as its predecessor and inherits its
-    /// parents. Identical content is a no-op (design §2.5 step 3) and returns `cur`'s id.
+    /// parents. Identical content is a no-op and returns `cur`'s id.
     pub fn amend(&self, cur: &Snapshot, mut next: Snapshot) -> Result<SnapshotId> {
         let cur_id = cur.id();
         if next.content_eq(cur) {
@@ -390,7 +390,7 @@ impl Repo {
         let cur = self.current()?;
         // From here to `append_op`, head/root/render-pending writes are staged and land in
         // the op's own transaction: a crash never leaves the store a snapshot ahead of
-        // the log, and a failing verb publishes nothing (design note §15b).
+        // the log, and a failing verb publishes nothing.
         self.store.stage();
         let staged = (|| -> Result<(SnapshotId, OpLogEntry)> {
             self.store.set_render_pending(true)?;
@@ -450,7 +450,7 @@ impl Repo {
         })
     }
 
-    /// The open changeset to stamp on an op, closing a row whose owner is gone (design §5.6).
+    /// The open changeset to stamp on an op, closing a row whose owner is gone.
     pub fn open_group(&self) -> Result<(Option<ChangeSetId>, Option<ChangeSetId>)> {
         let Some(row) = self.store.open_changeset()? else {
             return Ok((None, None));
@@ -468,7 +468,7 @@ impl Repo {
     }
 
     /// Writes every file of `snapshot` via temp + `rename(2)`, then deletes tracked files it
-    /// no longer contains (design §5.5). Never touches untracked files.
+    /// no longer contains. Never touches untracked files.
     pub fn render_to_disk(&self, snapshot: &Snapshot) -> Result<()> {
         let rendered = self.render_into(&self.root, snapshot)?;
         for rel in self.tracked_files()?.keys() {

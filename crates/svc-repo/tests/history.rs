@@ -396,7 +396,7 @@ fn an_identical_edit_def_is_still_an_event_on_the_change() {
     assert!(!log[0].flagged);
 }
 
-/// design note §15b: a verb publishes head, root and its op-log entry in one transaction. A
+/// A verb publishes head, root and its op-log entry in one transaction. A
 /// verb that fails *after* its amend must leave the store exactly as it was — before
 /// staging, `amend` had already moved head and root and only the entry was missing.
 #[test]

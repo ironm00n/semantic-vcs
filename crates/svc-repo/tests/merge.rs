@@ -1,6 +1,6 @@
-//! Acceptance tests for `svc merge` (design note §11): the verbs are svc-repo's, the algorithm is
+//! Acceptance tests for `svc merge`: the verbs are svc-repo's, the algorithm is
 //! `svc_core::engine::merge`. Fixtures go through the real ops so the merged snapshot is
-//! something the §5.4 post-condition can render and re-parse.
+//! something the binding post-condition can render and re-parse.
 
 use svc_core::engine::{add_def, delete, edit_def, rename};
 use svc_core::{Conflict, EntityId, Intent, Op};

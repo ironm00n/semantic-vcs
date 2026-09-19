@@ -50,7 +50,7 @@ pub struct WorkspaceRow {
 
 /// Head/root/render-pending writes held back until `append_op`'s transaction, so a
 /// mutation is published in one redb txn and a crash can never leave head and root a
-/// snapshot ahead of the op log (design note §15b). Reads consult it first, so the code in
+/// snapshot ahead of the op log. Reads consult it first, so the code in
 /// between (`amend`, `view`) sees what it just wrote.
 #[derive(Default)]
 struct Staged {

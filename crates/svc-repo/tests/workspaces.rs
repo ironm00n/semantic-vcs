@@ -150,7 +150,7 @@ fn a_crashed_render_in_a_named_checkout_finishes_on_open() {
     assert!(!wb.store().render_pending().unwrap());
 }
 
-/// design note §15.3: `undo` in a checkout walks that checkout's own ops. B's undo reverts B's
+/// `undo` in a checkout walks that checkout's own ops. B's undo reverts B's
 /// rename and leaves A's alone even though A's op is newer in the shared log; A's undo
 /// then reverts A's. Neither ever moves the other's root.
 #[test]

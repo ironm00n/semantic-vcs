@@ -1,4 +1,4 @@
-//! Human-readable renderings of the verb outputs (design §8: `--json` is the machine form;
+//! Human-readable renderings of the verb outputs (`--json` is the machine form;
 //! without it the expo reads sentences). Entity references print as `name⟨short⟩`, never
 //! a bare UUID.
 
