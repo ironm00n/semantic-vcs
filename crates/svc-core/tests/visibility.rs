@@ -328,13 +328,24 @@ fn closure_inside_fn_still_sees_type_param() {
 }
 
 #[test]
-fn macro_args_are_not_local_refs() {
+fn macro_args_are_local_refs() {
+    // The compiler resolves `x` inside `foo!(x)`; so must we, or an alpha-rename of the
+    // binder leaves the macro argument behind (O9 went red on `vec![node]`).
     let src = "fn f() { let x = 1; foo!(x); let y = x; }\n";
     let refs = rust_item_refs(src);
     let xs = locals_named(&refs, "x");
-    assert_eq!(
-        xs.len(),
-        1,
-        "x inside foo!(x) is opaque; only `let y = x` is a local ref: {refs:?}"
-    );
+    assert_eq!(xs.len(), 2, "both `foo!(x)` and `let y = x` reference x: {refs:?}");
+}
+
+#[test]
+fn rust_typed_closure_param_gets_one_slot() {
+    // `parameters` (closure role) and `parameter` (pattern role) both reach `src`;
+    // it must be bound once or Bytes::new rejects duplicate local_ranges (O10).
+    let src = "fn f() { let g = |src: &[u8], n: usize| src.len() + n; }\n";
+    let refs = rust_item_refs(src);
+    let srcs = locals_named(&refs, "src");
+    assert_eq!(srcs.len(), 1, "one reference to src in the body: {refs:?}");
+    let ns: Vec<_> = locals_named(&refs, "n");
+    assert_eq!(ns.len(), 1, "{refs:?}");
+    assert_ne!(srcs[0], ns[0], "distinct params get distinct slots");
 }

@@ -160,8 +160,11 @@ impl Lang for RustLang {
         rust_roles(node, field)
     }
 
+    // Macro arguments are not opaque: `vec![x]`, `matches!(k, ..)`, `format!("{x}")` use
+    // the local, and renaming the binder without them does not compile (O9). Rust has
+    // no node kind whose identifiers the compiler ignores.
     fn opaque_nodes(&self) -> &'static [&'static str] {
-        &["token_tree", "macro_invocation"]
+        &[]
     }
 
     fn commutative_parents(&self) -> &'static [CommutativeRule] {
@@ -234,6 +237,16 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
             locator: Locator::Field("pattern"),
         }],
         "identifier" if field == Some("name") => vec![],
+        // Untyped closure parameter `|s|`: a bare identifier under closure_parameters, scoped
+        // to the closure. Typed ones are `parameter` nodes and bind through their pattern; a
+        // locator over all of `parameters` would also bind the type names (O9 caught that).
+        "identifier" if node.parent().is_some_and(|p| p.kind() == "closure_parameters") => {
+            vec![Role::Binder {
+                namespace: Namespace::Value,
+                visibility: Visibility::Whole,
+                locator: Locator::Itself,
+            }]
+        }
         "identifier" => vec![Role::Reference {
             namespace: Namespace::Value,
         }],
@@ -267,11 +280,6 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
                     class: BinderClass::Label,
                     when: When::Always,
                 }],
-            },
-            Role::Binder {
-                namespace: Namespace::Value,
-                visibility: Visibility::Sub(&["body"]),
-                locator: Locator::Field("parameters"),
             },
         ],
         "type_parameter" | "lifetime_parameter" | "const_parameter" => {
