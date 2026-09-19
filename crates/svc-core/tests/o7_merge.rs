@@ -74,3 +74,64 @@ fn o7_demo_line_6_is_a_binding_conflict_on_raw() {
         "capture should move the local slot: {binds:?}"
     );
 }
+
+const LOAD_A: &[u8] = b"fn load(path: &str) -> Result<Config, Error> {
+    let raw = read(path);
+    let raw = normalize(&raw);
+    let cfg = parse(&raw)?;
+    validate(&cfg)?;
+    let _path_exists = !cfg.path.is_empty();
+    let _retry_count = cfg.retries;
+    Ok(cfg)
+}";
+
+const LOAD_B: &[u8] = b"fn load(path: &str) -> Result<Config, Error> {
+    let raw = read(path);
+    let cfg = parse(&raw)?;
+    validate(&cfg)?;
+    let _path_exists = !cfg.path.is_empty();
+    let _retry_count = cfg.retries;
+    log(&raw);
+    Ok(cfg)
+}";
+
+#[test]
+fn o7_git_twin_load_is_a_binding_conflict_on_raw() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/main.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, include_bytes!("../../../demo/config/src/main.rs").to_vec());
+    let base = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let load = lookup_name(&base, "load").unwrap();
+    assert_ne!(LOAD_A.last(), Some(&b'\n'));
+    assert_ne!(LOAD_B.last(), Some(&b'\n'));
+    let (a, _) = edit_def(&store, &langs, &base, load, LOAD_A).unwrap();
+    let (b, _) = edit_def(&store, &langs, &base, load, LOAD_B).unwrap();
+    let base_id = store.put_snapshot(&base).unwrap();
+    let a_id = store.put_snapshot(&a).unwrap();
+    let b_id = store.put_snapshot(&b).unwrap();
+    let merged = merge(&store, &langs, base_id, a_id, b_id).unwrap();
+    let binds: Vec<_> = merged
+        .conflicts
+        .iter()
+        .filter_map(|c| match c {
+            Conflict::Binding { id, name, was, now, .. } if *id == load => {
+                Some((name.clone(), was.clone(), now.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(
+        merged.conflicts.iter().any(|c| matches!(c, Conflict::Binding { id, .. } if *id == load)),
+        "expected Binding on load, got {:?}",
+        merged.conflicts
+    );
+    assert!(
+        binds.iter().any(|(name, was, now)| {
+            (name == "raw" || name.starts_with('$')) && was != now
+        }),
+        "expected a Binding conflict on raw, got {:?}",
+        merged.conflicts
+    );
+}
