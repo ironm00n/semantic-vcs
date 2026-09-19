@@ -213,6 +213,35 @@ fn show_search_heads_and_describe() {
 }
 
 #[test]
+fn diff_two_changes_and_render() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(dir.path(), &["new"]);
+    let heads = json(dir.path(), &["heads"]);
+    let rows = heads.as_array().unwrap();
+    let base = rows.iter().find(|h| h["current"] == false).unwrap()["change"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    json(
+        dir.path(),
+        &["rename", "--entity", "parse", "--new-name", "parse_config"],
+    );
+    let cur = json(dir.path(), &["status"])["change"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let diffed = json(dir.path(), &["diff", &base, &cur]);
+    let deltas = diffed["deltas"].as_array().expect("deltas");
+    assert!(
+        deltas.iter().any(|d| d.get("Renamed").is_some()),
+        "{diffed}"
+    );
+    let rendered = json(dir.path(), &["render"]);
+    assert_eq!(rendered["rendered"], true, "{rendered}");
+}
+
+#[test]
 fn new_blame_and_undo() {
     let dir = fixture();
     json(dir.path(), &["init"]);
