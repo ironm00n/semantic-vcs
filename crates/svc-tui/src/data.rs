@@ -99,28 +99,17 @@ pub fn describe_op(op: &Op) -> String {
     }
 }
 
-pub fn intent_name(i: &svc_core::Intent) -> String {
-    match i {
-        svc_core::Intent::Other(s) => s.clone(),
-        other => format!("{other:?}").to_lowercase(),
-    }
-}
-
-pub fn class_name(c: Option<svc_core::ObservedClass>) -> &'static str {
-    match c {
-        Some(svc_core::ObservedClass::Alpha) => "alpha",
-        Some(svc_core::ObservedClass::DocsOnly) => "docs-only",
-        Some(svc_core::ObservedClass::BindingPreserving) => "binding-preserving",
-        Some(svc_core::ObservedClass::BindingChanging) => "binding-changing",
-        None => "unclassified",
-    }
-}
+pub use svc_repo::text::{class as class_name, intent as intent_name};
 
 pub fn conflict_line(c: &ConflictOut) -> String {
     match &c.conflict {
         Conflict::Binding { name, was, now, at, .. } => format!(
-            "binding: `{name}` at {}:{} meant {was:?}, now {now:?}",
-            at.line, at.col
+            "binding conflict in {}: `{name}` at {}:{} meant {}, now means {}",
+            c.name,
+            at.line,
+            at.col,
+            ident(was),
+            ident(now)
         ),
         Conflict::Attr { .. } => format!("attribute conflict on {}", c.name),
         Conflict::Content { .. } => format!("content conflict on {}", c.name),
@@ -143,5 +132,14 @@ pub fn kind_glyph(k: Kind) -> &'static str {
         Kind::JsSetter => "set",
         Kind::JsStaticBlock => "{}",
         Kind::Opaque => "·",
+    }
+}
+
+fn ident(r: &svc_core::IdentRef) -> String {
+    match r {
+        svc_core::IdentRef::Local(slot, _) => format!("local ${}", slot.0),
+        svc_core::IdentRef::Entity(id) if *id == svc_core::EntityId::SELF => "itself".into(),
+        svc_core::IdentRef::Entity(id) => format!("⟨{}⟩", id.short()),
+        svc_core::IdentRef::Free(n) => format!("free `{n}`"),
     }
 }
