@@ -6,6 +6,7 @@ use crate::error::{Error, Result};
 use crate::ids::{ChangeId, EntityId, RelPath};
 use crate::lang::Langs;
 use crate::op::Intent;
+use crate::entity::EntityRecord;
 use crate::snapshot::Snapshot;
 use crate::store::Store;
 
@@ -130,20 +131,8 @@ pub fn edit_def(
     let lang = langs
         .for_path(&rec.file)
         .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
-    let env = env_from_snapshot(snap);
     let definition = item_text(store, snap, id, definition)?;
-    let part = ingest_file_with_env(&definition, rec.file.clone(), lang, store, snap.change, &env)?;
-    let roots: Vec<_> = part
-        .entities
-        .iter()
-        .filter(|(_, r)| r.parent.is_none())
-        .collect();
-    if roots.len() != 1 {
-        return Err(Error::Other(
-            "edit-def definition must parse to exactly one item".into(),
-        ));
-    }
-    let (_, new_rec) = roots[0];
+    let new_rec = ingest_one_item("edit-def", store, snap, &rec.file, lang, &definition)?;
     if new_rec.name != rec.name {
         return Err(Error::Other(format!(
             "edit-def cannot rename {} to {}; use svc rename",
@@ -203,22 +192,9 @@ pub fn add_def(
     let lang = langs
         .for_path(&file)
         .ok_or_else(|| Error::NoLanguage(file.clone()))?;
-    let env = env_from_snapshot(snap);
     let definition = add_def_text(parent, definition);
-    let part = ingest_file_with_env(&definition, file.clone(), lang, store, snap.change, &env)?;
-    let roots: Vec<_> = part
-        .entities
-        .iter()
-        .filter(|(_, r)| r.parent.is_none())
-        .collect();
-    if roots.len() != 1 {
-        return Err(Error::Other(
-            "add-def definition must parse to exactly one item".into(),
-        ));
-    }
-    let (_, rec) = roots[0];
+    let mut rec = ingest_one_item("add-def", store, snap, &file, lang, &definition)?;
     let mut next = snap.clone();
-    let mut rec = rec.clone();
     rec.parent = parent;
     rec.file = file;
     rec.ordinal = ordinal;
@@ -387,20 +363,8 @@ pub fn redefine(
     let lang = langs
         .for_path(&rec.file)
         .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
-    let env = env_from_snapshot(snapshot);
     let text = item_text(store, snapshot, id, text)?;
-    let part = ingest_file_with_env(&text, rec.file.clone(), lang, store, snapshot.change, &env)?;
-    let roots: Vec<_> = part
-        .entities
-        .iter()
-        .filter(|(_, r)| r.parent.is_none())
-        .collect();
-    if roots.len() != 1 {
-        return Err(Error::Other(
-            "redefine definition must parse to exactly one item".into(),
-        ));
-    }
-    let (_, new_rec) = roots[0];
+    let new_rec = ingest_one_item("redefine", store, snapshot, &rec.file, lang, &text)?;
     if new_rec.name != rec.name {
         return Err(Error::Other(format!(
             "redefine cannot rename {} to {}; use svc rename",
@@ -408,6 +372,28 @@ pub fn redefine(
         )));
     }
     Ok((new_rec.content, new_rec.bytes))
+}
+
+/// The one item a verb body must be: parses without error nodes, exactly one root
+/// entity. Ingest itself is lenient (a checked-in file may be mid-edit); the typed
+/// write path is not.
+fn ingest_one_item(
+    verb: &str,
+    store: &dyn Store,
+    snap: &Snapshot,
+    file: &RelPath,
+    lang: &dyn crate::lang::Lang,
+    text: &[u8],
+) -> Result<EntityRecord> {
+    if super::parse(text, lang)?.root_node().has_error() {
+        return Err(Error::Parse(format!("{verb} definition does not parse as {}", lang.name())));
+    }
+    let part = ingest_file_with_env(text, file.clone(), lang, store, snap.change, &env_from_snapshot(snap))?;
+    let mut roots = part.entities.into_values().filter(|r| r.parent.is_none());
+    match (roots.next(), roots.next()) {
+        (Some(rec), None) => Ok(rec),
+        _ => Err(Error::Other(format!("{verb} definition must parse to exactly one item"))),
+    }
 }
 
 /// Keep the entity's leading trivia (blank lines / docs attached by extent)
