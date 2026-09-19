@@ -12,6 +12,6 @@ pub mod text;
 
 pub use history::*;
 pub use replay::{ReplayReport, replay};
-pub use merge::{ConflictOut, MergeOut, Take, conflicts, lca, merge, merge_snapshots, resolve};
+pub use merge::{ConflictOut, MergeOut, Take, conflicts, lca, merge, merged_snapshot, resolve};
 pub use repo::{Mutation, Repo};
 pub use store::RedbStore;
