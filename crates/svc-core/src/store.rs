@@ -4,9 +4,7 @@ use std::sync::Mutex;
 use crate::changeset::{ChangeSet, OpenChangeSet};
 use crate::content::{Bytes, Content};
 use crate::error::{Error, Result};
-use crate::ids::{
-    BytesId, ChangeId, ChangeSetId, ContentId, OpIx, SnapshotId,
-};
+use crate::ids::{BytesId, ChangeId, ChangeSetId, ContentId, OpIx, SnapshotId, resolve_spec};
 use crate::op::OpLogEntry;
 use crate::snapshot::Snapshot;
 use serde::{Deserialize, Serialize};
@@ -236,21 +234,12 @@ impl Store for MemStore {
 
     fn resolve_prefix(&self, prefix: &str) -> Result<ChangeId> {
         let g = self.lock()?;
-        let p = prefix.to_ascii_lowercase();
-        let mut hits: Vec<ChangeId> = g
-            .heads
-            .keys()
-            .copied()
-            .filter(|id| id.short().starts_with(&p) || id.to_string().replace('-', "").contains(&p))
-            .collect();
-        hits.sort();
-        hits.dedup();
-        match hits.len() {
-            1 => Ok(hits[0]),
-            0 => Err(Error::NotFound(format!("prefix {prefix}"))),
-            _ => Err(Error::AmbiguousPrefix {
+        match resolve_spec(g.heads.keys().copied(), |id| id.matches_spec(prefix)) {
+            Ok(id) => Ok(id),
+            Err(hits) if hits.is_empty() => Err(Error::NotFound(format!("prefix {prefix}"))),
+            Err(candidates) => Err(Error::AmbiguousPrefix {
                 prefix: prefix.into(),
-                candidates: hits,
+                candidates,
             }),
         }
     }

@@ -4,7 +4,7 @@ use crate::content::{Chunk, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
 use crate::entity::{EntityRecord, FileRecord, Kind, SigKey};
 use crate::error::{Error, Result};
-use crate::ids::{ChangeId, EntityId, RelPath};
+use crate::ids::{ChangeId, EntityId, RelPath, resolve_spec};
 use crate::lang::Langs;
 use crate::op::Intent;
 use crate::snapshot::Snapshot;
@@ -30,19 +30,10 @@ pub fn lookup(snap: &Snapshot, spec: &str) -> Result<EntityId> {
     if let Ok(id) = lookup_name(snap, spec) {
         return Ok(id);
     }
-    let p = spec.to_ascii_lowercase().replace('-', "");
-    let mut hits: Vec<_> = snap
-        .entities
-        .keys()
-        .copied()
-        .filter(|id| id.short() == p || id.to_string().replace('-', "").contains(&p))
-        .collect();
-    hits.sort();
-    hits.dedup();
-    match hits.len() {
-        1 => Ok(hits[0]),
-        0 => Err(Error::NotFound(spec.into())),
-        _ => Err(Error::Other(format!("ambiguous entity {spec}"))),
+    match resolve_spec(snap.entities.keys().copied(), |id| id.matches_spec(spec)) {
+        Ok(id) => Ok(id),
+        Err(hits) if hits.is_empty() => Err(Error::NotFound(spec.into())),
+        Err(_) => Err(Error::Other(format!("ambiguous entity {spec}"))),
     }
 }
 

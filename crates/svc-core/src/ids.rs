@@ -8,7 +8,10 @@ macro_rules! uuid_id {
 
         /// Compact bytes for postcard (the hashed form); hyphenated text for JSON.
         impl Serialize for $name {
-            fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+            fn serialize<S: serde::Serializer>(
+                &self,
+                s: S,
+            ) -> std::result::Result<S::Ok, S::Error> {
                 if s.is_human_readable() {
                     s.serialize_str(&self.0.hyphenated().to_string())
                 } else {
@@ -18,10 +21,14 @@ macro_rules! uuid_id {
         }
 
         impl<'de> Deserialize<'de> for $name {
-            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+            fn deserialize<D: serde::Deserializer<'de>>(
+                d: D,
+            ) -> std::result::Result<Self, D::Error> {
                 if d.is_human_readable() {
                     let s = String::deserialize(d)?;
-                    Uuid::parse_str(&s).map(Self).map_err(serde::de::Error::custom)
+                    Uuid::parse_str(&s)
+                        .map(Self)
+                        .map_err(serde::de::Error::custom)
                 } else {
                     uuid::serde::compact::deserialize(d).map(Self)
                 }
@@ -40,6 +47,15 @@ macro_rules! uuid_id {
             /// Short form from blake3 of the id, never the leading timestamp bits of a v7.
             pub fn short(self) -> String {
                 hex4(&self.0.as_bytes()[..])
+            }
+
+            /// `spec` names this id if it is a prefix of the short form or of the
+            /// dashless uuid; case and dashes in `spec` are ignored.
+            pub fn matches_spec(self, spec: &str) -> bool {
+                let hex = spec.to_ascii_lowercase().replace('-', "");
+                !hex.is_empty()
+                    && (self.short().starts_with(&hex)
+                        || self.0.simple().to_string().starts_with(&hex))
             }
         }
 
@@ -70,7 +86,10 @@ macro_rules! hash_id {
 
         /// Raw bytes for postcard (the hashed form); 64 hex chars for JSON.
         impl Serialize for $name {
-            fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+            fn serialize<S: serde::Serializer>(
+                &self,
+                s: S,
+            ) -> std::result::Result<S::Ok, S::Error> {
                 if s.is_human_readable() {
                     s.serialize_str(&hex32(&self.0))
                 } else {
@@ -80,7 +99,9 @@ macro_rules! hash_id {
         }
 
         impl<'de> Deserialize<'de> for $name {
-            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+            fn deserialize<D: serde::Deserializer<'de>>(
+                d: D,
+            ) -> std::result::Result<Self, D::Error> {
                 if d.is_human_readable() {
                     let s = String::deserialize(d)?;
                     parse_hex32(&s).map(Self).map_err(serde::de::Error::custom)
@@ -124,6 +145,21 @@ macro_rules! hash_id {
 uuid_id!(EntityId);
 uuid_id!(ChangeId);
 uuid_id!(ChangeSetId);
+
+/// The one id among `ids` that `matches` names. `Err` carries every candidate: empty
+/// means none matched, two or more means the spec is ambiguous.
+pub fn resolve_spec<I: Copy + Ord>(
+    ids: impl IntoIterator<Item = I>,
+    matches: impl Fn(I) -> bool,
+) -> std::result::Result<I, Vec<I>> {
+    let mut hits: Vec<I> = ids.into_iter().filter(|id| matches(*id)).collect();
+    hits.sort();
+    hits.dedup();
+    match hits.as_slice() {
+        [one] => Ok(*one),
+        _ => Err(hits),
+    }
+}
 
 impl EntityId {
     /// Declaration-site sentinel. A real self-id makes rename detection circular.
@@ -281,13 +317,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn spec_matches_short_prefix_and_dashless_uuid_case_insensitively() {
+        let id = EntityId::new();
+        assert!(id.matches_spec(&id.short()));
+        assert!(id.matches_spec(&id.short()[..2].to_ascii_uppercase()));
+        assert!(id.matches_spec(&id.to_string()));
+        assert!(id.matches_spec(&id.to_string().replace('-', "")[..10]));
+        assert!(!id.matches_spec(""));
+        assert!(
+            !id.matches_spec(&id.to_string()[3..9]),
+            "a middle fragment is not a prefix"
+        );
+        let other = EntityId::new();
+        assert_eq!(resolve_spec([id, other], |i| i == id), Ok(id));
+        assert_eq!(
+            resolve_spec([id, other], |_| true),
+            Err(vec![id.min(other), id.max(other)])
+        );
+        assert_eq!(resolve_spec([id, other], |_| false), Err(vec![]));
+    }
+
+    #[test]
     fn ids_are_compact_in_postcard_and_text_in_json() {
         let c = ChangeId::new();
         assert_eq!(postcard::to_stdvec(&c).unwrap().len(), 16);
         let json = serde_json::to_string(&c).unwrap();
         assert_eq!(json, format!("\"{}\"", c.0.hyphenated()));
         assert_eq!(serde_json::from_str::<ChangeId>(&json).unwrap(), c);
-        assert_eq!(postcard::from_bytes::<ChangeId>(&postcard::to_stdvec(&c).unwrap()).unwrap(), c);
+        assert_eq!(
+            postcard::from_bytes::<ChangeId>(&postcard::to_stdvec(&c).unwrap()).unwrap(),
+            c
+        );
 
         let h = SnapshotId([7; 32]);
         assert_eq!(postcard::to_stdvec(&h).unwrap().len(), 32);
