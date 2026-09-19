@@ -36,7 +36,9 @@ enum Command {
     #[command(subcommand)] Changeset(ChangeSetCommand),
     Checkout { snapshot: String }, Render, Rename(RenameArgs), Move(MoveArgs),
     Relocate(RelocateArgs), Extract(ExtractArgs), Inline(EntityArg), AddDef(AddDefArgs),
-    Delete(DeleteArgs), EditDef(EditDefArgs), Classify(ClassifyArgs), Agent { task: String }, Tui,
+    Delete(DeleteArgs), EditDef(EditDefArgs), Classify(ClassifyArgs), Agent { task: String },
+    /// Open the review UI; with `--agent <task>`, run that task under dsh inside it (SPEC §10 line 12).
+    Tui { #[arg(long)] agent: Option<String>, #[arg(long)] wire_log: bool },
 }
 
 #[derive(Subcommand)] enum OpCommand { Log, Restore { index: u64 } }
@@ -59,14 +61,15 @@ enum ChangeSetCommand {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    if matches!(cli.command, Command::Tui) {
-        let root = match env::current_dir().and_then(|path| path.canonicalize()) {
-            Ok(root) => root,
+    if let Command::Tui { agent: task, wire_log } = &cli.command {
+        let cwd = match env::current_dir().and_then(|path| path.canonicalize()) {
+            Ok(cwd) => cwd,
             Err(error) => {
                 eprintln!("svc: could not resolve repository root: {error}");
                 return ExitCode::FAILURE;
             }
         };
+        let root = Repo::find_root(&cwd).unwrap_or(cwd);
         let svc_bin = match env::current_exe() {
             Ok(path) => path,
             Err(error) => {
@@ -74,11 +77,43 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
+        // Same launch as `svc agent`: pinned dsh, runtime overlay, SVC_BIN; the TUI opens
+        // and closes the run's changeset itself and answers asks from its queue.
+        // SVC_AGENT_COMMAND="node demo/replay-agent.mjs <recording>" hosts a scripted ACP
+        // agent instead, for rehearsing line 12 without a model key.
+        let agent = match task {
+            None => None,
+            Some(task) => match env::var("SVC_AGENT_COMMAND") {
+                Ok(command) => {
+                    let mut words = command.split_whitespace().map(str::to_string);
+                    let Some(program) = words.next() else {
+                        eprintln!("svc: SVC_AGENT_COMMAND is empty");
+                        return ExitCode::FAILURE;
+                    };
+                    let mut config = svc_agent::AgentConfig::command(program, words.collect(), &root);
+                    config.env.insert("SVC_BIN".into(), svc_bin.display().to_string());
+                    Some((config, task.clone()))
+                }
+                Err(_) => {
+                    if !agent::has_model_credentials() {
+                        eprintln!("svc: no model credential found; set OPENROUTER_API_KEY, DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY");
+                        return ExitCode::FAILURE;
+                    }
+                    match agent::runtime_overlay(&root) {
+                        Ok(overlay) => Some((svc_agent::AgentConfig::dsh(&root, &overlay, &svc_bin), task.clone())),
+                        Err(error) => {
+                            eprintln!("svc: {error}");
+                            return ExitCode::FAILURE;
+                        }
+                    }
+                }
+            },
+        };
         return match svc_tui::run(svc_tui::TuiOptions {
             svc_bin,
             root,
-            agent: None,
-            wire_log: false,
+            agent,
+            wire_log: *wire_log,
         }) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
@@ -195,7 +230,7 @@ fn run(cli: &Cli) -> Result<Value, String> {
         Command::Delete(args) => delete_cmd(&repo, args),
         Command::EditDef(args) => edit_def_cmd(&repo, args),
         Command::Classify(args) => classify_cmd(&repo, args),
-        Command::Tui => Err("run the `svc-tui` binary from this repository".into()),
+        Command::Tui { .. } => unreachable!("handled before the repository opens"),
         command => Err(format!("{} is not wired to the engine yet", command_name(command))),
     }
 }
@@ -465,7 +500,7 @@ fn command_name(command: &Command) -> &'static str {
         Command::Rename(_) => "rename", Command::Move(_) => "move", Command::Relocate(_) => "relocate",
         Command::Extract(_) => "extract", Command::Inline(_) => "inline", Command::AddDef(_) => "add-def",
         Command::Delete(_) => "delete", Command::EditDef(_) => "edit-def", Command::Classify(_) => "classify",
-        Command::Agent { .. } => "agent", Command::Tui => "tui", _ => unreachable!(),
+        Command::Agent { .. } => "agent", Command::Tui { .. } => "tui", _ => unreachable!(),
     }
 }
 

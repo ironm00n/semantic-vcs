@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scripted run of SPEC §10 demo lines 1–11 against the built `svc` binary, on a scratch
+# Scripted run of SPEC §10 demo lines 1–12 against the built `svc` binary, on a scratch
 # copy of demo/config. Prints one PASS/FAIL per observable; exit status is the number of failures.
 #
 #   cargo build -p svc && demo/demo-lines.sh [path/to/svc]
@@ -123,6 +123,25 @@ echo "== line 11: undo the whole changeset"
 svcj undo >/dev/null
 check "11a back to the pre-agent tree"     '! grep -q "read_file\|check_retries" src/main.rs'
 check "11b op log shows the undo"          'svcj op log | jq -e ".[0].op == \"Undo\""'
+
+echo "== line 12: line 9 inside the TUI — replay agent streams ops, the edit-def ask is answered from the queue"
+if command -v script >/dev/null && command -v node >/dev/null; then
+  svcj new >/dev/null
+  export SVC_AGENT_COMMAND="node $HERE/replay-agent.mjs $HERE/recordings/line9.ops.jsonl"
+  # a sized pty; `a` allows the one ask once it is up, `q` quits after the run finishes
+  ( (sleep 6; printf 'a'; sleep 4; printf 'q') \
+    | timeout 40 script -qfec "stty cols 150 rows 40; $SVC tui --agent 'rename read to read_file and pull the retry check out of validate'" /dev/null ) >/dev/null 2>&1
+  unset SVC_AGENT_COMMAND
+  cs12="$(svcj changeset list)"
+  l12="$(svcj log)"
+  check "12a the run is one closed changeset of three ops" 'echo "$cs12" | jq -e ".[0].open == false and (.[0].ops | length) == 3"'
+  check "12b log: renamed, add-def, edit-def ✓"            'echo "$l12" | jq -e "(.[2].op | has(\"Rename\")) and (.[1].op | has(\"AddDef\")) and (.[0].op | has(\"EditDef\")) and .[0].observed == \"BindingPreserving\""'
+  check "12c the agent's edits are in the tree"            'grep -q "read_file(path)" src/main.rs && grep -q "fn check_retries" src/main.rs'
+  svcj undo >/dev/null
+  check "12d undo reverts the whole run"                   '! grep -q "read_file\|check_retries" src/main.rs'
+else
+  echo "SKIP  12 (needs script(1) and node)"
+fi
 
 echo
 echo "$fail failure(s); scratch tree at $WORK"

@@ -142,7 +142,7 @@ impl App {
         let mut verdicts: Vec<QueueItem> = Vec::new();
         for op in log.iter().rev() {
             if let Op::EditDef { id, .. } = &op.op {
-                let entity = self.name_of(&id.to_string());
+                let entity = op.subject.clone().unwrap_or_else(|| self.name_of(&id.to_string()));
                 verdicts.push(QueueItem::Edit {
                     op: op.clone(),
                     entity,
