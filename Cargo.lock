@@ -2213,6 +2213,7 @@ dependencies = [
  "serde_json",
  "svc-core",
  "svc-repo",
+ "svc-tui",
  "tokio",
 ]
 

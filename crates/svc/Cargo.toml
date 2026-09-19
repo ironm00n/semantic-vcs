@@ -11,6 +11,7 @@ path = "src/main.rs"
 [dependencies]
 svc-core.workspace = true
 svc-repo = { path = "../svc-repo" }
+svc-tui = { path = "../svc-tui" }
 clap.workspace = true
 serde.workspace = true
 serde_json = "1"
