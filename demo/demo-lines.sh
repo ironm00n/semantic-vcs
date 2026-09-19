@@ -162,6 +162,20 @@ else
   echo "SKIP  F4-F5 (no svc-forge binary beside svc; cargo build -p svc-forge)"
 fi
 
+echo "== line 14: dogfood own source"
+if [ -n "${SVC_SKIP_SELF_HOST:-}" ]; then
+  echo "SKIP  14 (SVC_SKIP_SELF_HOST=1)"
+elif [ -x "$HERE/self-host.sh" ]; then
+  if "$HERE/self-host.sh" "$SVC"; then
+    echo "PASS  14 self-host / dogfood"
+  else
+    echo "FAIL  14 self-host / dogfood"
+    fail=$((fail + 1))
+  fi
+else
+  echo "SKIP  14 (no demo/self-host.sh)"
+fi
+
 echo
 echo "$fail failure(s); scratch tree at $WORK"
 exit $fail

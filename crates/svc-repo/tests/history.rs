@@ -22,8 +22,12 @@ fn read(root: &Path, rel: &str) -> String {
 fn init_snapshots_tracked_files_only_and_renders_clean() {
     let (dir, repo) = fresh();
     let snap = repo.current().unwrap();
-    assert_eq!(snap.files.len(), 1, "Cargo.toml is not tracked");
     assert_eq!(snap.entities.len(), 3);
+    assert!(
+        snap.files.len() >= 2,
+        "Cargo.toml rides as an opaque file so a render still builds: {:?}",
+        snap.files.keys().collect::<Vec<_>>()
+    );
     assert!(repo.working_copy_clean().unwrap());
     assert_eq!(svc_repo::op_log(&repo).unwrap().len(), 1);
     assert!(Repo::init(dir.path(), Repo::default_langs()).is_err(), "no re-init");

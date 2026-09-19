@@ -23,7 +23,14 @@ pub const STORE_FILE: &str = "store.redb";
 pub const IGNORE_FILE: &str = ".svcignore";
 
 /// Directories never walked, on top of `.svcignore`.
-const ALWAYS_IGNORED: &[&str] = &[STORE_DIR, ".git", ".jj", "target", "node_modules"];
+const ALWAYS_IGNORED: &[&str] = &[
+    STORE_DIR,
+    ".git",
+    ".jj",
+    "target",
+    "node_modules",
+    POINTER_FILE,
+];
 
 /// How long `open` keeps retrying redb's lock unless `SVC_LOCK_TIMEOUT_MS`
 /// or [`Repo::open_with`] says otherwise. One `Repo` is one exclusive store session: redb
@@ -262,7 +269,9 @@ impl Repo {
         self.store.resolve_prefix(s)
     }
 
-    /// Every file under the root whose extension some `Lang` claims, minus ignores.
+    /// Every file under the root that is not ignored. Language files become entities;
+    /// everything else is an opaque `FileRecord` (Cargo.toml, lockfiles, …) so a
+    /// render of this repository is still a crate cargo can build.
     pub fn tracked_files(&self) -> Result<BTreeMap<RelPath, Vec<u8>>> {
         let ignore = self.ignore_patterns()?;
         let mut out = BTreeMap::new();
@@ -284,9 +293,7 @@ impl Repo {
                     continue;
                 }
                 let rel = RelPath::new(rel).map_err(Error::InvalidPath)?;
-                if self.langs.for_path(&rel).is_some() {
-                    out.insert(rel, std::fs::read(&path).map_err(Error::backend)?);
-                }
+                out.insert(rel, std::fs::read(&path).map_err(Error::backend)?);
             }
         }
         Ok(out)

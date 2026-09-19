@@ -1,4 +1,4 @@
-use svc_core::engine::{ingest_file, render};
+use svc_core::engine::{ingest_file, render, rust_langs, snapshot_files};
 use svc_core::ids::{ChangeId, RelPath};
 use svc_core::lang::Langs;
 use svc_core::store::MemStore;
@@ -47,6 +47,34 @@ impl Config {
 fn o1_use_and_trailing_newline() {
     let src = "use std::fmt;\n\nfn f() {}\n";
     assert_eq!(round_trip(src), src);
+}
+
+#[test]
+fn o1_opaque_manifest_round_trips_without_a_language() {
+    use std::collections::BTreeMap;
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let mut files = BTreeMap::new();
+    files.insert(
+        RelPath::new("src/lib.rs").unwrap(),
+        b"fn f() {}\n".to_vec(),
+    );
+    files.insert(
+        RelPath::new("Cargo.toml").unwrap(),
+        b"[package]\nname = \"x\"\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let toml = RelPath::new("Cargo.toml").unwrap();
+    assert_eq!(
+        snap.files.get(&toml).unwrap().trailing,
+        b"[package]\nname = \"x\"\n"
+    );
+    assert!(!snap.entities.values().any(|e| e.file == toml));
+    let rendered = render(&snap, &store, &langs, false).unwrap();
+    assert_eq!(
+        rendered.files.get(&toml).unwrap().as_slice(),
+        b"[package]\nname = \"x\"\n"
+    );
 }
 
 #[test]

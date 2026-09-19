@@ -198,9 +198,9 @@ pub fn add_def(
         None => snap
             .files
             .keys()
-            .next()
+            .find(|p| langs.for_path(p).is_some())
             .cloned()
-            .ok_or_else(|| Error::Other("no tracked file to add into".into()))?,
+            .ok_or_else(|| Error::Other("no tracked source file to add into".into()))?,
     };
     let lang = langs
         .for_path(&file)

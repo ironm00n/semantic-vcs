@@ -171,21 +171,28 @@ pub fn snapshot_files(
         ids: Vec<EntityId>,
     }
     let mut parsed = Vec::new();
+    let mut opaque = BTreeMap::new();
     for (path, src) in files {
-        let lang = langs
-            .for_path(path)
-            .ok_or_else(|| Error::NoLanguage(path.clone()))?;
-        let tree = parse(src, lang)?;
-        let raw = extract(&tree, src, lang)?;
-        let ids = assign_ids(&raw, prev);
-        parsed.push(Parsed {
-            path: path.clone(),
-            src,
-            tree,
-            raw,
-            lang,
-            ids,
-        });
+        match langs.for_path(path) {
+            Some(lang) => {
+                let tree = parse(src, lang)?;
+                let raw = extract(&tree, src, lang)?;
+                let ids = assign_ids(&raw, prev);
+                parsed.push(Parsed {
+                    path: path.clone(),
+                    src,
+                    tree,
+                    raw,
+                    lang,
+                    ids,
+                });
+            }
+            // Manifests, lockfiles, recordings: stored as the file tail with no
+            // entities so `svc init` on this repo still renders a tree cargo can build.
+            None => {
+                opaque.insert(path.clone(), src.clone());
+            }
+        }
     }
     let mut env = prev.map(env_from_snapshot).unwrap_or_default();
     for p in &parsed {
@@ -200,6 +207,9 @@ pub fn snapshot_files(
         let (ents, file) = materialize(p.src, p.path.clone(), p.lang, store, &p.tree, &p.raw, &p.ids, &env)?;
         entities.extend(ents);
         file_recs.insert(p.path.clone(), file);
+    }
+    for (path, src) in opaque {
+        file_recs.insert(path, FileRecord { trailing: src });
     }
     Ok(Snapshot {
         parents: Vec::new(),

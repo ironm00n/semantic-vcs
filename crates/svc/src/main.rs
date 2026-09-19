@@ -1,4 +1,4 @@
-use std::{env, process::ExitCode};
+use std::{env, path::PathBuf, process::ExitCode};
 
 use clap::{Args, Parser, Subcommand};
 use serde::Serialize;
@@ -11,8 +11,8 @@ use svc_core::{EntityId, Intent, Op, OpIx, RelPath, Snapshot, SnapshotId};
 use svc_repo::{
     Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_status,
     changesets, checkout, conflicts as list_conflicts, describe, edit, evolog, heads, log,
-    merge as merge_repo, new, op_log, op_restore, resolve as resolve_conflict,
-    resolve_entity, status, undo, untracked_mentions,
+    merge as merge_repo, new, op_log, op_restore, replay, resolve as resolve_conflict,
+    resolve_entity, status, undo, untracked_mentions, workspace,
 };
 
 mod agent;
@@ -36,7 +36,8 @@ enum Command {
     #[command(subcommand)] Changeset(ChangeSetCommand),
     /// The local forge (crates/svc-forge): `export` writes its catalog from this store.
     #[command(subcommand)] Forge(ForgeCommand),
-    Checkout { snapshot: String }, Render, Rename(RenameArgs), Move(MoveArgs),
+    #[command(subcommand)] Workspace(WorkspaceCommand),
+    Checkout { snapshot: String }, Render, Replay, Rename(RenameArgs), Move(MoveArgs),
     Relocate(RelocateArgs), Extract(ExtractArgs), Inline(EntityArg), AddDef(AddDefArgs),
     Delete(DeleteArgs), EditDef(EditDefArgs), Classify(ClassifyArgs), Agent { task: String },
     /// Open the review UI; with `--agent <task>`, run that task under dsh inside it (demo line 12).
@@ -45,6 +46,13 @@ enum Command {
 
 #[derive(Subcommand)] enum OpCommand { Log, Restore { index: u64 } }
 #[derive(Subcommand)] enum ForgeCommand { Export { #[arg(long)] out: Option<std::path::PathBuf> } }
+#[derive(Subcommand)]
+enum WorkspaceCommand {
+    Add { name: String, path: PathBuf, #[arg(long)] at: Option<String> },
+    List,
+    Forget { name: String },
+    UpdateStale,
+}
 #[derive(Subcommand)]
 enum ChangeSetCommand {
     Begin { name: String, #[arg(long, default_value = "refactor")] intent: String, #[arg(long)] force: bool },
@@ -187,6 +195,36 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
             .and_then(|id| blame(&repo, id))
             .map(|b| text::blame(&snap, &b)),
         Command::Conflicts => list_conflicts(&repo).map(|c| text::conflicts_named(&snap, repo.store(), repo.root_dir(), &c)),
+        Command::Replay => replay(&repo).and_then(|r| {
+            if r.ok() {
+                Ok(format!("replayed {} operations: clean", r.ops))
+            } else {
+                Err(svc_core::Error::Other(format!(
+                    "replay diverged at {:?}",
+                    r.diverged_at
+                )))
+            }
+        }),
+        Command::Workspace(WorkspaceCommand::List) => {
+            return Some(
+                workspace::list(&repo)
+                    .map(|rows| {
+                        rows.iter()
+                            .map(|row| {
+                                let mark = if row.current { "@" } else { " " };
+                                let change = row
+                                    .change
+                                    .as_ref()
+                                    .map(|id| format!("  change⟨{}⟩", id.short()))
+                                    .unwrap_or_default();
+                                format!("{mark} {:<8} {}{change}", row.name, row.path.display())
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    })
+                    .map_err(|e| e.to_string()),
+            );
+        }
         Command::Merge { change } => merge_repo(&repo, change)
             .and_then(|m| repo.current().map(|s| text::merge(&s, repo.store(), repo.root_dir(), &m))),
         Command::Show { entity } => {
@@ -279,6 +317,25 @@ fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
         Command::Forge(ForgeCommand::Export { out }) => svc_repo::forge::export(&repo, out.as_deref()).map(|p| json!({"path": p})).map_err(|e| e.to_string()),
         Command::Changeset(ChangeSetCommand::Status) => value(changeset_status(&repo)),
         Command::Changeset(ChangeSetCommand::List) => value(changesets(&repo)),
+        Command::Workspace(WorkspaceCommand::Add { name, path, at }) => {
+            let change = at
+                .as_deref()
+                .map(|value| repo.resolve_change(value).map_err(|e| e.to_string()))
+                .transpose()?;
+            value(workspace::add(&repo, name, path, change))
+        }
+        Command::Workspace(WorkspaceCommand::List) => value(workspace::list(&repo)),
+        Command::Workspace(WorkspaceCommand::Forget { name }) => {
+            value(workspace::forget(&repo, name))
+        }
+        Command::Workspace(WorkspaceCommand::UpdateStale) => value(workspace::update_stale(&repo)),
+        Command::Replay => {
+            let report = replay(&repo).map_err(|e| e.to_string())?;
+            if !report.ok() {
+                return Err(format!("replay diverged at {:?}", report.diverged_at));
+            }
+            value(Ok(report))
+        }
         Command::Checkout { snapshot } => {
             let id = snapshot.parse::<SnapshotId>().map_err(|e| e.to_string())?;
             value(checkout(&repo, id))
@@ -578,7 +635,7 @@ fn command_name(command: &Command) -> &'static str {
         Command::Rename(_) => "rename", Command::Move(_) => "move", Command::Relocate(_) => "relocate",
         Command::Extract(_) => "extract", Command::Inline(_) => "inline", Command::AddDef(_) => "add-def",
         Command::Delete(_) => "delete", Command::EditDef(_) => "edit-def", Command::Classify(_) => "classify",
-        Command::Agent { .. } => "agent", Command::Tui { .. } => "tui", _ => unreachable!(),
+        Command::Agent { .. } => "agent", Command::Tui { .. } => "tui", Command::Workspace(_) => "workspace", Command::Replay => "replay", _ => unreachable!(),
     }
 }
 
@@ -594,6 +651,14 @@ mod tests {
         Cli::try_parse_from(["svc", "resolve", "0", "--take", "b", "--json"]).unwrap();
         Cli::try_parse_from(["svc", "edit", "feature", "--json"]).unwrap();
         Cli::try_parse_from(["svc", "op", "restore", "7", "--json"]).unwrap();
+        Cli::try_parse_from([
+            "svc", "workspace", "add", "agent", "/tmp/agent", "--at", "main", "--json",
+        ])
+        .unwrap();
+        Cli::try_parse_from(["svc", "workspace", "list", "--json"]).unwrap();
+        Cli::try_parse_from(["svc", "workspace", "forget", "agent", "--json"]).unwrap();
+        Cli::try_parse_from(["svc", "replay", "--json"]).unwrap();
+        Cli::try_parse_from(["svc", "workspace", "update-stale", "--json"]).unwrap();
         Cli::try_parse_from(["svc", "move", "--entity", "parse", "--new-parent", "root"])
             .unwrap();
         Cli::try_parse_from([

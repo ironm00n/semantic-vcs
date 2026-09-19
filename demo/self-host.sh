@@ -10,7 +10,8 @@
 # survives an exhaustive alpha-rename of every local, engine-API-only. This is the
 # complementary, CLI-level line: one real targeted `svc rename`, through init/
 # render/undo, on the actual multi-crate source tree, gated as a repeatable line
-# instead of a hidden oracle test.
+# instead of a hidden oracle test. Then prove the store is enough: a named
+# checkout into an empty directory still `cargo build`s, and `svc replay` is clean.
 #
 #   cargo build -p svc && demo/self-host.sh [path/to/svc]
 set -u
@@ -27,8 +28,9 @@ check() { # check <label> '<shell expression>'
   if eval "$2" >/dev/null 2>&1; then echo "PASS  $1"; else echo "FAIL  $1"; fail=$((fail + 1)); fi
 }
 svcj() { "$SVC" "$@" --json; }
-build() { # build <label-for-log-file> -> 0 on success
-  cargo build --offline --quiet >"$WORK/build-$1.log" 2>&1
+build() { # build <label-for-log-file> [dir] -> 0 on success
+  local dir="${2:-.}"
+  (cd "$dir" && cargo build --offline --quiet) >"$WORK/build-$1.log" 2>&1
 }
 
 echo "== self-host 1: pristine copy of this repo's own crates/**"
@@ -64,6 +66,18 @@ check "6b op log shows the undo"             'svcj op log | jq -e ".[0].op == \"
 
 echo "== self-host 7: post-undo tree builds again"
 check "7  cargo build after undo" 'build post-undo'
+
+echo "== self-host 8: the store alone is enough (empty checkout, no extra cp)"
+export SVC_LOCK_TIMEOUT_MS="${SVC_LOCK_TIMEOUT_MS:-60000}"
+FROM="$WORK/from-store"
+svcj workspace add from-store "$FROM" >/dev/null
+check "8a named checkout has Cargo.toml from the store" 'test -f "$FROM/Cargo.toml" && grep -q "\[package\]\|\[workspace\]" "$FROM/Cargo.toml"'
+check "8b named checkout has the renamed-then-undone source" 'test -f "$FROM/crates/svc-core/src/content.rs" && grep -q "fn coalesce_literals" "$FROM/crates/svc-core/src/content.rs"'
+check "8c cargo build of the store-only checkout" 'build from-store "$FROM"'
+
+echo "== self-host 9: op log replays"
+r9="$(svcj replay)"
+check "9  replay is clean" 'echo "$r9" | jq -e ".diverged_at == null and .ops > 0"'
 
 echo
 echo "$fail failure(s); self-host scratch at $WORK (build logs: $WORK/build-*.log)"

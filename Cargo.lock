@@ -2413,6 +2413,7 @@ dependencies = [
  "svc-core",
  "svc-repo",
  "svc-tui",
+ "tempfile",
  "tokio",
 ]
 
