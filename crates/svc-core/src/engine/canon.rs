@@ -42,7 +42,7 @@ pub fn resolve_locals(
 ) -> Resolution {
     let mut slots = Vec::new();
     let mut next: HashMap<Namespace, u32> = HashMap::new();
-    collect_binders(item, src, lang, None, &mut slots, &mut next);
+    collect_binders(item, src, lang, None, &mut slots, &mut next, item.id());
     let slot_at: HashMap<(u32, u32), (Slot, Namespace)> = slots
         .iter()
         .map(|(r, s, ns)| ((r.start, r.end), (*s, *ns)))
@@ -55,7 +55,7 @@ pub fn resolve_locals(
         })
         .collect();
     let mut refs = Vec::new();
-    collect_refs(item, src, lang, None, &slot_at, &by_name, &mut refs);
+    collect_refs(item, src, lang, None, &slot_at, &by_name, &mut refs, item.id());
     Resolution { slots, refs }
 }
 
@@ -66,7 +66,16 @@ fn collect_binders<'a>(
     field: Option<&str>,
     slots: &mut Vec<(ByteRange, Slot, Namespace)>,
     next: &mut HashMap<Namespace, u32>,
+    root_id: usize,
 ) {
+    if node.id() != root_id
+        && lang
+            .entity_kinds()
+            .iter()
+            .any(|r| r.node_kind == node.kind())
+    {
+        return;
+    }
     for role in lang.roles(node, field, src, &crate::lang::Env::default()) {
         if let Role::Binder {
             namespace,
@@ -88,7 +97,7 @@ fn collect_binders<'a>(
     let mut c = node.walk();
     if c.goto_first_child() {
         loop {
-            collect_binders(c.node(), src, lang, c.field_name(), slots, next);
+            collect_binders(c.node(), src, lang, c.field_name(), slots, next, root_id);
             if !c.goto_next_sibling() {
                 break;
             }
@@ -104,7 +113,16 @@ fn collect_refs<'a>(
     slot_at: &HashMap<(u32, u32), (Slot, Namespace)>,
     by_name: &HashMap<(String, Namespace), Slot>,
     refs: &mut Vec<(ByteRange, IdentRef)>,
+    root_id: usize,
 ) {
+    if node.id() != root_id
+        && lang
+            .entity_kinds()
+            .iter()
+            .any(|r| r.node_kind == node.kind())
+    {
+        return;
+    }
     if is_ident_leaf(node) {
         let r = byte_range(node);
         if slot_at.contains_key(&(r.start, r.end)) {
@@ -134,6 +152,7 @@ fn collect_refs<'a>(
                 slot_at,
                 by_name,
                 refs,
+                root_id,
             );
             if !c.goto_next_sibling() {
                 break;
@@ -187,6 +206,8 @@ fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {
             | "crate"
             | "lifetime"
             | "shorthand_field_identifier"
+            | "shorthand_property_identifier"
+            | "shorthand_property_identifier_pattern"
     )
 }
 

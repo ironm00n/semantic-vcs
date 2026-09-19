@@ -33,6 +33,7 @@ pub fn bytes_from_span(
     holes.sort_by_key(|(r, _)| r.start);
     holes.retain(|(r, _)| r.start >= extent.start && r.end <= extent.end && r.end > r.start);
 
+    let mut used: Vec<(ByteRange, Hole)> = Vec::new();
     let mut out_src = Vec::new();
     let mut chunks = Vec::new();
     let mut pos = extent.start;
@@ -47,13 +48,14 @@ pub fn bytes_from_span(
             Hole::Child(id) => chunks.push(Chunk::Child(*id)),
             Hole::Name(id) => chunks.push(Chunk::Name(*id)),
         }
+        used.push((*r, *hole));
         pos = r.end;
     }
     if pos < extent.end {
         emit_lit(src, pos, extent.end, &mut out_src, &mut chunks);
     }
 
-    let local_ranges = remap_locals(&out_src, src, extent, &holes, resolution);
+    let local_ranges = remap_locals(extent, &used, resolution);
     Bytes::new(out_src, chunks, local_ranges)
 }
 
@@ -72,36 +74,46 @@ fn emit_lit(src: &[u8], start: u32, end: u32, out: &mut Vec<u8>, chunks: &mut Ve
 }
 
 fn remap_locals(
-    out_src: &[u8],
-    file: &[u8],
     extent: ByteRange,
     holes: &[(ByteRange, Hole)],
     resolution: &Resolution,
 ) -> Vec<(ByteRange, IdentRef)> {
-    let _ = (out_src, file);
     let mut out = Vec::new();
-    for (r, ident) in &resolution.refs {
-        if !matches!(ident, IdentRef::Local(_, _) | IdentRef::Free(_)) {
-            continue;
-        }
+    let push = |r: ByteRange, ident: IdentRef, out: &mut Vec<(ByteRange, IdentRef)>| {
         if r.start < extent.start || r.end > extent.end {
-            continue;
+            return;
         }
-        if holes.iter().any(|(h, _)| r.start >= h.start && r.end <= h.end) {
-            continue;
+        if holes
+            .iter()
+            .any(|(h, _)| r.start >= h.start && r.end <= h.end)
+        {
+            return;
         }
         let skipped: u32 = holes
             .iter()
             .filter(|(h, _)| h.end <= r.start)
             .map(|(h, _)| h.len())
             .sum();
-        let start = r.start - extent.start - skipped;
-        let end = r.end - extent.start - skipped;
-        out.push((ByteRange { start, end }, ident.clone()));
+        let base = match r.start.checked_sub(extent.start) {
+            Some(b) if skipped <= b => b - skipped,
+            _ => return,
+        };
+        let end_base = match r.end.checked_sub(extent.start) {
+            Some(b) if skipped <= b => b - skipped,
+            _ => return,
+        };
+        if end_base <= base {
+            return;
+        }
+        out.push((ByteRange { start: base, end: end_base }, ident));
+    };
+    for (r, slot, ns) in &resolution.slots {
+        push(*r, IdentRef::Local(*slot, *ns), &mut out);
     }
-    for (r, _slot, _ns) in &resolution.slots {
-        // binders that are Local in ident_ranges: already via refs if we record them.
-        let _ = r;
+    for (r, ident) in &resolution.refs {
+        if matches!(ident, IdentRef::Local(_, _) | IdentRef::Free(_)) {
+            push(*r, ident.clone(), &mut out);
+        }
     }
     out
 }

@@ -80,7 +80,18 @@ fn expand(
             Chunk::Child(cid) => {
                 let (child, child_map) = expand(snapshot, store, *cid, with_map)?;
                 out.extend_from_slice(&child);
-                let _ = child_map;
+                if let (Some(map), Some(child_map)) = (map.as_mut(), child_map) {
+                    let base = (out.len() - child.len()) as u32;
+                    for (r, ident) in child_map {
+                        map.push((
+                            ByteRange {
+                                start: base + r.start,
+                                end: base + r.end,
+                            },
+                            ident,
+                        ));
+                    }
+                }
             }
             Chunk::Name(nid) => {
                 let name = if *nid == EntityId::SELF {
@@ -92,7 +103,17 @@ fn expand(
                         .map(|e| e.name.as_str())
                         .unwrap_or("?")
                 };
+                let start = out.len() as u32;
                 out.extend_from_slice(name.as_bytes());
+                if let Some(map) = map.as_mut() {
+                    map.push((
+                        ByteRange {
+                            start,
+                            end: out.len() as u32,
+                        },
+                        IdentRef::Entity(*nid),
+                    ));
+                }
             }
         }
     }

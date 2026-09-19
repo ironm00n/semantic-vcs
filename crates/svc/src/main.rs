@@ -3,7 +3,11 @@ use std::{env, process::ExitCode};
 use clap::{Args, Parser, Subcommand};
 use serde::Serialize;
 use serde_json::{Value, json};
-use svc_core::{Intent, OpIx, SnapshotId};
+use svc_core::engine::{
+    add_def, classify_def, delete, diff as diff_snapshots, edit_def, extract_hoist, inline,
+    move_def, relocate, rename,
+};
+use svc_core::{EntityId, Intent, Op, OpIx, RelPath, Snapshot, SnapshotId};
 use svc_repo::{
     Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_status, changesets,
     checkout, conflicts as list_conflicts, describe, edit, evolog, heads, log,
@@ -116,6 +120,17 @@ fn run(cli: &Cli) -> Result<Value, String> {
         Command::ListDefs => list_defs(&repo),
         Command::ShowDef(arg) => show_def(&repo, &arg.entity),
         Command::Show { entity } => show_def(&repo, entity),
+        Command::Search { query } => search(&repo, query),
+        Command::Diff { a, b } => diff(&repo, a, b),
+        Command::Rename(args) => rename_cmd(&repo, args),
+        Command::Move(args) => move_cmd(&repo, args),
+        Command::Relocate(args) => relocate_cmd(&repo, args),
+        Command::Extract(args) => extract_cmd(&repo, args),
+        Command::Inline(arg) => inline_cmd(&repo, &arg.entity),
+        Command::AddDef(args) => add_def_cmd(&repo, args),
+        Command::Delete(args) => delete_cmd(&repo, args),
+        Command::EditDef(args) => edit_def_cmd(&repo, args),
+        Command::Classify(args) => classify_cmd(&repo, args),
         command => Err(format!("{} is not wired to the engine yet", command_name(command))),
     }
 }
@@ -159,6 +174,198 @@ fn show_def(repo: &Repo, query: &str) -> Result<Value, String> {
     Ok(json!({"id": id, "entity": entity, "bytes": bytes, "content": content}))
 }
 
+fn mutation_value(m: svc_repo::Mutation) -> Result<Value, String> {
+    Ok(json!({
+        "op": m.ix,
+        "snapshot": m.snapshot,
+        "observed": m.entry.observed,
+        "flagged": m.entry.flagged(),
+        "closed_stale_changeset": m.closed_stale_changeset,
+    }))
+}
+
+fn search(repo: &Repo, query: &str) -> Result<Value, String> {
+    let needle = query.to_ascii_lowercase();
+    let snapshot = repo.current().map_err(|e| e.to_string())?;
+    let matches = snapshot
+        .entities
+        .into_iter()
+        .filter(|(id, entity)| {
+            id.to_string().to_ascii_lowercase().contains(&needle)
+                || entity.name.to_ascii_lowercase().contains(&needle)
+                || entity.file.as_str().to_ascii_lowercase().contains(&needle)
+                || format!("{:?}", entity.kind).to_ascii_lowercase().contains(&needle)
+        })
+        .map(|(id, entity)| json!({
+            "id": id, "name": entity.name, "kind": entity.kind, "file": entity.file,
+            "parent": entity.parent, "ordinal": entity.ordinal,
+        }))
+        .collect::<Vec<_>>();
+    Ok(json!({"matches": matches}))
+}
+
+fn resolve_snapshot(repo: &Repo, spec: &str) -> Result<Snapshot, String> {
+    if let Ok(id) = spec.parse::<SnapshotId>() {
+        if let Ok(snapshot) = repo.store().get_snapshot(id) {
+            return Ok(snapshot);
+        }
+    }
+    let change = repo.resolve_change(spec).map_err(|e| e.to_string())?;
+    let id = repo
+        .store()
+        .head(change)
+        .map_err(|e| e.to_string())?;
+    repo.store().get_snapshot(id).map_err(|e| e.to_string())
+}
+
+fn diff(repo: &Repo, a: &str, b: &str) -> Result<Value, String> {
+    let a = resolve_snapshot(repo, a)?;
+    let b = resolve_snapshot(repo, b)?;
+    Ok(json!({"deltas": diff_snapshots(&a, &b)}))
+}
+
+fn resolve_parent(repo: &Repo, parent: &str) -> Result<Option<EntityId>, String> {
+    match parent {
+        "root" | "none" | "-" => Ok(None),
+        value => resolve_entity(repo, value).map(Some).map_err(|e| e.to_string()),
+    }
+}
+
+fn rename_cmd(repo: &Repo, args: &RenameArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let op = Op::Rename { id, new: args.new_name.clone() };
+    let m = repo
+        .mutate(op, None, |repo, cur| repo.amend(cur, rename(cur, id, &args.new_name)?))
+        .map_err(|e| e.to_string())?;
+    mutation_value(m)
+}
+
+fn move_cmd(repo: &Repo, args: &MoveArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let parent = resolve_parent(repo, &args.new_parent)?;
+    let op = Op::Move { id, parent, ordinal: args.ordinal };
+    let m = repo
+        .mutate(op, None, |repo, cur| repo.amend(cur, move_def(cur, id, parent, args.ordinal)?))
+        .map_err(|e| e.to_string())?;
+    mutation_value(m)
+}
+
+fn relocate_cmd(repo: &Repo, args: &RelocateArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let file = RelPath::new(args.file.clone()).map_err(|e| e.to_string())?;
+    let op = Op::Relocate { id, file: file.clone(), ordinal: args.ordinal };
+    let m = repo
+        .mutate(op, None, |repo, cur| repo.amend(cur, relocate(cur, id, file, args.ordinal)?))
+        .map_err(|e| e.to_string())?;
+    mutation_value(m)
+}
+
+fn extract_cmd(repo: &Repo, args: &ExtractArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let parent = args
+        .new_parent
+        .as_deref()
+        .map(|p| resolve_parent(repo, p))
+        .transpose()?
+        .flatten();
+    let ordinal = repo
+        .current()
+        .map_err(|e| e.to_string())?
+        .entities
+        .get(&id)
+        .map(|e| e.ordinal)
+        .ok_or_else(|| format!("no such entity: {}", args.entity))?;
+    let op = Op::Extract { id, new_parent: parent, ordinal };
+    let m = repo
+        .mutate(op, None, |repo, cur| repo.amend(cur, extract_hoist(cur, id, parent, ordinal)?))
+        .map_err(|e| e.to_string())?;
+    mutation_value(m)
+}
+
+fn inline_cmd(repo: &Repo, entity: &str) -> Result<Value, String> {
+    let id = resolve_entity(repo, entity).map_err(|e| e.to_string())?;
+    let m = repo
+        .mutate(Op::Inline { id }, None, |repo, cur| {
+            repo.amend(cur, inline(cur, repo.store(), id)?)
+        })
+        .map_err(|e| e.to_string())?;
+    mutation_value(m)
+}
+
+fn add_def_cmd(repo: &Repo, args: &AddDefArgs) -> Result<Value, String> {
+    let id: EntityId = serde_json::from_value(Value::String(args.id.clone()))
+        .map_err(|e| format!("invalid entity id: {e}"))?;
+    let parent = args
+        .parent
+        .as_deref()
+        .map(|p| resolve_parent(repo, p))
+        .transpose()?
+        .flatten();
+    let intent = parse_intent(&args.intent);
+    let op = Op::AddDef {
+        id,
+        parent,
+        ordinal: args.ordinal,
+        definition: args.definition.clone(),
+        intent: intent.clone(),
+    };
+    let m = repo
+        .mutate(op, None, |repo, cur| {
+            let next = add_def(
+                repo.store(), repo.langs(), cur, id, parent, args.ordinal,
+                args.definition.as_bytes(), intent,
+            )?;
+            repo.amend(cur, next)
+        })
+        .map_err(|e| e.to_string())?;
+    mutation_value(m)
+}
+
+fn delete_cmd(repo: &Repo, args: &DeleteArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let intent = parse_intent(&args.intent);
+    let op = Op::Delete { id, intent };
+    let m = repo
+        .mutate(op, None, |repo, cur| repo.amend(cur, delete(cur, repo.store(), id)?))
+        .map_err(|e| e.to_string())?;
+    mutation_value(m)
+}
+
+fn edit_def_cmd(repo: &Repo, args: &EditDefArgs) -> Result<Value, String> {
+    repo.absorb().map_err(|e| e.to_string())?;
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let current = repo.current().map_err(|e| e.to_string())?;
+    let observed = classify_def(
+        repo.store(), repo.langs(), &current, id, args.definition.as_bytes(),
+    )
+    .map_err(|e| e.to_string())?;
+    let intent = parse_intent(&args.intent);
+    let op = Op::EditDef {
+        id,
+        definition: args.definition.clone(),
+        intent,
+    };
+    let m = repo
+        .mutate(op, Some(observed), |repo, cur| {
+            let (next, _) = edit_def(
+                repo.store(), repo.langs(), cur, id, args.definition.as_bytes(),
+            )?;
+            repo.amend(cur, next)
+        })
+        .map_err(|e| e.to_string())?;
+    mutation_value(m)
+}
+
+fn classify_cmd(repo: &Repo, args: &ClassifyArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let current = repo.current().map_err(|e| e.to_string())?;
+    let observed = classify_def(
+        repo.store(), repo.langs(), &current, id, args.definition.as_bytes(),
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(json!({"observed": observed, "committed": false}))
+}
+
 fn command_name(command: &Command) -> &'static str {
     match command {
         Command::Search { .. } => "search", Command::Diff { .. } => "diff",
@@ -181,5 +388,22 @@ mod tests {
         Cli::try_parse_from(["svc", "resolve", "0", "--take", "b", "--json"]).unwrap();
         Cli::try_parse_from(["svc", "edit", "feature", "--json"]).unwrap();
         Cli::try_parse_from(["svc", "op", "restore", "7", "--json"]).unwrap();
+        Cli::try_parse_from(["svc", "move", "--entity", "parse", "--new-parent", "root"])
+            .unwrap();
+        Cli::try_parse_from([
+            "svc", "relocate", "--entity", "parse", "--file", "src/parse.rs", "--ordinal", "0",
+        ])
+        .unwrap();
+        Cli::try_parse_from([
+            "svc", "add-def", "--id", "018f0000-0000-7000-8000-000000000001",
+            "--ordinal", "9", "--definition", "fn added() {}", "--intent", "feature",
+        ])
+        .unwrap();
+        Cli::try_parse_from([
+            "svc", "classify", "--entity", "validate", "--definition", "fn validate() {}",
+        ])
+        .unwrap();
+        Cli::try_parse_from(["svc", "search", "parse"]).unwrap();
+        Cli::try_parse_from(["svc", "diff", "main", "feature"]).unwrap();
     }
 }
