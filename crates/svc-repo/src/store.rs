@@ -48,17 +48,29 @@ pub struct WorkspaceRow {
     pub open_changeset: Option<OpenChangeSet>,
 }
 
+/// Head/root/render-pending writes held back until `append_op`'s transaction, so a
+/// mutation is published in one redb txn and a crash can never leave head and root a
+/// snapshot ahead of the op log (DEBATE §15b). Reads consult it first, so the code in
+/// between (`amend`, `view`) sees what it just wrote.
+#[derive(Default)]
+struct Staged {
+    heads: std::collections::BTreeMap<ChangeId, SnapshotId>,
+    root: Option<SnapshotId>,
+    render_pending: Option<bool>,
+}
+
 pub struct RedbStore {
     db: Database,
     /// `None` = the default checkout (`META` rows); `Some(name)` = a `WORKSPACES` row.
     workspace: Option<String>,
+    staged: std::sync::Mutex<Option<Staged>>,
 }
 
 impl RedbStore {
     /// Creates the file and seeds every table, so readers never see `TableDoesNotExist`.
     pub fn create(path: &Path) -> Result<Self> {
         let db = Database::create(path).map_err(Error::backend)?;
-        let store = Self { db, workspace: None };
+        let store = Self { db, workspace: None, staged: Default::default() };
         store.write(|txn| {
             txn.open_table(OBJECTS).map_err(Error::backend)?;
             txn.open_table(SNAPSHOTS).map_err(Error::backend)?;
@@ -104,7 +116,7 @@ impl RedbStore {
 
     pub fn open(path: &Path) -> Result<Self> {
         let db = Database::open(path).map_err(Error::backend)?;
-        Ok(Self { db, workspace: None })
+        Ok(Self { db, workspace: None, staged: Default::default() })
     }
 
     /// Re-scope this handle to checkout `name` (`None` = default). The row must exist.
@@ -115,6 +127,61 @@ impl RedbStore {
         }
         self.workspace = name.map(str::to_string);
         Ok(self)
+    }
+
+    /// Hold head/root/render-pending writes until the next `append_op`, which publishes
+    /// them with the op in one transaction. `Repo::mutate` brackets every verb with this.
+    pub fn stage(&self) {
+        *self.staged.lock().unwrap() = Some(Staged::default());
+    }
+
+    /// Drop everything staged since `stage()` without writing it (the verb failed;
+    /// snapshots already put are content-addressed orphans and harmless).
+    pub fn discard_staged(&self) {
+        *self.staged.lock().unwrap() = None;
+    }
+
+    fn staged_head(&self, id: ChangeId) -> Option<SnapshotId> {
+        self.staged.lock().unwrap().as_ref().and_then(|s| s.heads.get(&id).copied())
+    }
+
+    fn staged_root(&self) -> Option<SnapshotId> {
+        self.staged.lock().unwrap().as_ref().and_then(|s| s.root)
+    }
+
+    fn staged_render_pending(&self) -> Option<bool> {
+        self.staged.lock().unwrap().as_ref().and_then(|s| s.render_pending)
+    }
+
+    /// Record instead of writing when staging is on. Returns whether it was recorded.
+    fn stage_with(&self, f: impl FnOnce(&mut Staged)) -> bool {
+        match self.staged.lock().unwrap().as_mut() {
+            Some(s) => {
+                f(s);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// A checkout-row update inside an open write transaction.
+    fn update_own_row_in(&self, txn: &WriteTransaction, name: &str, f: impl FnOnce(&mut WorkspaceRow)) -> Result<()> {
+        let mut table = txn.open_table(WORKSPACES).map_err(Error::backend)?;
+        let mut row: WorkspaceRow = match table.get(name).map_err(Error::backend)? {
+            Some(g) => decode(g.value())?,
+            None => return Err(Error::NotFound(format!("workspace {name:?}"))),
+        };
+        f(&mut row);
+        let bytes = encode(&row)?;
+        table.insert(name, bytes.as_slice()).map_err(Error::backend)?;
+        Ok(())
+    }
+
+    fn set_meta_in<T: Serialize>(&self, txn: &WriteTransaction, key: &str, value: &T) -> Result<()> {
+        let bytes = encode(value)?;
+        let mut table = txn.open_table(META).map_err(Error::backend)?;
+        table.insert(key, bytes.as_slice()).map_err(Error::backend)?;
+        Ok(())
     }
 
     /// The checkout this handle's `root`/`render_pending`/`open_changeset` refer to.
@@ -272,7 +339,38 @@ impl Store for RedbStore {
     fn append_op(&self, e: &OpLogEntry) -> Result<OpIx> {
         let bytes = encode(e)?;
         let ws = self.workspace.clone().unwrap_or_default();
+        let staged = self.staged.lock().unwrap().take();
         self.write(|txn| {
+            // Publish what the verb staged together with the entry that describes it.
+            if let Some(s) = &staged {
+                if !s.heads.is_empty() {
+                    let mut heads = txn.open_table(HEADS).map_err(Error::backend)?;
+                    for (c, snap) in &s.heads {
+                        heads.insert(c.as_uuid(), &snap.0).map_err(Error::backend)?;
+                    }
+                }
+                match &self.workspace {
+                    None => {
+                        if let Some(r) = s.root {
+                            self.set_meta_in(txn, META_ROOT, &r)?;
+                        }
+                        if let Some(p) = s.render_pending {
+                            self.set_meta_in(txn, META_RENDER_PENDING, &p)?;
+                        }
+                    }
+                    Some(name) if s.root.is_some() || s.render_pending.is_some() => {
+                        self.update_own_row_in(txn, name, |r| {
+                            if let Some(id) = s.root {
+                                r.root = Some(id);
+                            }
+                            if let Some(p) = s.render_pending {
+                                r.render_pending = p;
+                            }
+                        })?;
+                    }
+                    Some(_) => {}
+                }
+            }
             let mut table = txn.open_table(OPLOG).map_err(Error::backend)?;
             let next = table
                 .last()
@@ -301,6 +399,9 @@ impl Store for RedbStore {
     }
 
     fn head(&self, id: ChangeId) -> Result<SnapshotId> {
+        if let Some(s) = self.staged_head(id) {
+            return Ok(s);
+        }
         let txn = self.read()?;
         let table = txn.open_table(HEADS).map_err(Error::backend)?;
         table
@@ -311,6 +412,11 @@ impl Store for RedbStore {
     }
 
     fn set_head(&self, id: ChangeId, snap: SnapshotId) -> Result<()> {
+        if self.stage_with(|s| {
+            s.heads.insert(id, snap);
+        }) {
+            return Ok(());
+        }
         self.write(|txn| {
             let mut table = txn.open_table(HEADS).map_err(Error::backend)?;
             table
@@ -327,6 +433,14 @@ impl Store for RedbStore {
         for row in table.iter().map_err(Error::backend)? {
             let (k, v) = row.map_err(Error::backend)?;
             out.push((ChangeId(k.value()), SnapshotId(*v.value())));
+        }
+        if let Some(s) = self.staged.lock().unwrap().as_ref() {
+            for (c, snap) in &s.heads {
+                match out.iter_mut().find(|(k, _)| k == c) {
+                    Some(slot) => slot.1 = *snap,
+                    None => out.push((*c, *snap)),
+                }
+            }
         }
         Ok(out)
     }
@@ -427,6 +541,9 @@ impl Store for RedbStore {
     }
 
     fn root(&self) -> Result<SnapshotId> {
+        if let Some(r) = self.staged_root() {
+            return Ok(r);
+        }
         match &self.workspace {
             None => self.get_meta::<SnapshotId>(META_ROOT)?,
             Some(ws) => self.own_row(ws)?.root,
@@ -435,6 +552,9 @@ impl Store for RedbStore {
     }
 
     fn set_root(&self, id: SnapshotId) -> Result<()> {
+        if self.stage_with(|s| s.root = Some(id)) {
+            return Ok(());
+        }
         match &self.workspace {
             None => self.set_meta(META_ROOT, &id),
             Some(ws) => self.update_own_row(ws, |r| r.root = Some(id)),
@@ -458,6 +578,9 @@ impl Store for RedbStore {
     }
 
     fn render_pending(&self) -> Result<bool> {
+        if let Some(p) = self.staged_render_pending() {
+            return Ok(p);
+        }
         match &self.workspace {
             None => Ok(self
                 .get_meta::<bool>(META_RENDER_PENDING)?
@@ -467,6 +590,9 @@ impl Store for RedbStore {
     }
 
     fn set_render_pending(&self, v: bool) -> Result<()> {
+        if self.stage_with(|s| s.render_pending = Some(v)) {
+            return Ok(());
+        }
         match &self.workspace {
             None => self.set_meta(META_RENDER_PENDING, &v),
             Some(ws) => self.update_own_row(ws, |r| r.render_pending = v),

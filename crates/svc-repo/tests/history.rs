@@ -395,3 +395,39 @@ fn an_identical_edit_def_is_still_an_event_on_the_change() {
     assert!(matches!(log[0].op, Op::EditDef { .. }));
     assert!(!log[0].flagged);
 }
+
+/// DEBATE §15b: a verb publishes head, root and its op-log entry in one transaction. A
+/// verb that fails *after* its amend must leave the store exactly as it was — before
+/// staging, `amend` had already moved head and root and only the entry was missing.
+#[test]
+fn a_failing_verb_publishes_nothing() {
+    let (dir, repo) = fresh();
+    svc_repo::new(&repo).unwrap();
+    let before = repo.view().unwrap();
+    let ops_before = svc_repo::op_log(&repo).unwrap().len();
+    let id = svc_repo::resolve_entity(&repo, "read").unwrap();
+    let err = repo.mutate(Op::Rename { id, new: "read_file".into() }, None, |repo, cur| {
+        let mut next = cur.clone();
+        next.entities.get_mut(&id).unwrap().name = "read_file".into();
+        repo.amend(cur, next)?; // head and root move here — staged, not written
+        Err(svc_core::Error::Other("simulated failure after the amend".into()))
+    });
+    assert!(err.is_err());
+    assert_eq!(repo.view().unwrap(), before, "head and root untouched");
+    assert_eq!(svc_repo::op_log(&repo).unwrap().len(), ops_before, "no entry");
+    assert!(read(dir.path(), "src/lib.rs").contains("fn read("), "working copy untouched");
+    assert!(!repo.store().render_pending().unwrap(), "no render left pending");
+
+    // The store is still fully usable afterwards, and a good verb publishes all three.
+    repo.mutate(Op::Rename { id, new: "read_file".into() }, None, |repo, cur| {
+        let mut next = cur.clone();
+        next.entities.get_mut(&id).unwrap().name = "read_file".into();
+        repo.amend(cur, next)
+    })
+    .unwrap();
+    let after = repo.view().unwrap();
+    assert_ne!(after.root, before.root);
+    assert_eq!(after.heads[&repo.current_change().unwrap()], after.root);
+    assert_eq!(svc_repo::op_log(&repo).unwrap().len(), ops_before + 1);
+    assert!(read(dir.path(), "src/lib.rs").contains("fn read_file("));
+}

@@ -388,16 +388,22 @@ impl Repo {
         let before = self.view()?;
         let (group, closed_stale_changeset) = self.open_group()?;
         let cur = self.current()?;
-        self.store.set_render_pending(true)?;
-        let snapshot = f(self, &cur)?;
-        let after = self.view()?;
-        let entry = OpLogEntry {
-            op,
-            observed,
-            at: now(),
-            group,
-            before,
-            after,
+        // From here to `append_op`, head/root/render-pending writes are staged and land in
+        // the op's own transaction: a crash never leaves the store a snapshot ahead of
+        // the log, and a failing verb publishes nothing (DEBATE §15b).
+        self.store.stage();
+        let staged = (|| -> Result<(SnapshotId, OpLogEntry)> {
+            self.store.set_render_pending(true)?;
+            let snapshot = f(self, &cur)?;
+            let after = self.view()?;
+            Ok((snapshot, OpLogEntry { op, observed, at: now(), group, before, after }))
+        })();
+        let (snapshot, entry) = match staged {
+            Ok(v) => v,
+            Err(e) => {
+                self.store.discard_staged();
+                return Err(e);
+            }
         };
         let ix = self.store.append_op(&entry)?;
         self.render_to_disk(&self.current()?)?;
@@ -416,19 +422,22 @@ impl Repo {
         self.absorb()?;
         let before = self.view()?;
         let (group, closed_stale_changeset) = self.open_group()?;
-        self.store.set_render_pending(true)?;
-        for (change, snap) in &view.heads {
-            self.store.set_head(*change, *snap)?;
-        }
-        self.store.set_root(view.root)?;
-        let after = self.view()?;
-        let entry = OpLogEntry {
-            op,
-            observed: None,
-            at: now(),
-            group,
-            before,
-            after,
+        self.store.stage();
+        let staged = (|| -> Result<OpLogEntry> {
+            self.store.set_render_pending(true)?;
+            for (change, snap) in &view.heads {
+                self.store.set_head(*change, *snap)?;
+            }
+            self.store.set_root(view.root)?;
+            let after = self.view()?;
+            Ok(OpLogEntry { op, observed: None, at: now(), group, before, after })
+        })();
+        let entry = match staged {
+            Ok(e) => e,
+            Err(e) => {
+                self.store.discard_staged();
+                return Err(e);
+            }
         };
         let ix = self.store.append_op(&entry)?;
         self.render_to_disk(&self.current()?)?;
