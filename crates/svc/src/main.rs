@@ -6,7 +6,8 @@ use serde_json::{Value, json};
 use svc_core::Intent;
 use svc_repo::{
     Repo, blame, branch, changeset_begin, changeset_end, changeset_status, changesets, describe,
-    evolog, heads, log, new, op_log, resolve_entity, undo,
+    evolog, heads, log, merge as merge_repo, conflicts as list_conflicts, new, op_log,
+    resolve as resolve_conflict, resolve_entity, undo, Take,
 };
 
 #[derive(Parser)]
@@ -21,7 +22,9 @@ enum Command {
     Init, Status, Describe { message: String }, New, Branch { name: String }, Heads, Log,
     Evolog { change: String }, Show { entity: String }, ListDefs, ShowDef(EntityArg),
     Search { query: String }, Diff { a: String, b: String }, Blame(EntityArg),
-    Merge { change: String }, Conflicts, Resolve { conflict: String }, Undo,
+    Merge { change: String }, Conflicts,
+    Resolve { conflict: usize, #[arg(long)] take: String },
+    Undo,
     #[command(subcommand)] Op(OpCommand),
     #[command(subcommand)] Changeset(ChangeSetCommand),
     Checkout { snapshot: String }, Render, Rename(RenameArgs), Move(MoveArgs),
@@ -73,6 +76,11 @@ fn run(cli: &Cli) -> Result<Value, String> {
         Command::Evolog { change } => { let id = repo.resolve_change(change).map_err(|e| e.to_string())?; value(evolog(&repo, id)) }
         Command::Blame(arg) => value(blame(&repo, resolve_entity(&repo, &arg.entity).map_err(|e| e.to_string())?)),
         Command::Undo => value(undo(&repo)),
+        Command::Merge { change } => value(merge_repo(&repo, change)),
+        Command::Conflicts => value(list_conflicts(&repo)),
+        Command::Resolve { conflict, take } => {
+            value(resolve_conflict(&repo, *conflict, parse_take(take)?))
+        }
         Command::Op(OpCommand::Log) => value(op_log(&repo)),
         Command::Changeset(ChangeSetCommand::Begin { name, intent, force }) => {
             value(changeset_begin(&repo, name, parse_intent(intent), None, *force))
@@ -102,6 +110,15 @@ fn parse_intent(value: &str) -> Intent {
     }
 }
 
+fn parse_take(value: &str) -> Result<Take, String> {
+    match value {
+        "a" => Ok(Take::A),
+        "b" => Ok(Take::B),
+        "base" => Ok(Take::Base),
+        _ => Err("--take must be a, b, or base".into()),
+    }
+}
+
 fn list_defs(repo: &Repo) -> Result<Value, String> {
     let snapshot = repo.current().map_err(|e| e.to_string())?;
     Ok(json!({"definitions": snapshot.entities.into_iter().map(|(id, entity)| json!({
@@ -120,8 +137,7 @@ fn show_def(repo: &Repo, query: &str) -> Result<Value, String> {
 
 fn command_name(command: &Command) -> &'static str {
     match command {
-        Command::Search { .. } => "search", Command::Diff { .. } => "diff", Command::Merge { .. } => "merge",
-        Command::Conflicts => "conflicts", Command::Resolve { .. } => "resolve", Command::Checkout { .. } => "checkout",
+        Command::Search { .. } => "search", Command::Diff { .. } => "diff", Command::Checkout { .. } => "checkout",
         Command::Rename(_) => "rename", Command::Move(_) => "move", Command::Relocate(_) => "relocate",
         Command::Extract(_) => "extract", Command::Inline(_) => "inline", Command::AddDef(_) => "add-def",
         Command::Delete(_) => "delete", Command::EditDef(_) => "edit-def", Command::Classify(_) => "classify",
@@ -137,5 +153,7 @@ mod tests {
         Cli::try_parse_from(["svc", "rename", "--entity", "parse", "--new-name", "parse_config", "--json"]).unwrap();
         Cli::try_parse_from(["svc", "edit-def", "--entity", "load", "--definition", "fn load() {}", "--intent", "refactor", "--json"]).unwrap();
         Cli::try_parse_from(["svc", "list-defs", "--json"]).unwrap();
+        Cli::try_parse_from(["svc", "merge", "feature", "--json"]).unwrap();
+        Cli::try_parse_from(["svc", "resolve", "0", "--take", "b", "--json"]).unwrap();
     }
 }
