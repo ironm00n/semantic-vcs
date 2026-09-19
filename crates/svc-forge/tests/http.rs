@@ -25,6 +25,11 @@ fn op(operation: Op) -> OpLogEntry {
 }
 
 fn catalog() -> Catalog {
+    let conflict = Conflict::DeleteEdit {
+        id: EntityId::new(),
+        deleted_by: Side::A,
+        edited_by: Side::B,
+    };
     Catalog {
         repositories: vec![Repository {
             slug: "svc".into(),
@@ -39,12 +44,17 @@ fn catalog() -> Catalog {
                 }),
                 op(Op::Undo),
             ],
-            review_queue: vec![ReviewItem::EditReview {
-                op: OpIx(0),
-                declared: Intent::Fix,
-                observed: None,
-                ask_id: None,
-            }],
+            review_queue: vec![
+                ReviewItem::EditReview {
+                    op: OpIx(0),
+                    declared: Intent::Fix,
+                    observed: None,
+                    ask_id: None,
+                },
+                ReviewItem::BindingConflict {
+                    conflict: conflict.clone(),
+                },
+            ],
             snapshots: vec![
                 SnapshotView {
                     id: "s1".into(),
@@ -71,11 +81,7 @@ fn catalog() -> Catalog {
                             bytes: BytesId([3; 32]),
                         },
                     }],
-                    conflicts: vec![Conflict::DeleteEdit {
-                        id: EntityId::new(),
-                        deleted_by: Side::A,
-                        edited_by: Side::B,
-                    }],
+                    conflicts: vec![conflict],
                 },
             ],
         }],
@@ -138,6 +144,7 @@ async fn populated_repository_response_preserves_semantic_types() {
     );
     assert_eq!(value["operations"][1]["op"], "Undo");
     assert!(value["review_queue"][0]["EditReview"].is_object());
+    assert!(value["review_queue"][1]["BindingConflict"].is_object());
 }
 
 #[tokio::test]
@@ -153,6 +160,16 @@ async fn browser_contract_has_typed_labels_change_navigation_and_entity_filters(
         "entity-kind",
         "PAGE_SIZE=100",
         "filteredEntities",
+        "conflictSummary",
+        "Delete/edit conflict",
+        "Binding safety review",
+        "selectEntity",
+        "Parent reference",
+        "Content identity",
+        "Raw entity record",
+        "@media(max-width:760px)",
+        "overflow-wrap:anywhere",
+        "word-break:break-word",
     ] {
         assert!(html.contains(contract), "missing browser contract: {contract}");
     }
