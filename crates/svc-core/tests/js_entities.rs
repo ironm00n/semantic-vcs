@@ -432,7 +432,52 @@ fn js_alpha_invariant() {
         ("function parse(s) { return s; }\n", "function parse(input) { return input; }\n", "param"),
         ("function f(a) { let b = a; return b; }\n", "function f(x) { let y = x; return y; }\n", "locals"),
         ("const f = q => q + 1;\n", "const f = w => w + 1;\n", "arrow-param"),
+        ("function f({a, b}) { return a; }\n", "function f({x, y}) { return x; }\n", "destructured"),
     ] {
         assert_eq!(content_of(a), content_of(b), "α-rename must preserve content ({label})");
     }
+}
+
+/// Refined kinds at the `extract` level (§8/C1/§25): the override, not just
+/// `js_kind`, decides entity identity for accessors, statics, and
+/// function-valued declarators.
+#[test]
+fn js_extract_refined_kinds() {
+    let tree = parse(TWIN);
+    let raw = extract(&tree, TWIN.as_bytes(), &JsLang).unwrap();
+    let class_idx = raw.iter().position(|e| e.name == "Config").unwrap();
+    let mut members: Vec<(&str, Kind)> = raw
+        .iter()
+        .filter(|e| e.parent_idx == Some(class_idx))
+        .map(|e| (e.name.as_str(), e.kind))
+        .collect();
+    members.sort();
+    assert_eq!(
+        members,
+        [
+            ("load", Kind::JsStaticMethod),
+            ("path", Kind::JsGetter),
+            ("path", Kind::JsSetter),
+        ]
+    );
+    // Module-scope declarators only; function-valued ones are functions.
+    let src = "const f = x => x;\nconst n = 1;\nfunction g() {\n  const inner = 2;\n  return inner;\n}\n";
+    let tree2 = parse(src);
+    let raw2 = extract(&tree2, src.as_bytes(), &JsLang).unwrap();
+    let mut roots: Vec<(&str, Kind)> = raw2
+        .iter()
+        .filter(|e| e.parent_idx.is_none())
+        .map(|e| (e.name.as_str(), e.kind))
+        .collect();
+    roots.sort();
+    assert_eq!(
+        roots,
+        [
+            ("f", Kind::JsFunction),
+            ("g", Kind::JsFunction),
+            ("n", Kind::JsDeclarator),
+        ]
+    );
+    // The nested declarator is a local, not a child entity (§12).
+    assert!(raw2.iter().all(|e| e.name != "inner"));
 }
