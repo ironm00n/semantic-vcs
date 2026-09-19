@@ -28,10 +28,11 @@ svc playground: $WORK   (a copy of demo/config; \`svc init\` already run)
   svc edit-def --entity main --intent feature --definition "\$(cat main.rs)"   # then: svc merge a
   svc log / svc op log / svc heads / svc blame --entity load / svc evolog <change>
   svc undo                                     one step, whole changeset
-  svc tui                                      review UI: j/k, tab, enter, a/r, u, q
+  svc tui                                      review UI: j/k, tab, enter, a/r, p, u, q
   svc tui --agent "$TASK"
                                                line 9 runs inside the UI (scripted agent; set
-                                               OPENROUTER_API_KEY and unset SVC_AGENT_COMMAND for the real model)
+                                               OPENROUTER_API_KEY=\$(cat ~/.openrouter.key) SVC_MODEL=anthropic/claude-sonnet-5
+                                               and unset SVC_AGENT_COMMAND for the real model; p continues an ended turn)
   add --json to any verb for the machine form
 
 EOF

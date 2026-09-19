@@ -12,6 +12,8 @@ use svc_repo::{Repo, changeset_begin, changeset_end};
 
 /// The plugin path as written in `harness/overlay.yml`; substituted with this checkout's at run time.
 const PLUGIN_PLACEHOLDER: &str = "/home/hacker/hackmit2026/harness/svc-tools.mjs";
+/// The model id `harness/overlay.yml` pins; `SVC_MODEL` replaces it in the runtime copy.
+const DEFAULT_MODEL: &str = "deepseek/deepseek-chat";
 
 pub async fn run(task: &str) -> Result<(), String> {
     if !has_model_credentials() {
@@ -54,9 +56,14 @@ pub fn runtime_overlay(root: &Path) -> Result<PathBuf, String> {
         return Err("harness assets are missing beside the source checkout".into());
     }
     let runtime_overlay = root.join(".svc/dsh-overlay.yml");
-    let text = std::fs::read_to_string(&overlay)
+    let mut text = std::fs::read_to_string(&overlay)
         .map_err(|e| e.to_string())?
         .replace(PLUGIN_PLACEHOLDER, &plugin.display().to_string());
+    // SVC_MODEL=<openrouter id> swaps the overlay's default model (deepseek-chat writes tool
+    // calls as prose about one run in three; anthropic/claude-sonnet-5 does not).
+    if let Ok(model) = std::env::var("SVC_MODEL") {
+        text = text.replace(DEFAULT_MODEL, &model);
+    }
     std::fs::write(&runtime_overlay, text).map_err(|e| e.to_string())?;
     Ok(runtime_overlay)
 }

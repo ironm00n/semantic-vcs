@@ -242,6 +242,18 @@ impl App {
                 }
                 Err(e) => self.error = Some(e),
             },
+            KeyCode::Char('p') => {
+                if let Some(agent) = &mut self.agent {
+                    if agent.running {
+                        self.status = "agent is still running".into();
+                    } else {
+                        agent.running = true;
+                        let follow_up = format!("Continue: the task is not finished yet. Task: {}", agent.task);
+                        let _ = agent.commands.send(AgentCommand::Prompt(follow_up));
+                        self.status = "asked the agent to continue".into();
+                    }
+                }
+            }
             KeyCode::Char('c') => {
                 if let Some(agent) = &self.agent {
                     for item in &mut self.queue {
@@ -355,10 +367,11 @@ impl App {
                 self.status = "permission requested — a: allow  r: reject".into();
             }
             AgentEvent::Stopped { reason } => {
-                self.status = format!("agent finished: {reason}");
+                // The session stays up: a model that ends its turn early ("Next, I will…")
+                // is told to continue with `p`; `q` ends it.
+                self.status = format!("agent finished: {reason} — p: continue  q: quit");
                 if let Some(agent) = &mut self.agent {
                     agent.running = false;
-                    let _ = agent.commands.send(AgentCommand::Quit);
                 }
                 self.dirty = true;
             }
@@ -469,7 +482,7 @@ impl App {
     }
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
-        let keys = "j/k move  tab pane  enter expand  a/r allow/reject  u undo  c cancel  q quit";
+        let keys = "j/k move  tab pane  enter expand  a/r allow/reject  p continue  u undo  c cancel  q quit";
         let text = match &self.error {
             Some(e) => Line::from(format!("error: {e}")).red(),
             None if self.status.is_empty() => Line::from(keys).dark_gray(),
