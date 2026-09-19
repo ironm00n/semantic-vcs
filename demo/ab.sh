@@ -13,7 +13,7 @@ if [ -n "${1:-}" ]; then
   SVC="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
 fi
 DSH="${DSH_BIN:-npx -y @deepseek-ai/dsh@0.1.5-rc.2}"
-TASK='In this crate: rename read to read_file, add-def check_retries, edit-def validate to call it. Do not edit files directly.'
+TASK='In src/main.rs, using svc tools only: (1) rename entity read to read_file. (2) add_def after load a complete fn check_retries(c: &Config) -> Result<(), Error> that returns Err if c.retries > 10, otherwise Ok(()). (3) edit_def validate to the complete item fn validate(c: &Config) -> Result<(), Error> { check_retries(c)?; Ok(()) }. check_retries is new so do not extract. Do not stub or comment-only bodies. Do not edit files.'
 
 has_key=0
 for v in OPENROUTER_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY DEEPSEEK_API_KEY XAI_API_KEY; do
