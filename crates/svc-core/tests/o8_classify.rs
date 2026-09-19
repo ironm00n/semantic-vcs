@@ -74,3 +74,25 @@ fn o8_unused_local_is_binding_preserving() {
     let (_, class) = edit_def(&store, &langs, &snap, id, new).unwrap();
     assert_eq!(class, ObservedClass::BindingPreserving);
 }
+
+#[test]
+fn o8_demo_validate_without_trailing_newline() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/main.rs").unwrap();
+    let src = include_bytes!("../../../demo/config/src/main.rs");
+    let mut files = BTreeMap::new();
+    files.insert(path, src.to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "validate").unwrap();
+    let new = b"fn validate(c: &Config) -> Result<(), Error> {
+    let c = &canon(c);
+    if c.retries > 10 {
+        return Err(Error(\"retries must not exceed 10\".into()));
+    }
+    Ok(())
+}";
+    assert_ne!(new.last(), Some(&b'\n'));
+    let (_, class) = edit_def(&store, &langs, &snap, id, new).unwrap();
+    assert_eq!(class, ObservedClass::BindingChanging);
+}

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use svc_core::engine::{edit_def, lookup_name, merge, rust_langs, snapshot_files};
 use svc_core::ids::{ChangeId, RelPath};
-use svc_core::store::MemStore;
+use svc_core::store::{MemStore, Store};
 use svc_core::{Conflict, IdentRef};
 
 const BASE: &str = r#"

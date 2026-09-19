@@ -59,6 +59,16 @@ pub fn env_at(
     Ok(env_from_snapshot(snapshot))
 }
 
+/// Name + refined Kind for Muse's JS lane tests (nested `let`s stay locals).
+pub fn js_extract_refined_kinds(src: &str) -> Result<Vec<(String, crate::entity::Kind)>> {
+    let lang = crate::JsLang;
+    let tree = parse(src.as_bytes(), &lang)?;
+    Ok(extract(&tree, src.as_bytes(), &lang)?
+        .into_iter()
+        .map(|e| (e.name, e.kind))
+        .collect())
+}
+
 pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     let mut env = Env::default();
     for (id, rec) in &snapshot.entities {
