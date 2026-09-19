@@ -603,3 +603,178 @@ fn queue_detail(q: &QueueItem) -> Vec<Line<'static>> {
         QueueItem::Binding { .. } => vec![Line::from("      fix the code, or `svc resolve <n> --accept`").dark_gray()],
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyEvent, KeyModifiers};
+    use serde_json::json;
+    use std::path::{Path, PathBuf};
+    use std::time::Duration;
+    use svc_core::EntityId;
+    use svc_agent::AgentConfig;
+    use svc_core::{Intent, ObservedClass, OpIx, SnapshotId};
+    use tokio::sync::mpsc;
+
+    fn app_with_agent() -> (App, mpsc::UnboundedReceiver<AgentCommand>) {
+        // Nothing here shells out: `Svc` is only consulted by `refresh`, which tests never call.
+        let mut app = App::new(Svc::new(PathBuf::from("svc"), PathBuf::from("/nonexistent")));
+        let (tx, rx) = mpsc::unbounded_channel();
+        app.agent = Some(AgentLink {
+            commands: tx,
+            task: "rename read to read_file".into(),
+            running: false,
+            tool_titles: Default::default(),
+        });
+        (app, rx)
+    }
+
+    fn key(c: char) -> Event {
+        Event::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE))
+    }
+
+    fn prompt_text(cmd: AgentCommand) -> String {
+        match cmd {
+            AgentCommand::Prompt(t) => t,
+            other => panic!("expected a prompt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ready_sends_the_task_as_the_first_prompt() {
+        let (mut app, mut rx) = app_with_agent();
+        app.on_agent_event(AgentEvent::Ready { session_id: "s1".into() });
+        assert!(app.agent.as_ref().unwrap().running);
+        assert_eq!(prompt_text(rx.try_recv().unwrap()), "rename read to read_file");
+        assert!(rx.try_recv().is_err(), "exactly one prompt");
+    }
+
+    #[test]
+    fn a_tool_call_touches_its_entity_and_is_logged() {
+        let (mut app, _rx) = app_with_agent();
+        app.on_agent_event(AgentEvent::ToolCall {
+            id: "c1".into(),
+            title: "rename".into(),
+            status: "pending".into(),
+            raw_input: Some(json!({"entity": "read", "new_name": "read_file"})),
+        });
+        assert!(app.touched.contains("read"));
+        assert_eq!(app.status, "agent → rename");
+        assert!(app.log.last().unwrap().starts_with("tool_call rename"));
+        app.on_agent_event(AgentEvent::ToolCallUpdate {
+            id: "c1".into(),
+            title: None,
+            status: Some("completed".into()),
+            raw_output: None,
+        });
+        assert!(app.dirty, "a completed call refreshes the panes");
+    }
+
+    #[test]
+    fn end_turn_keeps_the_session_and_p_continues_it() {
+        let (mut app, mut rx) = app_with_agent();
+        app.on_agent_event(AgentEvent::Ready { session_id: "s1".into() });
+        let _ = rx.try_recv();
+        app.on_agent_event(AgentEvent::Stopped { reason: "end_turn".into() });
+        assert!(!app.agent.as_ref().unwrap().running);
+        assert!(!app.should_quit, "the TUI stays up after the agent's turn ends");
+        assert!(rx.try_recv().is_err(), "no Quit is sent on end_turn");
+        assert!(app.status.contains("p: continue"));
+
+        app.handle_key(&key('p'));
+        let follow_up = prompt_text(rx.try_recv().unwrap());
+        assert!(follow_up.starts_with("Continue"));
+        assert!(follow_up.contains("rename read to read_file"));
+        assert!(app.agent.as_ref().unwrap().running);
+
+        app.handle_key(&key('p'));
+        assert_eq!(app.status, "agent is still running");
+        assert!(rx.try_recv().is_err(), "no second prompt while a turn is running");
+
+        app.handle_key(&key('q'));
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn edit_def_ops_become_verdicts_named_from_the_subject() {
+        let (mut app, _rx) = app_with_agent();
+        let op = |flagged: bool, subject: &str| OpOut {
+            ix: OpIx(1),
+            op: Op::EditDef { id: EntityId::new(), definition: String::new(), intent: Intent::Refactor },
+            declared: Some(Intent::Refactor),
+            observed: Some(if flagged { ObservedClass::BindingChanging } else { ObservedClass::BindingPreserving }),
+            flagged,
+            at: 0,
+            group: None,
+            root_after: SnapshotId::of(&()),
+            subject: Some(subject.into()),
+        };
+        let rename = OpOut {
+            op: Op::Rename { id: EntityId::new(), new: "read_file".into() },
+            ..op(false, "read")
+        };
+        // Newest first, as `svc log` returns them.
+        app.rebuild_queue(&[op(true, "validate"), rename, op(false, "load")], &[]);
+        let names: Vec<(&str, bool)> = app
+            .queue
+            .iter()
+            .filter_map(|q| match q {
+                QueueItem::Edit { op, entity } => Some((entity.as_str(), op.flagged)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(names, vec![("validate", true), ("load", false)], "only edit-defs queue, in log order");
+        assert!(app.queue.len() == 2, "renames never queue");
+        assert_eq!(app.queue_state.selected(), Some(0));
+    }
+
+    /// The ask path end to end against the scripted ACP agent from `svc-agent`'s tests:
+    /// the ask lands in the queue with the tool's own arguments, `a` answers it, the agent
+    /// sees the allow and finishes, and the TUI is still up afterwards.
+    #[test]
+    fn the_real_ask_is_answered_from_the_queue() {
+        let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../svc-agent/tests/fake_agent.mjs");
+        let config = AgentConfig::command("node", vec![script.display().to_string()], Path::new("/tmp"));
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut app = App::new(Svc::new(PathBuf::from("svc"), PathBuf::from("/nonexistent")));
+            let (ev_tx, mut ev_rx) = mpsc::unbounded_channel();
+            let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+            let driver = tokio::spawn(svc_agent::run(config, ev_tx, cmd_rx, false));
+            app.agent = Some(AgentLink {
+                commands: cmd_tx,
+                task: "edit validate".into(),
+                running: false,
+                tool_titles: Default::default(),
+            });
+            let mut answered = false;
+            let mut stopped = None;
+            while let Some(ev) = tokio::time::timeout(Duration::from_secs(20), ev_rx.recv()).await.expect("agent went quiet") {
+                let is_stop = matches!(ev, AgentEvent::Stopped { .. });
+                if let AgentEvent::Stopped { reason } = &ev {
+                    stopped = Some(reason.clone());
+                }
+                app.on_agent_event(ev);
+                if !answered && app.queue.iter().any(QueueItem::pending) {
+                    let QueueItem::Ask { tool, entity, intent, .. } = &app.queue[0] else { panic!("ask first") };
+                    assert_eq!((tool.as_str(), entity.as_str(), intent.as_str()), ("edit_def", "validate", "refactor"));
+                    assert!(matches!(app.focus, Pane::Queue), "an ask pulls focus to the queue");
+                    app.handle_key(&key('a'));
+                    assert_eq!(app.status, "allowed edit-def validate");
+                    answered = true;
+                }
+                if is_stop {
+                    break;
+                }
+            }
+            assert!(answered, "the ask reached the queue");
+            assert_eq!(stopped.as_deref(), Some("end_turn"));
+            assert!(app.log.iter().any(|l| l == "tool_call_update call-1 completed"), "{:?}", app.log);
+            assert!(app.log.iter().any(|l| l == "agent: done"), "the agent saw the allow: {:?}", app.log);
+            assert!(!app.should_quit);
+            assert!(!app.agent.as_ref().unwrap().running);
+            let _ = app.agent.as_ref().unwrap().commands.send(AgentCommand::Quit);
+            let _ = tokio::time::timeout(Duration::from_secs(5), driver).await;
+        });
+    }
+}

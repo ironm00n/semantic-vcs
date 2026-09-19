@@ -60,6 +60,16 @@ enum ChangeSetCommand {
 #[derive(Args)] struct ClassifyArgs { #[arg(long)] entity: String, #[arg(long)] definition: String }
 
 fn main() -> ExitCode {
+    // `svc list-defs --json | head` must not panic with "failed printing to stdout: Broken
+    // pipe": restore SIGPIPE's default so a closed pipe ends the process quietly, as it
+    // does for every other CLI tool.
+    #[cfg(unix)]
+    {
+        unsafe extern "C" {
+            fn signal(signum: i32, handler: usize) -> usize;
+        }
+        unsafe { signal(13 /* SIGPIPE */, 0 /* SIG_DFL */) };
+    }
     let cli = Cli::parse();
     if let Command::Tui { agent: task, wire_log } = &cli.command {
         let cwd = match env::current_dir().and_then(|path| path.canonicalize()) {
