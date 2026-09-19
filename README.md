@@ -253,7 +253,7 @@ evolog/undo on 10–11, the in-TUI agent replay on 12) with:
 demo/run.sh target/debug/svc
 ```
 
-(`demo/run.sh` is the whole gate: it runs `demo/demo-lines.sh` and then `demo/self-host.sh`, and exits with the total failure count; `SVC_SKIP_SELF_HOST=1` runs only the fast part.)
+(`demo/run.sh` is the whole gate: `demo/demo-lines.sh` — lines 1–12, the forge, and line 14, the self-hosting run — then `demo/store-stress.sh`: six named checkouts on one store, each renaming its own entity five times at once — every op lands, the op log stays contiguous, each checkout shows only its own rename and none is stale, and with a 1 ms lock wait the only failure mode is `store busy`. It exits with the total failure count; `SVC_SKIP_SELF_HOST=1` skips line 14.)
 `demo/recordings/js-agent.jsonl` records the JavaScript agent run.
 
 The dogfooding line runs `svc` against this repo's own `crates/**` tree —
