@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 
 use svc_core::engine::{
-    ingest_file, lookup_name, redefine, rename, render, rust_langs, snapshot_files, status_report,
+    add_def, ingest_file, lookup_name, redefine, rename, render, rust_langs, snapshot_files,
+    status_report,
 };
-use svc_core::ids::{ChangeId, RelPath};
+use svc_core::ids::{ChangeId, EntityId, RelPath};
 use svc_core::store::MemStore;
-use svc_core::{IdentRef, RustLang, Store, Token};
+use svc_core::{IdentRef, Intent, RustLang, Store, Token};
 
 const SRC: &str = r#"fn parse(s: &str) -> usize { s.len() }
 fn load(path: &str) -> usize { parse(path) }
@@ -121,4 +122,33 @@ fn redefine_without_trailing_newline_keeps_callee_entity() {
         "callee must resolve to parse's entity id, got {:?}",
         c.tokens
     );
+}
+
+#[test]
+fn add_def_separates_from_the_previous_item() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let src = "struct Error(String);\nfn load() {}\n";
+    let mut files = BTreeMap::new();
+    files.insert(path, src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let next = add_def(
+        &store,
+        &langs,
+        &snap,
+        EntityId::new(),
+        None,
+        1,
+        b"fn check_retries() {}",
+        Intent::Feature,
+    )
+    .unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files.values().next().unwrap().clone()).unwrap();
+    assert!(
+        !text.contains("String);fn"),
+        "add-def glued onto the previous item:\n{text}"
+    );
+    assert!(text.contains("fn check_retries"), "{text}");
 }

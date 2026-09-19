@@ -206,7 +206,8 @@ pub fn add_def(
         .for_path(&file)
         .ok_or_else(|| Error::NoLanguage(file.clone()))?;
     let env = env_from_snapshot(snap);
-    let part = ingest_file_with_env(definition, file.clone(), lang, store, snap.change, &env)?;
+    let definition = add_def_text(parent, definition);
+    let part = ingest_file_with_env(&definition, file.clone(), lang, store, snap.change, &env)?;
     let roots: Vec<_> = part
         .entities
         .iter()
@@ -446,4 +447,17 @@ fn item_text(
         out.push(b'\n');
     }
     Ok(out)
+}
+
+/// File-level items need a blank line before them or render glues `}fn` / `;fn`.
+fn add_def_text(parent: Option<EntityId>, text: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    if parent.is_none() && !text.first().is_some_and(|b| b.is_ascii_whitespace()) {
+        out.extend_from_slice(b"\n\n");
+    }
+    out.extend_from_slice(text);
+    if !out.ends_with(&[b'\n']) {
+        out.push(b'\n');
+    }
+    out
 }

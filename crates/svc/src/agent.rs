@@ -26,7 +26,7 @@ pub async fn run(task: &str) -> Result<(), String> {
     result.and(close_result)
 }
 
-fn has_model_credentials() -> bool {
+pub fn has_model_credentials() -> bool {
     const KEYS: &[&str] = &[
         "OPENROUTER_API_KEY",
         "DEEPSEEK_API_KEY",
@@ -43,20 +43,26 @@ fn has_model_credentials() -> bool {
     dsh_home.is_some_and(|home| home.join(".credentials.yaml").is_file())
 }
 
-async fn run_connection(task: &str, root: &Path) -> Result<(), String> {
+/// Write `.svc/dsh-overlay.yml` with the plugin's absolute path and return its path.
+/// A later `--patch` replaces a row's `config`, never its `name`, so the inserted plugin
+/// row must carry the absolute path from the start: rewrite the whole overlay.
+pub fn runtime_overlay(root: &Path) -> Result<PathBuf, String> {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let overlay = assets.join("harness/overlay.yml");
     let plugin = assets.join("harness/svc-tools.mjs");
     if !overlay.is_file() || !plugin.is_file() {
         return Err("harness assets are missing beside the source checkout".into());
     }
-    // A later `--patch` replaces a row's `config`, never its `name`, so the inserted plugin
-    // row must carry the absolute path from the start: rewrite the whole overlay.
     let runtime_overlay = root.join(".svc/dsh-overlay.yml");
     let text = std::fs::read_to_string(&overlay)
         .map_err(|e| e.to_string())?
         .replace(PLUGIN_PLACEHOLDER, &plugin.display().to_string());
     std::fs::write(&runtime_overlay, text).map_err(|e| e.to_string())?;
+    Ok(runtime_overlay)
+}
+
+async fn run_connection(task: &str, root: &Path) -> Result<(), String> {
+    let runtime_overlay = runtime_overlay(root)?;
     let svc_bin = std::env::current_exe().map_err(|e| e.to_string())?;
 
     let config = AcpAgentConfig::new("npx")

@@ -3,3 +3,5 @@
 .direnv
 *.swp
 .DS_Store
+.artifacts/
+.codex-finalizer/
