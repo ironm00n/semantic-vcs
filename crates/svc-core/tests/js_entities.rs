@@ -432,6 +432,7 @@ fn js_alpha_invariant() {
         ("function parse(s) { return s; }\n", "function parse(input) { return input; }\n", "param"),
         ("function f(a) { let b = a; return b; }\n", "function f(x) { let y = x; return y; }\n", "locals"),
         ("const f = q => q + 1;\n", "const f = w => w + 1;\n", "arrow-param"),
+        ("function f({a, b}) { return a; }\n", "function f({x, y}) { return x; }\n", "destructured"),
     ] {
         assert_eq!(content_of(a), content_of(b), "α-rename must preserve content ({label})");
     }
