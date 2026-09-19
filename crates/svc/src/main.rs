@@ -3,11 +3,16 @@ use std::{env, process::ExitCode};
 use clap::{Args, Parser, Subcommand};
 use serde::Serialize;
 use serde_json::{Value, json};
-use svc_core::{Intent, OpIx, SnapshotId};
+use svc_core::engine::{
+    add_def, classify_def, delete, diff, edit_def, extract_hoist, inline, move_def, relocate,
+    rename, show,
+};
+use svc_core::{EntityId, Intent, Op, OpIx, RelPath, SnapshotId};
 use svc_repo::{
-    Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_status, changesets,
-    checkout, conflicts as list_conflicts, describe, edit, evolog, heads, log,
-    merge as merge_repo, new, op_log, op_restore, resolve as resolve_conflict, resolve_entity, undo,
+    Mutation, Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_status,
+    changesets, checkout, conflicts as list_conflicts, describe, edit, evolog, heads, log,
+    merge as merge_repo, new, op_log, op_restore, parse_entity_id, resolve as resolve_conflict,
+    resolve_entity, status, undo,
 };
 
 mod agent;
@@ -85,7 +90,7 @@ fn run(cli: &Cli) -> Result<Value, String> {
     let cwd = env::current_dir().map_err(|e| e.to_string())?;
     let repo = Repo::discover(&cwd, Repo::default_langs()).map_err(|e| e.to_string())?;
     match &cli.command {
-        Command::Status => Ok(json!({"clean": repo.working_copy_clean().map_err(|e| e.to_string())?, "change": repo.current_change().map_err(|e| e.to_string())?})),
+        Command::Status => value(status(&repo)),
         Command::Describe { message } => value(describe(&repo, message)),
         Command::New => value(new(&repo)),
         Command::Branch { name } => value(branch(&repo, name)),
@@ -116,6 +121,20 @@ fn run(cli: &Cli) -> Result<Value, String> {
         Command::ListDefs => list_defs(&repo),
         Command::ShowDef(arg) => show_def(&repo, &arg.entity),
         Command::Show { entity } => show_def(&repo, entity),
+        Command::Search { query } => search_defs(&repo, query),
+        Command::Diff { a, b } => diff_changes(&repo, a, b),
+        Command::Rename(args) => op_rename(&repo, args),
+        Command::Move(args) => op_move(&repo, args),
+        Command::Relocate(args) => op_relocate(&repo, args),
+        Command::Extract(args) => op_extract(&repo, args),
+        Command::Inline(arg) => op_inline(&repo, &arg.entity),
+        Command::AddDef(args) => op_add_def(&repo, args),
+        Command::Delete(args) => op_delete(&repo, args),
+        Command::EditDef(args) => op_edit_def(&repo, args),
+        Command::Classify(args) => op_classify(&repo, args),
+        Command::Tui => Err(
+            "svc tui lives in crates/svc-tui on claude@; this binary does not host it yet".into(),
+        ),
         command => Err(format!("{} is not wired to the engine yet", command_name(command))),
     }
 }
@@ -152,11 +171,198 @@ fn list_defs(repo: &Repo) -> Result<Value, String> {
 }
 
 fn show_def(repo: &Repo, query: &str) -> Result<Value, String> {
+    let snap = repo.current().map_err(|e| e.to_string())?;
     let id = resolve_entity(repo, query).map_err(|e| e.to_string())?;
-    let entity = repo.current().map_err(|e| e.to_string())?.entities.remove(&id).unwrap();
+    let canonical = show(repo.store(), &snap, id).map_err(|e| e.to_string())?;
+    let entity = snap.entities.get(&id).cloned().ok_or_else(|| format!("missing {query}"))?;
     let bytes = repo.store().get_bytes_blob(entity.bytes).map_err(|e| e.to_string())?;
     let content = repo.store().get_content(entity.content).map_err(|e| e.to_string())?;
-    Ok(json!({"id": id, "entity": entity, "bytes": bytes, "content": content}))
+    Ok(json!({"id": id, "entity": entity, "canonical": canonical, "bytes": bytes, "content": content}))
+}
+
+fn search_defs(repo: &Repo, query: &str) -> Result<Value, String> {
+    let snap = repo.current().map_err(|e| e.to_string())?;
+    let q = query.to_ascii_lowercase();
+    let hits: Vec<_> = snap
+        .entities
+        .iter()
+        .filter(|(_, e)| e.name.to_ascii_lowercase().contains(&q))
+        .map(|(id, e)| json!({"id": id, "name": e.name, "kind": e.kind, "file": e.file}))
+        .collect();
+    Ok(json!({"matches": hits}))
+}
+
+fn diff_changes(repo: &Repo, a: &str, b: &str) -> Result<Value, String> {
+    let ia = repo.resolve_change(a).map_err(|e| e.to_string())?;
+    let ib = repo.resolve_change(b).map_err(|e| e.to_string())?;
+    let sa = repo.store().get_snapshot(repo.store().head(ia).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let sb = repo.store().get_snapshot(repo.store().head(ib).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    Ok(json!({"deltas": diff(&sa, &sb)}))
+}
+
+fn mutation_json(repo: &Repo, m: Mutation) -> Result<Value, String> {
+    Ok(json!({
+        "ix": m.ix,
+        "snapshot": m.snapshot,
+        "change": repo.current_change().map_err(|e| e.to_string())?,
+        "observed": m.entry.observed,
+        "flagged": m.entry.flagged(),
+    }))
+}
+
+fn op_rename(repo: &Repo, args: &RenameArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let new = args.new_name.clone();
+    let m = repo
+        .mutate(Op::Rename { id, new: new.clone() }, None, |repo, cur| {
+            repo.amend(cur, rename(cur, id, &new)?)
+        })
+        .map_err(|e| e.to_string())?;
+    mutation_json(repo, m)
+}
+
+fn op_move(repo: &Repo, args: &MoveArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let parent = if args.new_parent.is_empty() {
+        None
+    } else {
+        Some(resolve_entity(repo, &args.new_parent).map_err(|e| e.to_string())?)
+    };
+    let m = repo
+        .mutate(
+            Op::Move { id, parent, ordinal: args.ordinal },
+            None,
+            |repo, cur| repo.amend(cur, move_def(cur, id, parent, args.ordinal)?),
+        )
+        .map_err(|e| e.to_string())?;
+    mutation_json(repo, m)
+}
+
+fn op_relocate(repo: &Repo, args: &RelocateArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let file = RelPath::new(&args.file).map_err(|e| e.to_string())?;
+    let m = repo
+        .mutate(
+            Op::Relocate { id, file: file.clone(), ordinal: args.ordinal },
+            None,
+            |repo, cur| repo.amend(cur, relocate(cur, id, file.clone(), args.ordinal)?),
+        )
+        .map_err(|e| e.to_string())?;
+    mutation_json(repo, m)
+}
+
+fn op_extract(repo: &Repo, args: &ExtractArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let parent = match &args.new_parent {
+        Some(p) if !p.is_empty() => Some(resolve_entity(repo, p).map_err(|e| e.to_string())?),
+        _ => None,
+    };
+    let ordinal = repo
+        .current()
+        .map_err(|e| e.to_string())?
+        .entities
+        .get(&id)
+        .map(|r| r.ordinal)
+        .unwrap_or(0);
+    let m = repo
+        .mutate(
+            Op::Extract { id, new_parent: parent, ordinal },
+            None,
+            |repo, cur| repo.amend(cur, extract_hoist(cur, id, parent, ordinal)?),
+        )
+        .map_err(|e| e.to_string())?;
+    mutation_json(repo, m)
+}
+
+fn op_inline(repo: &Repo, entity: &str) -> Result<Value, String> {
+    let id = resolve_entity(repo, entity).map_err(|e| e.to_string())?;
+    let m = repo
+        .mutate(Op::Inline { id }, None, |repo, cur| {
+            repo.amend(cur, inline(cur, repo.store(), id)?)
+        })
+        .map_err(|e| e.to_string())?;
+    mutation_json(repo, m)
+}
+
+fn op_add_def(repo: &Repo, args: &AddDefArgs) -> Result<Value, String> {
+    let id = parse_entity_id(&args.id).unwrap_or_else(EntityId::new);
+    let parent = match &args.parent {
+        Some(p) if !p.is_empty() => Some(resolve_entity(repo, p).map_err(|e| e.to_string())?),
+        _ => None,
+    };
+    let definition = args.definition.clone();
+    let intent = parse_intent(&args.intent);
+    let m = repo
+        .mutate(
+            Op::AddDef {
+                id,
+                parent,
+                ordinal: args.ordinal,
+                definition: definition.clone(),
+                intent: intent.clone(),
+            },
+            None,
+            |repo, cur| {
+                repo.amend(
+                    cur,
+                    add_def(
+                        repo.store(),
+                        repo.langs(),
+                        cur,
+                        id,
+                        parent,
+                        args.ordinal,
+                        definition.as_bytes(),
+                        intent.clone(),
+                    )?,
+                )
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    mutation_json(repo, m)
+}
+
+fn op_delete(repo: &Repo, args: &DeleteArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let intent = parse_intent(&args.intent);
+    let m = repo
+        .mutate(Op::Delete { id, intent }, None, |repo, cur| {
+            repo.amend(cur, delete(cur, repo.store(), id)?)
+        })
+        .map_err(|e| e.to_string())?;
+    mutation_json(repo, m)
+}
+
+fn op_edit_def(repo: &Repo, args: &EditDefArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let definition = args.definition.clone();
+    let intent = parse_intent(&args.intent);
+    let cur = repo.current().map_err(|e| e.to_string())?;
+    let (_, class) = edit_def(repo.store(), repo.langs(), &cur, id, definition.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let m = repo
+        .mutate(
+            Op::EditDef {
+                id,
+                definition: definition.clone(),
+                intent,
+            },
+            Some(class),
+            |repo, cur| {
+                let (next, _) = edit_def(repo.store(), repo.langs(), cur, id, definition.as_bytes())?;
+                repo.amend(cur, next)
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    mutation_json(repo, m)
+}
+
+fn op_classify(repo: &Repo, args: &ClassifyArgs) -> Result<Value, String> {
+    let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
+    let snap = repo.current().map_err(|e| e.to_string())?;
+    let class = classify_def(repo.store(), repo.langs(), &snap, id, args.definition.as_bytes())
+        .map_err(|e| e.to_string())?;
+    Ok(json!({"entity": id, "observed": class}))
 }
 
 fn command_name(command: &Command) -> &'static str {

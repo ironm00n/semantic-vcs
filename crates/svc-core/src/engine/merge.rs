@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use similar::{MergeResolution, TextMerge};
+use similar::{ChangeTag, MergeResolution, TextDiff, TextMerge};
 
-use crate::content::{IdentRef, Token};
+use crate::content::IdentRef;
 use crate::entity::{EntityRecord, FileRecord, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{AtomIx, ByteRange, EntityId, LineCol, RelPath, SnapshotId, TokenIx};
@@ -443,7 +443,7 @@ fn binding_post(
         let Some(file) = rendered.files.get(&rec.file) else {
             continue;
         };
-        let (item, map) = render_entity(snap, store, id, true)?;
+        let (item, _map) = render_entity(snap, store, id, true)?;
         let tree = match super::parse(&item, lang) {
             Ok(t) => t,
             Err(_) => continue,
@@ -465,7 +465,7 @@ fn binding_post(
                 continue;
             }
             let origin = side_of(*r);
-            let stored = stored_ref(origin, store, id, ident, map.as_deref().unwrap_or(&[]), *r);
+            let stored = stored_ref(origin, store, id, &item, *r);
             let now = ident.clone();
             if let Some(was) = stored {
                 if !ref_eq(&was, &now) {
@@ -511,31 +511,83 @@ fn stored_ref(
     origin: &Snapshot,
     store: &dyn Store,
     id: EntityId,
-    now: &IdentRef,
-    _map: &[(ByteRange, IdentRef)],
-    _r: ByteRange,
+    merged_src: &[u8],
+    r: ByteRange,
 ) -> Option<IdentRef> {
-    let rec = origin.entities.get(&id)?;
-    let bytes = store.get_bytes_blob(rec.bytes).ok()?;
-    match now {
-        IdentRef::Local(slot, ns) => bytes
-            .local_ranges()
-            .iter()
-            .find_map(|(_, i)| match i {
-                IdentRef::Local(s, n) if s == slot && n == ns => Some(i.clone()),
-                _ => None,
-            })
-            .or(Some(now.clone())),
-        IdentRef::Entity(_) => {
-            // Compare against Name/Ident entity refs in origin content.
-            let c = store.get_content(rec.content).ok()?;
-            c.tokens.iter().find_map(|t| match t {
-                Token::Ident(i @ IdentRef::Entity(_)) => Some(i.clone()),
-                _ => None,
-            })
-        }
-        IdentRef::Free(n) => Some(IdentRef::Free(n.clone())),
+    if !origin.entities.contains_key(&id) {
+        return None;
     }
+    let (orig_src, orig_map) = super::render_entity(origin, store, id, true).ok()?;
+    let orig_map = orig_map.unwrap_or_default();
+    let mapped = map_range(merged_src, &orig_src, r)?;
+    ident_at(&orig_map, mapped)
+}
+
+fn ident_at(map: &[(ByteRange, IdentRef)], r: ByteRange) -> Option<IdentRef> {
+    map.iter()
+        .find(|(mr, _)| mr.start == r.start && mr.end == r.end)
+        .or_else(|| {
+            map.iter().find(|(mr, _)| {
+                mr.start < r.end && r.start < mr.end
+            })
+        })
+        .map(|(_, i)| i.clone())
+}
+
+fn map_range(from: &[u8], to: &[u8], r: ByteRange) -> Option<ByteRange> {
+    let from_lines = line_spans(from);
+    let to_lines = line_spans(to);
+    let fi = from_lines
+        .iter()
+        .position(|l| l.start <= r.start && r.end <= l.end)?;
+    let from_s = String::from_utf8_lossy(from);
+    let to_s = String::from_utf8_lossy(to);
+    let diff = TextDiff::from_lines(from_s.as_ref(), to_s.as_ref());
+    let mut f = 0usize;
+    let mut t = 0usize;
+    for change in diff.iter_all_changes() {
+        match change.tag() {
+            ChangeTag::Equal => {
+                if f == fi {
+                    let o = from_lines.get(f)?;
+                    let n = to_lines.get(t)?;
+                    let off = r.start.saturating_sub(o.start);
+                    let len = r.end.saturating_sub(r.start);
+                    let start = n.start.saturating_add(off);
+                    return Some(ByteRange {
+                        start,
+                        end: start.saturating_add(len),
+                    });
+                }
+                f += 1;
+                t += 1;
+            }
+            ChangeTag::Delete => f += 1,
+            ChangeTag::Insert => t += 1,
+        }
+    }
+    None
+}
+
+fn line_spans(src: &[u8]) -> Vec<ByteRange> {
+    let mut out = Vec::new();
+    let mut start = 0u32;
+    for (i, b) in src.iter().enumerate() {
+        if *b == b'\n' {
+            let end = (i + 1) as u32;
+            out.push(ByteRange { start, end });
+            start = end;
+        }
+    }
+    if (start as usize) < src.len() {
+        out.push(ByteRange {
+            start,
+            end: src.len() as u32,
+        });
+    } else if src.is_empty() {
+        out.push(ByteRange { start: 0, end: 0 });
+    }
+    out
 }
 
 fn ref_eq(a: &IdentRef, b: &IdentRef) -> bool {

@@ -12,6 +12,7 @@ postcard.workspace = true
 thiserror.workspace = true
 tree-sitter.workspace = true
 tree-sitter-rust.workspace = true
+tree-sitter-javascript.workspace = true
 similar.workspace = true
 
 [dev-dependencies]

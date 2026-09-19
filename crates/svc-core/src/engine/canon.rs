@@ -68,12 +68,7 @@ fn collect_binders<'a>(
     next: &mut HashMap<Namespace, u32>,
     root_id: usize,
 ) {
-    if node.id() != root_id
-        && lang
-            .entity_kinds()
-            .iter()
-            .any(|r| r.node_kind == node.kind())
-    {
+    if skip_nested_item(node, lang, root_id) {
         return;
     }
     for role in lang.roles(node, field, src, &crate::lang::Env::default()) {
@@ -115,12 +110,7 @@ fn collect_refs<'a>(
     refs: &mut Vec<(ByteRange, IdentRef)>,
     root_id: usize,
 ) {
-    if node.id() != root_id
-        && lang
-            .entity_kinds()
-            .iter()
-            .any(|r| r.node_kind == node.kind())
-    {
+    if skip_nested_item(node, lang, root_id) {
         return;
     }
     if is_ident_leaf(node) {
@@ -193,6 +183,21 @@ fn ident_leaves(node: tree_sitter::Node<'_>) -> Vec<tree_sitter::Node<'_>> {
 
 fn node_is_wildcard(node: tree_sitter::Node<'_>) -> bool {
     matches!(node.kind(), "_" | "remaining_field_pattern")
+}
+
+/// Nested `function`/`class`/`impl` items are separate entities. JS
+/// `variable_declarator` is an entity kind at module scope only; inside a
+/// function it is a local and must not be a resolver barrier.
+fn skip_nested_item(node: tree_sitter::Node<'_>, lang: &dyn Lang, root_id: usize) -> bool {
+    if node.id() == root_id {
+        return false;
+    }
+    if node.kind() == "variable_declarator" {
+        return false;
+    }
+    lang.entity_kinds()
+        .iter()
+        .any(|r| r.node_kind == node.kind())
 }
 
 fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {
@@ -281,12 +286,17 @@ fn leaf_token(
             return Some(Token::Ident(ident.clone()));
         }
     }
-    if is_ident_leaf(node) {
+    if is_ident_leaf(node)
+        || matches!(
+            node.kind(),
+            "field_identifier" | "property_identifier" | "property_identifier_pattern"
+        )
+    {
         return Some(Token::Ident(IdentRef::Free(text.as_ref().into())));
     }
     let kind = node.kind();
     if kind.chars().all(|c| c.is_ascii_alphabetic() || c == '_') {
-        Some(Token::Kw(kind.into()))
+        Some(Token::Kw(text.as_ref().into()))
     } else if matches!(
         kind,
         "string_literal"

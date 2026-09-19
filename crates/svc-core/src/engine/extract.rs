@@ -45,6 +45,16 @@ fn collect<'a>(
     nodes: &mut Vec<tree_sitter::Node<'a>>,
 ) {
     if let Some(rule) = rule_for(lang, node.kind()) {
+        // Module-scope `let`/`const`/`var` are entities; nested ones are locals
+        // of the enclosing item (SPEC §9). Extracting them as children made the
+        // parent resolver skip their binders.
+        if rule.node_kind == "variable_declarator" && parent_idx.is_some() {
+            let mut cursor = node.walk();
+            for child in node.named_children(&mut cursor) {
+                collect(child, src, lang, parent_idx, raw, nodes);
+            }
+            return;
+        }
         let idx = raw.len();
         if let Some(p) = parent_idx {
             raw[p].children.push(idx);

@@ -9,10 +9,10 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use svc_core::engine::{ingest_file, render};
+use svc_core::engine::{render, snapshot_files as engine_snapshot_files};
 use svc_core::{
-    CHANGESET_TTL_MS, ChangeId, ChangeSetId, Error, Langs, ObservedClass, Op, OpIx, OpLogEntry,
-    RelPath, Result, RustLang, Snapshot, SnapshotId, Store, Timestamp, View,
+    CHANGESET_TTL_MS, ChangeId, ChangeSetId, Error, JsLang, Langs, ObservedClass, Op, OpIx,
+    OpLogEntry, RelPath, Result, RustLang, Snapshot, SnapshotId, Store, Timestamp, View,
 };
 
 use crate::store::RedbStore;
@@ -46,7 +46,7 @@ pub struct Mutation {
 
 impl Repo {
     pub fn default_langs() -> Langs {
-        Langs::new(vec![Box::new(RustLang)])
+        Langs::new(vec![Box::new(RustLang), Box::new(JsLang)])
     }
 
     /// Nearest ancestor of `start` (inclusive) containing `.svc/`.
@@ -211,38 +211,14 @@ impl Repo {
         Ok(pats)
     }
 
-    /// Bytes-in → snapshot-out, with no filesystem access. Until `svc-core` lands a
-    /// matching `snapshot_files`, init unions per-file ingests and amend is unavailable.
+    /// Bytes-in → snapshot-out. Delegates to `svc_core::engine::snapshot_files` (DEBATE §7).
     fn snapshot_files(
         &self,
         files: &BTreeMap<RelPath, Vec<u8>>,
         prev: Option<&Snapshot>,
         change: ChangeId,
     ) -> Result<Snapshot> {
-        if prev.is_some() {
-            return Err(Error::Other(
-                "working copy has hand edits; `svc status` is not available yet".into(),
-            ));
-        }
-        let mut out = Snapshot {
-            parents: Vec::new(),
-            predecessors: Vec::new(),
-            change,
-            entities: BTreeMap::new(),
-            files: BTreeMap::new(),
-            conflicts: Vec::new(),
-            message: String::new(),
-        };
-        for (path, src) in files {
-            let lang = self
-                .langs
-                .for_path(path)
-                .ok_or_else(|| Error::NoLanguage(path.clone()))?;
-            let snap = ingest_file(src, path.clone(), lang, &self.store, change)?;
-            out.entities.extend(snap.entities);
-            out.files.extend(snap.files);
-        }
-        Ok(out)
+        engine_snapshot_files(&self.store, &self.langs, files, prev, change)
     }
 
     /// True when rendering the current snapshot reproduces the tracked files byte for byte.

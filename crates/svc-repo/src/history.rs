@@ -7,6 +7,8 @@
 use std::collections::BTreeMap;
 
 use serde::Serialize;
+use svc_core::delta::Delta;
+use svc_core::engine::{snapshot_files, status_report};
 use svc_core::{
     ChangeId, ChangeSetId, EntityId, EntityRecord, Error, Intent, ObservedClass, Op, OpIx,
     OpLogEntry, RelPath, Result, Snapshot, SnapshotId, Timestamp, View,
@@ -115,6 +117,40 @@ fn child_of(cur: &Snapshot, cur_id: SnapshotId, change: ChangeId) -> Snapshot {
         conflicts: cur.conflicts.clone(),
         message: String::new(),
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct StatusOut {
+    pub summary: String,
+    pub entities: usize,
+    pub layout: usize,
+    pub semantic: usize,
+    pub clean: bool,
+    pub change: ChangeId,
+    pub deltas: Vec<Delta>,
+    pub absorbed: bool,
+}
+
+/// `svc status`: classify the working copy against the current snapshot and amend if needed.
+pub fn status(repo: &Repo) -> Result<StatusOut> {
+    let cur = repo.current()?;
+    let files = repo.tracked_files()?;
+    let next = snapshot_files(repo.store(), repo.langs(), &files, Some(&cur), cur.change)?;
+    let report = status_report(&cur, &next);
+    let absorbed = !next.content_eq(&cur);
+    if absorbed {
+        repo.amend(&cur, next)?;
+    }
+    Ok(StatusOut {
+        summary: report.summary(),
+        entities: report.entities,
+        layout: report.layout,
+        semantic: report.semantic,
+        clean: report.deltas.is_empty(),
+        change: cur.change,
+        deltas: report.deltas,
+        absorbed,
+    })
 }
 
 /// `svc new`: start the next change on top of the current one.
@@ -505,6 +541,6 @@ pub fn resolve_entity(repo: &Repo, arg: &str) -> Result<EntityId> {
     }
 }
 
-fn parse_entity_id(s: &str) -> Option<EntityId> {
+pub fn parse_entity_id(s: &str) -> Option<EntityId> {
     s.parse::<uuid::Uuid>().ok().map(EntityId)
 }

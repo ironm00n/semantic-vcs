@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use similar::{ChangeTag, TextDiff};
 
@@ -88,31 +88,30 @@ fn surviving_refs_ok(
     }
 
     let mut bijection: HashMap<(Slot, Namespace), (Slot, Namespace)> = HashMap::new();
-    let mut seen_old: HashSet<(Slot, Namespace)> = HashSet::new();
+    let old_binders = binder_sites(old_map);
+    let new_binders = binder_sites(new_map);
     for (o_line, n_line) in &pairs {
         let o_ids = idents_in(old_map, *o_line);
         let n_ids = idents_in(new_map, *n_line);
-        for (o, n) in o_ids.iter().zip(n_ids.iter()) {
+        for ((or, o), (nr, n)) in o_ids.iter().zip(n_ids.iter()) {
             if let (IdentRef::Local(os, ons), IdentRef::Local(ns, nns)) = (o, n) {
-                let key = (*os, *ons);
-                if seen_old.insert(key) {
-                    bijection.insert(key, (*ns, *nns));
+                if is_site(*or, (*os, *ons), &old_binders) && is_site(*nr, (*ns, *nns), &new_binders)
+                {
+                    bijection.entry((*os, *ons)).or_insert((*ns, *nns));
                 }
             }
         }
     }
 
-    let mut seen_ref: HashSet<(Slot, Namespace)> = HashSet::new();
     for (o_line, n_line) in &pairs {
         let o_ids = idents_in(old_map, *o_line);
         let n_ids = idents_in(new_map, *n_line);
         if o_ids.len() != n_ids.len() {
             continue;
         }
-        for (o, n) in o_ids.iter().zip(n_ids.iter()) {
+        for ((or, o), (_, n)) in o_ids.iter().zip(n_ids.iter()) {
             if let IdentRef::Local(os, ons) = o {
-                if seen_ref.insert((*os, *ons)) {
-                    // first aligned occurrence of this slot is the binder site
+                if is_site(*or, (*os, *ons), &old_binders) {
                     continue;
                 }
             }
@@ -122,6 +121,24 @@ fn surviving_refs_ok(
         }
     }
     true
+}
+
+fn binder_sites(map: &[(ByteRange, IdentRef)]) -> HashMap<(Slot, Namespace), ByteRange> {
+    let mut sites = HashMap::new();
+    for (r, ident) in map {
+        if let IdentRef::Local(s, ns) = ident {
+            sites.entry((*s, *ns)).or_insert(*r);
+        }
+    }
+    sites
+}
+
+fn is_site(
+    range: ByteRange,
+    key: (Slot, Namespace),
+    sites: &HashMap<(Slot, Namespace), ByteRange>,
+) -> bool {
+    sites.get(&key).is_some_and(|s| s.start == range.start && s.end == range.end)
 }
 
 fn same_target(
@@ -142,14 +159,14 @@ fn same_target(
     }
 }
 
-fn idents_in(map: &[(ByteRange, IdentRef)], line: ByteRange) -> Vec<IdentRef> {
+fn idents_in(map: &[(ByteRange, IdentRef)], line: ByteRange) -> Vec<(ByteRange, IdentRef)> {
     let mut hits: Vec<_> = map
         .iter()
         .filter(|(r, _)| r.start >= line.start && r.end <= line.end)
         .cloned()
         .collect();
     hits.sort_by_key(|(r, _)| r.start);
-    hits.into_iter().map(|(_, i)| i).collect()
+    hits
 }
 
 fn line_spans(src: &[u8]) -> Vec<ByteRange> {

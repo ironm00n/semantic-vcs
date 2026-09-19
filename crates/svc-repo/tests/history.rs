@@ -106,7 +106,10 @@ fn rename_via_mutate_renders_and_is_visible_in_log_blame_evolog() {
     let text = read(dir.path(), "src/lib.rs");
     assert!(text.contains("fn read_file(path: &str)"), "{text}");
     assert!(!text.contains("fn read("), "{text}");
-    assert!(text.contains("read(\"x\")"), "callers are literal until resolve lands: {text}");
+    assert!(
+        text.contains("read_file(\"x\")"),
+        "Name holes fill the current name at render: {text}"
+    );
     assert!(repo.working_copy_clean().unwrap());
 
     let log = svc_repo::log(&repo, None).unwrap();
