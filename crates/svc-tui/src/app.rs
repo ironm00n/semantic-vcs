@@ -119,8 +119,29 @@ impl App {
         let log = self.svc.log().unwrap_or_default();
         let conflicts = self.svc.conflicts().unwrap_or_default();
         self.rebuild_queue(&log, &conflicts);
+        self.select_touched_if_needed();
         self.events_for = None;
         self.load_events();
+    }
+
+    /// After an agent op, jump the tree to a touched entity so the right pane is not
+    /// stuck on the first `use` still showing only the init event.
+    fn select_touched_if_needed(&mut self) {
+        if self.touched.is_empty() {
+            return;
+        }
+        let current_touched = self
+            .selected_def()
+            .is_some_and(|d| self.touched.contains(&d.name) || self.touched.contains(&d.id));
+        if current_touched {
+            return;
+        }
+        if let Some(idx) = self.rows.iter().position(|(i, _)| {
+            let d = &self.defs[*i];
+            self.touched.contains(&d.name) || self.touched.contains(&d.id)
+        }) {
+            self.tree_state.select(Some(idx));
+        }
     }
 
     fn rebuild_queue(&mut self, log: &[OpOut], conflicts: &[ConflictOut]) {
@@ -201,10 +222,39 @@ impl App {
             return;
         }
         self.events_for = Some(def.id.clone());
-        self.events = match self.svc.blame(&def.id) {
-            Ok(entries) => entries.iter().map(blame_line).collect(),
-            Err(e) => vec![Line::from(format!("blame failed: {e}")).red()],
-        };
+        let mut lines: Vec<Line<'static>> = Vec::new();
+        match self.svc.show_def(&def.id) {
+            Ok(shown) => {
+                let src = shown.source();
+                if src.trim().is_empty() {
+                    lines.push(Line::from("(empty definition)").dark_gray());
+                } else {
+                    for line in src.lines() {
+                        lines.push(Line::from(line.to_string()));
+                    }
+                }
+                let canon = shown.canonical.trim();
+                if !canon.is_empty() {
+                    lines.push(Line::from(""));
+                    lines.push(
+                        Line::from(format!("canonical  {canon}")).dark_gray(),
+                    );
+                }
+            }
+            Err(e) => lines.push(Line::from(format!("show-def failed: {e}")).red()),
+        }
+        lines.push(Line::from(""));
+        match self.svc.blame(&def.id) {
+            Ok(entries) if entries.is_empty() => {
+                lines.push(Line::from("no events yet").dark_gray());
+            }
+            Ok(entries) => {
+                lines.push(Line::from("history").dark_gray());
+                lines.extend(entries.iter().map(blame_line));
+            }
+            Err(e) => lines.push(Line::from(format!("blame failed: {e}")).red()),
+        }
+        self.events = lines;
     }
 
     pub fn handle_key(&mut self, event: &Event) {
@@ -457,7 +507,13 @@ impl App {
             }
         }
         let para = Paragraph::new(lines)
-            .block(Block::default().borders(Borders::ALL).title(format!(" events — {name} ")))
+            .block(Block::default().borders(Borders::ALL).title(format!(
+                " {} — {} ",
+                if name.is_empty() { "item".into() } else { name },
+                self.selected_def()
+                    .map(|d| d.file.clone())
+                    .unwrap_or_default()
+            )))
             .wrap(Wrap { trim: false });
         frame.render_widget(para, area);
     }
@@ -530,7 +586,7 @@ fn blame_line(e: &BlameEntry) -> Line<'static> {
         Touch::Edited { observed } => format!("edited: {}", class_name(*observed)),
     };
     let op = match &e.op {
-        Op::Rename { .. } | Op::New { .. } => String::new(),
+        Op::Rename { .. } => String::new(),
         other => format!(" — {}", describe_op(other)),
     };
     let style = match &e.touch {
@@ -613,7 +669,7 @@ mod tests {
     use std::time::Duration;
     use svc_core::EntityId;
     use svc_agent::AgentConfig;
-    use svc_core::{Intent, ObservedClass, OpIx, SnapshotId};
+    use svc_core::{ChangeId, Intent, ObservedClass, OpIx, SnapshotId};
     use tokio::sync::mpsc;
 
     fn app_with_agent() -> (App, mpsc::UnboundedReceiver<AgentCommand>) {
@@ -776,5 +832,24 @@ mod tests {
             let _ = app.agent.as_ref().unwrap().commands.send(AgentCommand::Quit);
             let _ = tokio::time::timeout(Duration::from_secs(5), driver).await;
         });
+    }
+
+    #[test]
+    fn init_blame_names_the_new_change_not_just_added() {
+        let change = ChangeId::new();
+        let entry = BlameEntry {
+            ix: OpIx(0),
+            change,
+            op: Op::New { change },
+            touch: Touch::Added,
+            at: 0,
+        };
+        let text: String = blame_line(&entry)
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert!(text.contains("added"), "{text}");
+        assert!(text.contains("new change"), "{text}");
     }
 }

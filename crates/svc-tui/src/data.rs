@@ -24,6 +24,32 @@ struct ListDefs {
     definitions: Vec<Definition>,
 }
 
+/// `svc show-def --json`. `text` is the utf-8 item; older binaries only had `bytes.src`.
+#[derive(Clone, Debug, Deserialize)]
+pub struct ShowDef {
+    #[serde(default)]
+    pub canonical: String,
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    bytes: ShowDefBytes,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct ShowDefBytes {
+    #[serde(default)]
+    src: Vec<u8>,
+}
+
+impl ShowDef {
+    pub fn source(&self) -> String {
+        if !self.text.is_empty() {
+            return self.text.clone();
+        }
+        String::from_utf8_lossy(&self.bytes.src).into_owned()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Svc {
     pub bin: PathBuf,
@@ -64,6 +90,11 @@ impl Svc {
 
     pub fn blame(&self, entity_id: &str) -> Result<Vec<BlameEntry>, String> {
         self.json(&["blame", "--entity", entity_id])
+    }
+
+    /// Current source + canonical stream for the selected entity (right pane).
+    pub fn show_def(&self, entity: &str) -> Result<ShowDef, String> {
+        self.json(&["show-def", "--entity", entity])
     }
 
     pub fn conflicts(&self) -> Result<Vec<ConflictOut>, String> {
@@ -151,5 +182,25 @@ fn ident(r: &svc_core::IdentRef) -> String {
         svc_core::IdentRef::Entity(id) if *id == svc_core::EntityId::SELF => "itself".into(),
         svc_core::IdentRef::Entity(id) => format!("⟨{}⟩", id.short()),
         svc_core::IdentRef::Free(n) => format!("free `{n}`"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn show_def_reads_text_or_bytes_src() {
+        let with_text: ShowDef = serde_json::from_str(
+            r#"{"canonical":"fn f()","text":"fn f() {}\n"}"#,
+        )
+        .unwrap();
+        assert_eq!(with_text.source(), "fn f() {}\n");
+
+        let from_src: ShowDef = serde_json::from_str(
+            r#"{"canonical":"struct C","bytes":{"src":[115,116,114,117,99,116,32,67,32,123,125]}}"#,
+        )
+        .unwrap();
+        assert_eq!(from_src.source(), "struct C {}");
     }
 }
