@@ -461,12 +461,12 @@ fn binding_post(
                 IdentRef::Entity(x) if *x == id => IdentRef::Entity(EntityId::SELF),
                 other => other.clone(),
             };
-            if let Some((_, was, was_at)) = stored.iter().find(|(origin, was, _)| {
-                !ref_eq(was, &now, origin, snap, id)
+            if let Some((_, was, was_at)) = stored.iter().find(|(_, was, _)| {
+                !ref_eq(was, &now, id)
             }) {
                 if !stored
                     .iter()
-                    .any(|(origin, was, _)| ref_eq(was, &now, origin, snap, id))
+                    .any(|(_, was, _)| ref_eq(was, &now, id))
                 {
                     snap.conflicts.push(Conflict::Binding {
                         id,
@@ -521,20 +521,17 @@ fn ident_at(map: &[(ByteRange, IdentRef)], r: ByteRange) -> Option<IdentRef> {
         .map(|(_, i)| i.clone())
 }
 
-fn ref_eq(a: &IdentRef, b: &IdentRef, old: &Snapshot, new: &Snapshot, owner: EntityId) -> bool {
+fn ref_eq(a: &IdentRef, b: &IdentRef, owner: EntityId) -> bool {
     match (a, b) {
         (IdentRef::Entity(x), IdentRef::Entity(y)) => {
-            entity_name(old, owner, *x) == entity_name(new, owner, *y)
+            let x = if *x == EntityId::SELF { owner } else { *x };
+            let y = if *y == EntityId::SELF { owner } else { *y };
+            x == y
         }
         (IdentRef::Free(x), IdentRef::Free(y)) => x == y,
         (IdentRef::Local(x, xn), IdentRef::Local(y, yn)) => x == y && xn == yn,
         _ => false,
     }
-}
-
-fn entity_name(snapshot: &Snapshot, owner: EntityId, id: EntityId) -> Option<&str> {
-    let id = if id == EntityId::SELF { owner } else { id };
-    snapshot.entities.get(&id).map(|rec| rec.name.as_str())
 }
 
 fn source_name(item: &[u8], r: ByteRange) -> Option<String> {

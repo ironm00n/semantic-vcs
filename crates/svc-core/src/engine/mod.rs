@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::content::{Bytes, Content, IdentRef, Namespace};
+use crate::content::{Bytes, Content, IdentRef};
 use crate::entity::{EntityRecord, FileRecord};
 use crate::error::{Error, Result};
 use crate::ids::{ByteRange, BytesId, ChangeId, ContentId, EntityId, RelPath};
@@ -63,10 +63,12 @@ pub fn js_extract_refined_kinds(src: &str) -> Result<Vec<(String, crate::entity:
 
 pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     let mut env = Env::default();
-    for (id, rec) in &snapshot.entities {
-        env.insert(&rec.name, Namespace::Value, *id);
-        env.insert(&rec.name, Namespace::Type, *id);
-    }
+    let defs: Vec<_> = snapshot
+        .entities
+        .iter()
+        .map(|(id, rec)| (rec.name.as_str(), rec.kind, *id))
+        .collect();
+    env.insert_defs(&defs);
     env
 }
 
@@ -76,18 +78,7 @@ pub fn resolve(
     lang: &dyn Lang,
     env: &Env,
 ) -> Result<Resolution> {
-    let mut res = canon::resolve_locals(item, src, lang);
-    for (_, ident) in &mut res.refs {
-        if let IdentRef::Free(n) = ident {
-            if let Some(id) = env
-                .lookup(n, Namespace::Value)
-                .or_else(|| env.lookup(n, Namespace::Type))
-            {
-                *ident = IdentRef::Entity(id);
-            }
-        }
-    }
-    Ok(res)
+    Ok(canon::resolve_locals(item, src, lang, env))
 }
 
 pub fn to_bytes(
@@ -187,12 +178,16 @@ pub fn snapshot_files(
         }
     }
     let mut env = prev.map(env_from_snapshot).unwrap_or_default();
-    for p in &parsed {
-        for (i, ent) in p.raw.iter().enumerate() {
-            env.insert(&ent.name, Namespace::Value, p.ids[i]);
-            env.insert(&ent.name, Namespace::Type, p.ids[i]);
-        }
-    }
+    let defs: Vec<_> = parsed
+        .iter()
+        .flat_map(|p| {
+            p.raw
+                .iter()
+                .enumerate()
+                .map(|(i, ent)| (ent.name.as_str(), ent.kind, p.ids[i]))
+        })
+        .collect();
+    env.insert_defs(&defs);
     let mut entities = BTreeMap::new();
     let mut file_recs = BTreeMap::new();
     for p in &parsed {
@@ -248,10 +243,12 @@ pub fn ingest_file_prev(
     let raw = extract(&tree, src, lang)?;
     let ids = assign_ids(&raw, prev);
     let mut env = extra.clone();
-    for (i, ent) in raw.iter().enumerate() {
-        env.insert(&ent.name, Namespace::Value, ids[i]);
-        env.insert(&ent.name, Namespace::Type, ids[i]);
-    }
+    let defs: Vec<_> = raw
+        .iter()
+        .enumerate()
+        .map(|(i, ent)| (ent.name.as_str(), ent.kind, ids[i]))
+        .collect();
+    env.insert_defs(&defs);
     let (entities, file) = materialize(src, path.clone(), lang, store, &tree, &raw, &ids, &env)?;
     let mut files = BTreeMap::new();
     files.insert(path, file);

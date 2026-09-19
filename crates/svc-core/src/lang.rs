@@ -20,6 +20,66 @@ impl Env {
     pub fn insert(&mut self, name: impl Into<String>, ns: Namespace, id: EntityId) {
         self.names.insert((name.into(), ns), id);
     }
+
+    pub fn insert_def(&mut self, name: impl Into<String>, kind: Kind, id: EntityId) {
+        let name = name.into();
+        for ns in namespaces_for(kind) {
+            if *ns == Namespace::Value
+                && !is_value_primary(kind)
+                && self.lookup(&name, Namespace::Value).is_some()
+            {
+                continue;
+            }
+            self.insert(&name, *ns, id);
+        }
+        if is_value_primary(kind) {
+            self.insert(&name, Namespace::Value, id);
+        }
+    }
+
+    pub fn insert_defs(&mut self, defs: &[(&str, Kind, EntityId)]) {
+        for (name, kind, id) in defs {
+            self.insert_def(*name, *kind, *id);
+        }
+    }
+}
+
+pub fn namespaces_for(kind: Kind) -> &'static [Namespace] {
+    match kind {
+        Kind::Fn | Kind::Const | Kind::Static | Kind::Macro => &[Namespace::Value],
+        Kind::Struct | Kind::Enum => &[Namespace::Type, Namespace::Value],
+        Kind::Union | Kind::Trait | Kind::TypeAlias => &[Namespace::Type],
+        Kind::Mod => &[Namespace::Value, Namespace::Type],
+        Kind::Impl | Kind::Opaque | Kind::JsStaticBlock => &[],
+        Kind::JsFunction
+        | Kind::JsClass
+        | Kind::JsMethod
+        | Kind::JsGetter
+        | Kind::JsSetter
+        | Kind::JsField
+        | Kind::JsStaticMethod
+        | Kind::JsStaticField
+        | Kind::JsDeclarator => &[Namespace::Value],
+    }
+}
+
+fn is_value_primary(kind: Kind) -> bool {
+    matches!(
+        kind,
+        Kind::Fn
+            | Kind::Const
+            | Kind::Static
+            | Kind::Macro
+            | Kind::JsFunction
+            | Kind::JsClass
+            | Kind::JsMethod
+            | Kind::JsGetter
+            | Kind::JsSetter
+            | Kind::JsField
+            | Kind::JsStaticMethod
+            | Kind::JsStaticField
+            | Kind::JsDeclarator
+    )
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

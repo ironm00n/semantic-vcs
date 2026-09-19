@@ -4,7 +4,7 @@ use super::extract::byte_range;
 use crate::content::{Content, IdentRef, Namespace, Token};
 use crate::error::Result;
 use crate::ids::{ByteRange, EntityId, Slot};
-use crate::lang::{Lang, Locator, Resolution, Role};
+use crate::lang::{Env, Lang, Locator, Resolution, Role};
 
 pub fn canonicalize(
     item: tree_sitter::Node<'_>,
@@ -35,7 +35,12 @@ fn binders_from_res(res: &Resolution) -> HashMap<(u32, u32), (Slot, Namespace)> 
     m
 }
 
-pub fn resolve_locals(item: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> Resolution {
+pub fn resolve_locals(
+    item: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+    env: &Env,
+) -> Resolution {
     let mut slots = Vec::new();
     let mut binders = Vec::new();
     let mut next: HashMap<Namespace, u32> = HashMap::new();
@@ -61,6 +66,7 @@ pub fn resolve_locals(item: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) 
         None,
         &slot_at,
         &binders,
+        env,
         &mut refs,
         item.id(),
     );
@@ -146,6 +152,7 @@ fn collect_refs<'a>(
     field: Option<&str>,
     slot_at: &HashMap<(u32, u32), (Slot, Namespace)>,
     binders: &[BinderInfo],
+    env: &Env,
     refs: &mut Vec<(ByteRange, IdentRef)>,
     root_id: usize,
 ) {
@@ -184,6 +191,8 @@ fn collect_refs<'a>(
                 local.filter(|_| !is_rust_nonlocal_ident(node, lang) && !is_struct_field_key(node))
             {
                 refs.push((r, IdentRef::Local(binder.slot, ns)));
+            } else if let Some(id) = env.lookup(&name, ns) {
+                refs.push((r, IdentRef::Entity(id)));
             } else {
                 refs.push((r, IdentRef::Free(name.into())));
             }
@@ -199,6 +208,7 @@ fn collect_refs<'a>(
                 c.field_name(),
                 slot_at,
                 binders,
+                env,
                 refs,
                 root_id,
             );

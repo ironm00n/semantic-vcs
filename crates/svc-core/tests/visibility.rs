@@ -1,11 +1,14 @@
 //! Visibility variants the role table already emits must change what
 //! `resolve_locals` reports. Audit A2: only AfterStmt was interpreted.
 
+use std::collections::BTreeMap;
+
 use svc_core::content::{IdentRef, Namespace};
-use svc_core::engine::{parse, resolve};
-use svc_core::ids::Slot;
+use svc_core::engine::{env_from_snapshot, parse, resolve, rust_langs, snapshot_files};
+use svc_core::ids::{ChangeId, RelPath, Slot};
 use svc_core::lang::Env;
-use svc_core::{JsLang, RustLang};
+use svc_core::store::MemStore;
+use svc_core::{JsLang, Kind, RustLang};
 
 fn rust_item_refs(src: &str) -> Vec<(String, IdentRef)> {
     let lang = RustLang;
@@ -114,4 +117,75 @@ fn js_break_label_is_not_the_same_named_var() {
         "break loop must not resolve as the var: {labels:?}"
     );
     assert_eq!(value, 0, "{labels:?}");
+}
+
+fn named_item<'t>(
+    root: tree_sitter::Node<'t>,
+    src: &[u8],
+    kind: &str,
+    name: &str,
+) -> tree_sitter::Node<'t> {
+    let mut stack = vec![root];
+    while let Some(n) = stack.pop() {
+        if n.kind() == kind {
+            if let Some(nm) = n.child_by_field_name("name") {
+                if &src[nm.start_byte()..nm.end_byte()] == name.as_bytes() {
+                    return n;
+                }
+            }
+        }
+        let mut c = n.walk();
+        for ch in n.children(&mut c) {
+            stack.push(ch);
+        }
+    }
+    panic!("no {kind} named {name}");
+}
+
+#[test]
+fn type_position_foo_is_the_struct_not_the_fn() {
+    let src = "struct Foo { x: i32 }\nfn Foo() {}\nfn use_it() -> Foo { Foo(); Foo { x: 0 } }\n";
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let struct_id = snap
+        .entities
+        .iter()
+        .find(|(_, rec)| rec.name == "Foo" && rec.kind == Kind::Struct)
+        .map(|(id, _)| *id)
+        .expect("struct Foo");
+    let fn_id = snap
+        .entities
+        .iter()
+        .find(|(_, rec)| rec.name == "Foo" && rec.kind == Kind::Fn)
+        .map(|(id, _)| *id)
+        .expect("fn Foo");
+    assert_ne!(struct_id, fn_id);
+    let env = env_from_snapshot(&snap);
+    let lang = RustLang;
+    let tree = parse(src.as_bytes(), &lang).unwrap();
+    let item = named_item(tree.root_node(), src.as_bytes(), "function_item", "use_it");
+    let res = resolve(item, src.as_bytes(), &lang, &env).unwrap();
+    let foos: Vec<_> = res
+        .refs
+        .iter()
+        .filter(|(r, _)| &src.as_bytes()[r.start as usize..r.end as usize] == b"Foo")
+        .map(|(_, ident)| ident.clone())
+        .collect();
+    let n_struct = foos
+        .iter()
+        .filter(|t| matches!(t, IdentRef::Entity(id) if *id == struct_id))
+        .count();
+    let n_fn = foos
+        .iter()
+        .filter(|t| matches!(t, IdentRef::Entity(id) if *id == fn_id))
+        .count();
+    assert!(
+        n_struct >= 1,
+        "return type / struct literal must be the struct: {foos:?}"
+    );
+    assert!(n_fn >= 1, "Foo() must be the function: {foos:?}");
 }
