@@ -10,6 +10,8 @@ use svc_repo::{
     merge as merge_repo, new, op_log, op_restore, resolve as resolve_conflict, resolve_entity, undo,
 };
 
+mod agent;
+
 #[derive(Parser)]
 #[command(name = "svc", about = "Compiler-grade version control")]
 struct Cli {
@@ -52,6 +54,22 @@ enum ChangeSetCommand {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    if let Command::Agent { task } = &cli.command {
+        let runtime = match tokio::runtime::Runtime::new() {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                eprintln!("svc: could not start async runtime: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        return match runtime.block_on(agent::run(task)) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("svc: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     match run(&cli) {
         Ok(value) => { println!("{}", if cli.json { value.to_string() } else { serde_json::to_string_pretty(&value).unwrap() }); ExitCode::SUCCESS }
         Err(error) => { if cli.json { eprintln!("{}", json!({"error": error})) } else { eprintln!("svc: {error}") }; ExitCode::FAILURE }
