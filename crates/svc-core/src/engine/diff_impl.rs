@@ -97,7 +97,7 @@ pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<Delta> {
     out
 }
 
-fn commutative_layout(ext: Option<&str>, parent: Option<Kind>, child: Kind) -> bool {
+pub(crate) fn commutative_layout(ext: Option<&str>, parent: Option<Kind>, child: Kind) -> bool {
     let rules = match ext {
         Some("rs") => RustLang.commutative_parents(),
         Some("js" | "mjs" | "cjs") => JsLang.commutative_parents(),

@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use similar::{MergeResolution, TextMerge};
 
 use crate::content::IdentRef;
-use crate::entity::{EntityRecord, FileRecord, SigKey};
+use crate::entity::{EntityRecord, FileRecord, Kind, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{AtomIx, ByteRange, EntityId, LineCol, RelPath, SnapshotId, TokenIx};
 use crate::lang::Langs;
@@ -102,6 +102,7 @@ pub fn merge(
             }
             (Some(ro), Some(ra), Some(rb)) => {
                 let rb = rewrite_record(rb, &rewrite);
+                let parent_kind = ra.parent.and_then(|p| a_s.entities.get(&p).map(|r| r.kind));
                 let rec = merge_record(
                     store,
                     langs,
@@ -110,6 +111,7 @@ pub fn merge(
                     ra,
                     &rb,
                     id,
+                    parent_kind,
                     &render_entity(&base_s, store, id, false)?.0,
                     &render_entity(&a_s, store, id, false)?.0,
                     &render_entity(&b_s, store, id, false)?.0,
@@ -168,6 +170,7 @@ fn merge_record(
     a: &EntityRecord,
     b: &EntityRecord,
     id: EntityId,
+    parent_kind: Option<Kind>,
     o_src: &[u8],
     a_src: &[u8],
     b_src: &[u8],
@@ -177,7 +180,15 @@ fn merge_record(
     let name = merge_attr(sides, id, conflicts, |r| r.name.clone(), AttrValue::Name);
     let parent = merge_attr(sides, id, conflicts, |r| r.parent, AttrValue::Parent);
     let file = merge_attr(sides, id, conflicts, |r| r.file.clone(), AttrValue::File);
-    let ordinal = merge_attr(sides, id, conflicts, |r| r.ordinal, AttrValue::Ordinal);
+    let ordinal = if super::diff_impl::commutative_layout(
+        a.file.extension(),
+        parent_kind,
+        a.kind,
+    ) {
+        three(o.ordinal, a.ordinal, b.ordinal).unwrap_or(a.ordinal)
+    } else {
+        merge_attr(sides, id, conflicts, |r| r.ordinal, AttrValue::Ordinal)
+    };
     let body = |r: &EntityRecord| (r.content, r.bytes);
     let (content, bytes) = if body(a) == body(o) || body(a) == body(b) {
         body(b)
