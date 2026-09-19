@@ -264,3 +264,44 @@ fn init_cannot_be_undone() {
     assert_eq!(blame.len(), 1);
     assert_eq!(blame[0].touch, Touch::Added);
 }
+
+#[test]
+fn changeset_verbs_stamp_ops_and_report() {
+    let (_dir, repo) = fresh();
+    assert!(svc_repo::changeset_status(&repo).unwrap().is_none());
+    let cs = svc_repo::changeset_begin(&repo, "agent run", Intent::Refactor, None, false).unwrap();
+    assert!(cs.open && cs.ops.is_empty());
+    assert!(svc_repo::changeset_begin(&repo, "again", Intent::Fix, None, false).is_err());
+    svc_repo::describe(&repo, "by the agent").unwrap();
+    let status = svc_repo::changeset_status(&repo).unwrap().unwrap();
+    assert_eq!(status.id, cs.id);
+    assert_eq!(status.ops.len(), 1);
+    assert_eq!(svc_repo::changeset_end(&repo).unwrap(), Some(cs.id));
+    assert!(svc_repo::changeset_status(&repo).unwrap().is_none());
+    svc_repo::describe(&repo, "by a human").unwrap();
+    let all = svc_repo::changesets(&repo).unwrap();
+    assert_eq!(all.len(), 1);
+    assert!(!all[0].open);
+    assert_eq!(all[0].ops.len(), 1, "the human's op is not in the group");
+    let forced = svc_repo::changeset_begin(&repo, "x", Intent::Fix, None, true).unwrap();
+    assert_ne!(forced.id, cs.id);
+}
+
+#[test]
+fn resolve_entity_by_name_qualified_name_and_id() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("a.rs"),
+        "struct A;\nimpl A { fn new() -> A { A } }\nstruct B;\nimpl B { fn new() -> B { B } }\n",
+    )
+    .unwrap();
+    let repo = Repo::init(dir.path(), Repo::default_langs()).unwrap();
+    assert!(svc_repo::resolve_entity(&repo, "new").is_err(), "ambiguous");
+    assert!(svc_repo::resolve_entity(&repo, "nope").is_err());
+    let a = svc_repo::resolve_entity(&repo, "A").unwrap();
+    assert_eq!(svc_repo::resolve_entity(&repo, &a.to_string()).unwrap(), a);
+    let snap = repo.current().unwrap();
+    let impl_names: Vec<_> = snap.entities.values().filter(|r| r.kind == svc_core::Kind::Impl).map(|r| r.name.clone()).collect();
+    let by_impl = svc_repo::resolve_entity(&repo, &format!("{}::new", impl_names[0]));
+    assert!(by_impl.is_ok(), "impl names: {impl_names:?}");
+}

@@ -377,3 +377,134 @@ pub fn touches(prev: &Snapshot, next: &Snapshot, observed: Option<ObservedClass>
     }
     out
 }
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ChangeSetOut {
+    pub id: ChangeSetId,
+    pub name: String,
+    pub intent: Intent,
+    pub description: String,
+    pub open: bool,
+    pub ops: Vec<OpOut>,
+}
+
+/// `svc changeset begin <name>`: open a group that every following op is stamped with
+/// (SPEC §5.6). Refuses while another is open unless `force`; a stale row is closed first.
+pub fn changeset_begin(
+    repo: &Repo,
+    name: &str,
+    intent: Intent,
+    pid: Option<u32>,
+    force: bool,
+) -> Result<ChangeSetOut> {
+    let store = repo.store();
+    if let (Some(open), _) = repo.open_group()? {
+        if !force {
+            return Err(Error::Other(format!(
+                "changeset {} is already open; `svc changeset end` it or pass --force",
+                open.short()
+            )));
+        }
+    }
+    let cs = svc_core::ChangeSet {
+        id: ChangeSetId::new(),
+        name: name.into(),
+        intent,
+        queue: Vec::new(),
+        description: String::new(),
+    };
+    store.put_changeset(&cs)?;
+    store.set_open_changeset(Some(svc_core::OpenChangeSet {
+        id: cs.id,
+        pid,
+        opened_at: crate::repo::now(),
+    }))?;
+    changeset_out(repo, cs, true)
+}
+
+/// `svc changeset end`: close the open group. Returns what was closed, if anything.
+pub fn changeset_end(repo: &Repo) -> Result<Option<ChangeSetId>> {
+    let open = repo.store().open_changeset()?.map(|r| r.id);
+    repo.store().set_open_changeset(None)?;
+    Ok(open)
+}
+
+/// `svc changeset status`: the open group and its ops so far, or `None`.
+pub fn changeset_status(repo: &Repo) -> Result<Option<ChangeSetOut>> {
+    match repo.open_group()? {
+        (Some(id), _) => changeset_out(repo, repo.store().get_changeset(id)?, true).map(Some),
+        _ => Ok(None),
+    }
+}
+
+/// `svc changesets`: every group, with its ops.
+pub fn changesets(repo: &Repo) -> Result<Vec<ChangeSetOut>> {
+    let open = repo.open_group()?.0;
+    repo.store()
+        .changesets()?
+        .into_iter()
+        .map(|cs| {
+            let is_open = open == Some(cs.id);
+            changeset_out(repo, cs, is_open)
+        })
+        .collect()
+}
+
+fn changeset_out(repo: &Repo, cs: svc_core::ChangeSet, open: bool) -> Result<ChangeSetOut> {
+    let ops = repo
+        .store()
+        .ops(OpIx(0), true)?
+        .iter()
+        .filter(|(_, e)| e.group == Some(cs.id))
+        .map(|(ix, e)| op_out(*ix, e))
+        .collect();
+    Ok(ChangeSetOut {
+        id: cs.id,
+        name: cs.name,
+        intent: cs.intent,
+        description: cs.description,
+        open,
+        ops,
+    })
+}
+
+/// Resolve an entity by name in the current snapshot, optionally qualified as
+/// `Parent::name` (one level) to disambiguate methods of the same name.
+pub fn resolve_entity(repo: &Repo, arg: &str) -> Result<EntityId> {
+    let snap = repo.current()?;
+    if let Some(id) = parse_entity_id(arg) {
+        if snap.entities.contains_key(&id) {
+            return Ok(id);
+        }
+    }
+    let (parent, name) = match arg.rsplit_once("::") {
+        Some((p, n)) => (Some(p), n),
+        None => (None, arg),
+    };
+    let mut hits: Vec<EntityId> = snap
+        .entities
+        .iter()
+        .filter(|(_, r)| r.name == name)
+        .filter(|(_, r)| match parent {
+            None => true,
+            Some(p) => r
+                .parent
+                .and_then(|pid| snap.entities.get(&pid))
+                .is_some_and(|pr| pr.name == p),
+        })
+        .map(|(id, _)| *id)
+        .collect();
+    hits.sort();
+    match hits.len() {
+        1 => Ok(hits[0]),
+        0 => Err(Error::NotFound(format!("entity {arg:?}"))),
+        _ => Err(Error::Other(format!(
+            "{arg:?} names {} entities; qualify it as Parent::{name} or pass the id",
+            hits.len()
+        ))),
+    }
+}
+
+fn parse_entity_id(s: &str) -> Option<EntityId> {
+    s.parse::<uuid::Uuid>().ok().map(EntityId)
+}
