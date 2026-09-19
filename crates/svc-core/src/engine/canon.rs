@@ -44,6 +44,7 @@ pub fn resolve_locals(
     let mut slots = Vec::new();
     let mut binders = Vec::new();
     let mut next: HashMap<Namespace, u32> = HashMap::new();
+    inherit_outer_generics(item, src, lang, &mut slots, &mut binders, &mut next);
     collect_binders(
         item,
         src,
@@ -110,8 +111,7 @@ fn collect_binders<'a>(
                     let slot = Slot(*n);
                     *n += 1;
                     slots.push((r, slot, namespace));
-                    let (visible_from, scope) =
-                        binder_extent(node, src, lang, root_id, visibility);
+                    let (visible_from, scope) = binder_extent(node, src, lang, root_id, visibility);
                     binders.push(BinderInfo {
                         range: r,
                         visible_from,
@@ -401,6 +401,94 @@ fn blocked_by_barrier(
         current = parent.parent();
     }
     false
+}
+
+/// Nested entities are skipped, so `When::ThroughBlock` cannot be applied by
+/// walking into them. Copy ancestor `type_parameters` onto this item only when
+/// the path does not go through a `block` (impl/trait methods inherit `T`;
+/// a nested `fn` inside `fn f<T>` does not).
+fn inherit_outer_generics(
+    item: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+    slots: &mut Vec<(ByteRange, Slot, Namespace)>,
+    binders: &mut Vec<BinderInfo>,
+    next: &mut HashMap<Namespace, u32>,
+) {
+    let scope = byte_range(item);
+    let mut ancestor = item.parent();
+    while let Some(node) = ancestor {
+        if let Some(tp) = node.child_by_field_name("type_parameters") {
+            if !crosses_block(node, item) {
+                add_generic_binders(tp, src, lang, scope, slots, binders, next);
+            }
+        }
+        ancestor = node.parent();
+    }
+}
+
+fn crosses_block(ancestor: tree_sitter::Node<'_>, item: tree_sitter::Node<'_>) -> bool {
+    let mut current = item.parent();
+    while let Some(node) = current {
+        if node.id() == ancestor.id() {
+            return false;
+        }
+        if node.kind() == "block" {
+            return true;
+        }
+        current = node.parent();
+    }
+    false
+}
+
+fn add_generic_binders(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+    scope: ByteRange,
+    slots: &mut Vec<(ByteRange, Slot, Namespace)>,
+    binders: &mut Vec<BinderInfo>,
+    next: &mut HashMap<Namespace, u32>,
+) {
+    if matches!(
+        node.kind(),
+        "type_parameter" | "lifetime_parameter" | "const_parameter"
+    ) {
+        for role in lang.roles(node, None, src, &Env::default()) {
+            if let Role::Binder {
+                namespace, locator, ..
+            } = role
+            {
+                for name_node in locate(node, locator) {
+                    for id in ident_leaves(name_node, name_node) {
+                        let r = byte_range(id);
+                        let n = next.entry(namespace).or_insert(0);
+                        let slot = Slot(*n);
+                        *n += 1;
+                        slots.push((r, slot, namespace));
+                        binders.push(BinderInfo {
+                            range: r,
+                            visible_from: scope.start,
+                            scope,
+                            slot,
+                            namespace,
+                            name: String::from_utf8_lossy(&src[r.start as usize..r.end as usize])
+                                .into_owned(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    let mut c = node.walk();
+    if c.goto_first_child() {
+        loop {
+            add_generic_binders(c.node(), src, lang, scope, slots, binders, next);
+            if !c.goto_next_sibling() {
+                break;
+            }
+        }
+    }
 }
 
 fn is_pattern_constructor(
