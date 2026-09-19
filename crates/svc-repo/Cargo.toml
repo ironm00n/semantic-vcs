@@ -1,0 +1,17 @@
+[package]
+name = "svc-repo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+svc-core.workspace = true
+redb.workspace = true
+postcard.workspace = true
+serde.workspace = true
+serde_json = "1"
+uuid.workspace = true
+blake3.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
