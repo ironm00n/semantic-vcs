@@ -217,11 +217,6 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
                     },
                 ],
             },
-            Role::Binder {
-                namespace: Namespace::Value,
-                visibility: Visibility::Sub(&["body"]),
-                locator: Locator::Field("name"),
-            },
         ],
         "let_declaration" => vec![Role::Binder {
             namespace: Namespace::Value,

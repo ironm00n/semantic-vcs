@@ -10,6 +10,7 @@ use crate::snapshot::Snapshot;
 use crate::store::Store;
 
 mod bytes;
+mod canon;
 mod extract;
 mod render;
 
@@ -51,10 +52,9 @@ pub fn resolve(
     item: tree_sitter::Node<'_>,
     src: &[u8],
     lang: &dyn Lang,
-    env: &Env,
+    _env: &Env,
 ) -> Result<Resolution> {
-    let _ = (item, src, lang, env);
-    todo!("resolve")
+    Ok(canon::resolve_locals(item, src, lang))
 }
 
 pub fn to_bytes(
@@ -77,10 +77,10 @@ pub fn canonicalize(
     src: &[u8],
     res: &Resolution,
     children: &[(ByteRange, EntityId)],
-    env: &Env,
+    _env: &Env,
+    lang: &dyn Lang,
 ) -> Result<Content> {
-    let _ = (item, src, res, children, env);
-    todo!("canonicalize")
+    canon::canonicalize(item, src, res, children, lang)
 }
 
 pub fn classify(
