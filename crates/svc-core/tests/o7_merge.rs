@@ -58,9 +58,7 @@ fn o7_demo_line_6_is_a_binding_conflict_on_raw() {
         })
         .collect();
     assert!(
-        binds.iter().any(|(name, was, now)| {
-            (name == "raw" || name.starts_with('$')) && was != now
-        }),
+        binds.iter().any(|(name, was, now)| name == "raw" && was != now),
         "expected a Binding conflict on raw, got {:?}",
         merged.conflicts
     );
@@ -128,9 +126,7 @@ fn o7_git_twin_load_is_a_binding_conflict_on_raw() {
         merged.conflicts
     );
     assert!(
-        binds.iter().any(|(name, was, now)| {
-            (name == "raw" || name.starts_with('$')) && was != now
-        }),
+        binds.iter().any(|(name, was, now)| name == "raw" && was != now),
         "expected a Binding conflict on raw, got {:?}",
         merged.conflicts
     );

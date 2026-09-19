@@ -514,7 +514,7 @@ fn binding_post(
                     snap.conflicts.push(Conflict::Binding {
                         id,
                         ident: TokenIx(i as u32),
-                        name: ref_name(ident),
+                        name: source_name(&item, *r).unwrap_or_else(|| ref_name(ident)),
                         at: line_col(&item, r.start),
                         was,
                         was_at: None,
@@ -693,6 +693,18 @@ fn ref_eq(a: &IdentRef, b: &IdentRef, old: &Snapshot, new: &Snapshot, owner: Ent
 fn entity_name(snapshot: &Snapshot, owner: EntityId, id: EntityId) -> Option<&str> {
     let id = if id == EntityId::SELF { owner } else { id };
     snapshot.entities.get(&id).map(|rec| rec.name.as_str())
+}
+
+fn source_name(item: &[u8], r: ByteRange) -> Option<String> {
+    let start = r.start as usize;
+    let end = r.end as usize;
+    let slice = item.get(start..end)?;
+    let s = std::str::from_utf8(slice).ok()?;
+    if s.is_empty() {
+        None
+    } else {
+        Some(s.to_string())
+    }
 }
 
 fn ref_name(ident: &IdentRef) -> String {
