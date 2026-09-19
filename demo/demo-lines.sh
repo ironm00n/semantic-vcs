@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scripted run of SPEC §10 demo lines 1–9 and 10–11 (8: init/status/alpha/show/rename; merge beat pending) against the built `svc` binary, on a scratch
+# Scripted run of SPEC §10 demo lines 1–11 against the built `svc` binary, on a scratch
 # copy of demo/config. Prints one PASS/FAIL per observable; exit status is the number of failures.
 #
 #   cargo build -p svc && demo/demo-lines.sh [path/to/svc]
@@ -17,6 +17,7 @@ check() { # check <label> '<shell expression>'
 }
 svcj() { "$SVC" "$@" --json; }
 item() { sed -n "/^fn $1(/,/^}/p" src/main.rs; }
+jsitem() { sed -n "/^export function $1(/,/^}/p" src/config.js; }
 
 echo "== line 1: init + status"
 svcj init >/dev/null
@@ -70,7 +71,7 @@ svcj edit-def --entity validate --intent refactor --definition "$VAL7" >/dev/nul
 l7="$(svcj log)"
 check "7  declared refactor / observed binding-changing / flagged" 'echo "$l7" | jq -e ".[0].declared == \"Refactor\" and .[0].observed == \"BindingChanging\" and .[0].flagged"'
 svcj undo >/dev/null
-echo "== line 8: JS twin (config-js) — init/status/alpha/show/rename"
+echo "== line 8: JS twin (config-js) — init/status/alpha/show/rename/merge"
 JSWORK="$(mktemp -d)"
 cp -r "$HERE/config-js/." "$JSWORK/" && rm -rf "$JSWORK/.svc"
 cd "$JSWORK"
@@ -84,10 +85,15 @@ j3="$("$SVC" show read 2>&1)"
 check "8c JS canonical stream has slots"  'echo "$j3" | grep -q "\$0"'
 svcj rename --entity read --new-name read_file >/dev/null
 check "8d JS rename propagates to caller" 'grep -q "read_file(path)" src/config.js && ! grep -q "[ (]read(path)" src/config.js'
-# NOTE (muse): the rename/add-call merge beat belongs here once codex's
-# binding-provenance fix lands (every JS merge currently emits spurious
-# Bindings — see the coordination-board inbox); the replay must stay in config.js
-# because cross-file import propagation is a documented v1 skip.
+svcj new >/dev/null
+svcj branch js-a >/dev/null
+svcj rename --entity read_file --new-name read_cfg >/dev/null
+svcj branch js-b >/dev/null
+JS_LOAD_B="$(jsitem load | sed 's/  const raw = read_file(path)/  const raw = read_file(path)\n  void read_file(path)/')"$'\n'
+svcj edit-def --entity load --intent feature --definition "$JS_LOAD_B" >/dev/null
+jm="$(svcj merge js-a)"
+check "8e JS rename/add-call merge is clean" 'echo "$jm" | jq -e ".conflicts | length == 0"'
+check "8f JS merged calls follow rename" 'test "$(grep -c "read_cfg(path)" src/config.js)" -eq 2 && ! grep -q "read_file(path)" src/config.js'
 cd "$WORK"
 
 echo "== line 9 (scripted stand-in for the agent): three ops in one changeset"

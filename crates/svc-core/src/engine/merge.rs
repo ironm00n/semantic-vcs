@@ -455,6 +455,21 @@ fn binding_post(
     let ids: Vec<_> = snap.entities.keys().copied().collect();
     for id in ids {
         let rec = snap.entities[&id].clone();
+        // A nested definition may not be valid as a standalone parse (for
+        // example, a JavaScript method outside its class). Re-resolving an
+        // untouched nested record without its parent context manufactures
+        // binding changes. Changed nested records still go through the
+        // post-condition; unchanged ones cannot introduce a new local map.
+        let origins: Vec<_> = [base, a, b]
+            .iter()
+            .filter_map(|origin| origin.entities.get(&id))
+            .collect();
+        if rec.parent.is_some()
+            && !origins.is_empty()
+            && origins.iter().all(|origin| *origin == &rec)
+        {
+            continue;
+        }
         let Some(lang) = langs.for_path(&rec.file) else {
             continue;
         };

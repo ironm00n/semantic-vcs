@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
+use super::extract::byte_range;
 use crate::content::{Content, IdentRef, Namespace, Token};
 use crate::error::Result;
 use crate::ids::{ByteRange, EntityId, Slot};
 use crate::lang::{Lang, Locator, Resolution, Role};
-use super::extract::byte_range;
 
 pub fn canonicalize(
     item: tree_sitter::Node<'_>,
@@ -35,28 +35,46 @@ fn binders_from_res(res: &Resolution) -> HashMap<(u32, u32), (Slot, Namespace)> 
     m
 }
 
-pub fn resolve_locals(
-    item: tree_sitter::Node<'_>,
-    src: &[u8],
-    lang: &dyn Lang,
-) -> Resolution {
+pub fn resolve_locals(item: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> Resolution {
     let mut slots = Vec::new();
+    let mut binders = Vec::new();
     let mut next: HashMap<Namespace, u32> = HashMap::new();
-    collect_binders(item, src, lang, None, &mut slots, &mut next, item.id());
+    collect_binders(
+        item,
+        src,
+        lang,
+        None,
+        &mut slots,
+        &mut binders,
+        &mut next,
+        item.id(),
+    );
     let slot_at: HashMap<(u32, u32), (Slot, Namespace)> = slots
         .iter()
         .map(|(r, s, ns)| ((r.start, r.end), (*s, *ns)))
         .collect();
-    let by_name: HashMap<(String, Namespace), Slot> = slots
-        .iter()
-        .map(|(r, s, ns)| {
-            let name = String::from_utf8_lossy(&src[r.start as usize..r.end as usize]).into_owned();
-            ((name, *ns), *s)
-        })
-        .collect();
     let mut refs = Vec::new();
-    collect_refs(item, src, lang, None, &slot_at, &by_name, &mut refs, item.id());
+    collect_refs(
+        item,
+        src,
+        lang,
+        None,
+        &slot_at,
+        &binders,
+        &mut refs,
+        item.id(),
+    );
     Resolution { slots, refs }
+}
+
+#[derive(Clone)]
+struct BinderInfo {
+    range: ByteRange,
+    visible_from: u32,
+    scope: ByteRange,
+    slot: Slot,
+    namespace: Namespace,
+    name: String,
 }
 
 fn collect_binders<'a>(
@@ -65,6 +83,7 @@ fn collect_binders<'a>(
     lang: &dyn Lang,
     field: Option<&str>,
     slots: &mut Vec<(ByteRange, Slot, Namespace)>,
+    binders: &mut Vec<BinderInfo>,
     next: &mut HashMap<Namespace, u32>,
     root_id: usize,
 ) {
@@ -74,17 +93,29 @@ fn collect_binders<'a>(
     for role in lang.roles(node, field, src, &crate::lang::Env::default()) {
         if let Role::Binder {
             namespace,
+            visibility,
             locator,
-            ..
         } = role
         {
             for name_node in locate(node, locator) {
-                for id in ident_leaves(name_node) {
+                for id in ident_leaves(name_node, name_node) {
                     let r = byte_range(id);
                     let n = next.entry(namespace).or_insert(0);
                     let slot = Slot(*n);
                     *n += 1;
                     slots.push((r, slot, namespace));
+                    binders.push(BinderInfo {
+                        range: r,
+                        visible_from: match visibility {
+                            crate::lang::Visibility::AfterStmt => node.end_byte() as u32,
+                            _ => r.end,
+                        },
+                        scope: enclosing_scope(node, src, lang, root_id),
+                        slot,
+                        namespace,
+                        name: String::from_utf8_lossy(&src[r.start as usize..r.end as usize])
+                            .into_owned(),
+                    });
                 }
             }
         }
@@ -92,7 +123,16 @@ fn collect_binders<'a>(
     let mut c = node.walk();
     if c.goto_first_child() {
         loop {
-            collect_binders(c.node(), src, lang, c.field_name(), slots, next, root_id);
+            collect_binders(
+                c.node(),
+                src,
+                lang,
+                c.field_name(),
+                slots,
+                binders,
+                next,
+                root_id,
+            );
             if !c.goto_next_sibling() {
                 break;
             }
@@ -106,7 +146,7 @@ fn collect_refs<'a>(
     lang: &dyn Lang,
     field: Option<&str>,
     slot_at: &HashMap<(u32, u32), (Slot, Namespace)>,
-    by_name: &HashMap<(String, Namespace), Slot>,
+    binders: &[BinderInfo],
     refs: &mut Vec<(ByteRange, IdentRef)>,
     root_id: usize,
 ) {
@@ -124,8 +164,18 @@ fn collect_refs<'a>(
                 "lifetime" => Namespace::Lifetime,
                 _ => Namespace::Value,
             };
-            if let Some(slot) = by_name.get(&(name.clone(), ns)) {
-                refs.push((r, IdentRef::Local(*slot, ns)));
+            let local = binders
+                .iter()
+                .filter(|b| {
+                    b.name == name
+                        && b.namespace == ns
+                        && b.visible_from <= r.start
+                        && b.scope.start <= r.start
+                        && r.end <= b.scope.end
+                })
+                .max_by_key(|b| (b.scope.start, b.range.start));
+            if let Some(binder) = local.filter(|_| !is_rust_nonlocal_ident(node, lang)) {
+                refs.push((r, IdentRef::Local(binder.slot, ns)));
             } else {
                 refs.push((r, IdentRef::Free(name.into())));
             }
@@ -140,7 +190,7 @@ fn collect_refs<'a>(
                 lang,
                 c.field_name(),
                 slot_at,
-                by_name,
+                binders,
                 refs,
                 root_id,
             );
@@ -165,20 +215,97 @@ fn locate<'a>(node: tree_sitter::Node<'a>, loc: Locator) -> Vec<tree_sitter::Nod
     }
 }
 
-fn ident_leaves(node: tree_sitter::Node<'_>) -> Vec<tree_sitter::Node<'_>> {
+fn ident_leaves<'a>(
+    node: tree_sitter::Node<'a>,
+    pattern_root: tree_sitter::Node<'a>,
+) -> Vec<tree_sitter::Node<'a>> {
     if is_ident_leaf(node) {
         let t = node.kind();
         if t == "_" || node_is_wildcard(node) {
             return vec![];
         }
-        return vec![node];
+        return (!is_pattern_constructor(node, pattern_root))
+            .then_some(node)
+            .into_iter()
+            .collect();
     }
     let mut out = Vec::new();
     let mut c = node.walk();
     for ch in node.named_children(&mut c) {
-        out.extend(ident_leaves(ch));
+        out.extend(ident_leaves(ch, pattern_root));
     }
     out
+}
+
+fn enclosing_scope(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+    root_id: usize,
+) -> ByteRange {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        if lang
+            .roles(parent, None, src, &crate::lang::Env::default())
+            .iter()
+            .any(|role| matches!(role, Role::Scope { .. }))
+        {
+            return byte_range(parent);
+        }
+        if parent.id() == root_id {
+            break;
+        }
+        current = parent.parent();
+    }
+    let mut root = node;
+    while root.id() != root_id {
+        root = root.parent().expect("resolver node belongs to root");
+    }
+    byte_range(root)
+}
+
+fn is_pattern_constructor(
+    node: tree_sitter::Node<'_>,
+    pattern_root: tree_sitter::Node<'_>,
+) -> bool {
+    let mut current = node;
+    while current.id() != pattern_root.id() {
+        let Some(parent) = current.parent() else {
+            break;
+        };
+        if matches!(parent.kind(), "tuple_struct_pattern" | "struct_pattern")
+            && parent.child_by_field_name("type").is_some_and(|n| {
+                n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte()
+            })
+        {
+            return true;
+        }
+        current = parent;
+    }
+    false
+}
+
+fn is_rust_nonlocal_ident(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
+    if lang.name() != "rust" {
+        return false;
+    }
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if matches!(
+            parent.kind(),
+            "scoped_identifier" | "scoped_type_identifier"
+        ) {
+            return true;
+        }
+        if matches!(
+            parent.kind(),
+            "block" | "function_item" | "function_signature_item"
+        ) {
+            break;
+        }
+        current = parent;
+    }
+    false
 }
 
 fn node_is_wildcard(node: tree_sitter::Node<'_>) -> bool {

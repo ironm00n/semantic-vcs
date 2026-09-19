@@ -12,7 +12,12 @@
         in pkgs.rustPlatform.buildRustPackage {
           pname = "svc";
           version = "0.1.0";
-          src = ./.;
+          src = pkgs.lib.cleanSourceWith {
+            src = ./.;
+            filter = path: type:
+              let name = builtins.baseNameOf path;
+              in !builtins.elem name [ "target" ".jj" ".svc" ];
+          };
           cargoLock.lockFile = ./Cargo.lock;
           cargoBuildFlags = [ "-p" "svc" ];
           cargoTestFlags = [ "--workspace" ];
