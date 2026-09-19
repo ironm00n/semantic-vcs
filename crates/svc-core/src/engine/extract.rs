@@ -18,11 +18,22 @@ fn rule_for<'a>(lang: &'a dyn Lang, kind: &str) -> Option<&'a EntityKindRule> {
     lang.entity_kinds().iter().find(|r| r.node_kind == kind)
 }
 
-pub fn byte_range(node: tree_sitter::Node<'_>) -> ByteRange {
-    ByteRange {
-        start: node.start_byte() as u32,
-        end: node.end_byte() as u32,
+pub fn find_node<'a>(
+    node: tree_sitter::Node<'a>,
+    range: ByteRange,
+) -> Option<tree_sitter::Node<'a>> {
+    if byte_range(node) == range {
+        return Some(node);
     }
+    let mut c = node.walk();
+    for ch in node.named_children(&mut c) {
+        if (ch.start_byte() as u32) <= range.start && (ch.end_byte() as u32) >= range.end {
+            if let Some(hit) = find_node(ch, range) {
+                return Some(hit);
+            }
+        }
+    }
+    None
 }
 
 fn collect<'a>(
@@ -38,13 +49,16 @@ fn collect<'a>(
         if let Some(p) = parent_idx {
             raw[p].children.push(idx);
         }
-        let name = lang.entity_name(node, src).unwrap_or_default();
+        let mut name = lang.entity_name(node, src).unwrap_or_default();
+        if name.is_empty() {
+            name = format!("«{}:{}»", node.kind(), node.start_byte());
+        }
         let name_range = rule
             .name_field
             .and_then(|f| node.child_by_field_name(f))
             .map(byte_range);
         raw.push(RawEntity {
-            kind: rule.kind,
+            kind: lang.refine_kind(node, src).unwrap_or(rule.kind),
             name,
             name_range,
             item_range: byte_range(node),
@@ -108,5 +122,12 @@ fn fill(
             end: raw[i].item_range.end,
         };
         fill(raw, nodes, groups, i + 1, src);
+    }
+}
+
+pub fn byte_range(node: tree_sitter::Node<'_>) -> ByteRange {
+    ByteRange {
+        start: node.start_byte() as u32,
+        end: node.end_byte() as u32,
     }
 }
