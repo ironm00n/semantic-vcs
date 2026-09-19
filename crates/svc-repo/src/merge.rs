@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use svc_core::snapshot::AttrValue;
 use svc_core::{
     Bytes, ChangeId, Chunk, Conflict, Content, EntityId, EntityRecord, Error, FileRecord,
@@ -19,7 +19,7 @@ use svc_core::{
 
 use crate::repo::Repo;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MergeOut {
     pub change: ChangeId,
     pub snapshot: SnapshotId,
@@ -29,7 +29,7 @@ pub struct MergeOut {
     pub unified: Vec<(EntityId, EntityId)>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConflictOut {
     pub n: usize,
     pub entity: Option<EntityId>,
@@ -37,7 +37,7 @@ pub struct ConflictOut {
     pub conflict: Conflict,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Take {
     A,
     B,

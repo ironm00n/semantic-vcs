@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use svc_core::{
     ChangeId, ChangeSetId, EntityId, EntityRecord, Error, Intent, ObservedClass, Op, OpIx,
     OpLogEntry, RelPath, Result, Snapshot, SnapshotId, Timestamp, View,
@@ -14,7 +14,7 @@ use svc_core::{
 
 use crate::repo::{Mutation, Repo};
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChangeOut {
     pub change: ChangeId,
     pub short: String,
@@ -24,7 +24,7 @@ pub struct ChangeOut {
     pub current: bool,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpOut {
     pub ix: OpIx,
     pub op: Op,
@@ -38,7 +38,7 @@ pub struct OpOut {
 
 /// How one op or rewrite touched one entity. `Edited.observed` is the op log's verdict
 /// for that op, absent when nothing classified it (a hand edit, or a class not yet landed).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Touch {
     Added,
     Removed,
@@ -48,14 +48,14 @@ pub enum Touch {
     Edited { observed: Option<ObservedClass> },
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EntityTouch {
     pub entity: EntityId,
     pub name: String,
     pub touch: Touch,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EvologEntry {
     pub snapshot: SnapshotId,
     pub message: String,
@@ -64,7 +64,7 @@ pub struct EvologEntry {
     pub deltas: Vec<EntityTouch>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlameEntry {
     pub ix: OpIx,
     pub change: ChangeId,
@@ -73,7 +73,7 @@ pub struct BlameEntry {
     pub at: Timestamp,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MutationOut {
     pub ix: OpIx,
     pub change: ChangeId,
@@ -378,7 +378,7 @@ pub fn touches(prev: &Snapshot, next: &Snapshot, observed: Option<ObservedClass>
     out
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChangeSetOut {
     pub id: ChangeSetId,
     pub name: String,

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/svc-core", "crates/svc", "crates/svc-repo", "crates/svc-agent"]
+members = ["crates/svc-core", "crates/svc", "crates/svc-repo", "crates/svc-agent", "crates/svc-tui"]
 
 [workspace.package]
 edition = "2024"
@@ -25,3 +25,4 @@ tui-input = "0.15.4"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync"] }
 agent-client-protocol = "2.1.0"
 svc-core = { path = "crates/svc-core" }
+svc-repo = { path = "crates/svc-repo" }

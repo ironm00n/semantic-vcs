@@ -9,6 +9,6 @@ pub mod repo;
 pub mod store;
 
 pub use history::*;
-pub use merge::{MergeOut, Take, conflicts, lca, merge, merge_snapshots, resolve};
+pub use merge::{ConflictOut, MergeOut, Take, conflicts, lca, merge, merge_snapshots, resolve};
 pub use repo::{Mutation, Repo};
 pub use store::RedbStore;

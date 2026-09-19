@@ -1,0 +1,16 @@
+[package]
+name = "svc-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+svc-core.workspace = true
+svc-repo.workspace = true
+svc-agent = { path = "../svc-agent" }
+ratatui.workspace = true
+crossterm.workspace = true
+tokio = { workspace = true, features = ["time"] }
+futures = "0.3"
+serde.workspace = true
+serde_json = "1"
