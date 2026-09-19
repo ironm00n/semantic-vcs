@@ -104,13 +104,12 @@ fn collect_binders<'a>(
                     let slot = Slot(*n);
                     *n += 1;
                     slots.push((r, slot, namespace));
+                    let (visible_from, scope) =
+                        binder_extent(node, src, lang, root_id, visibility);
                     binders.push(BinderInfo {
                         range: r,
-                        visible_from: match visibility {
-                            crate::lang::Visibility::AfterStmt => node.end_byte() as u32,
-                            _ => r.end,
-                        },
-                        scope: enclosing_scope(node, src, lang, root_id),
+                        visible_from,
+                        scope,
                         slot,
                         namespace,
                         name: String::from_utf8_lossy(&src[r.start as usize..r.end as usize])
@@ -174,7 +173,9 @@ fn collect_refs<'a>(
                         && r.end <= b.scope.end
                 })
                 .max_by_key(|b| (b.scope.start, b.range.start));
-            if let Some(binder) = local.filter(|_| !is_rust_nonlocal_ident(node, lang)) {
+            if let Some(binder) =
+                local.filter(|_| !is_rust_nonlocal_ident(node, lang) && !is_struct_field_key(node))
+            {
                 refs.push((r, IdentRef::Local(binder.slot, ns)));
             } else {
                 refs.push((r, IdentRef::Free(name.into())));
@@ -237,6 +238,94 @@ fn ident_leaves<'a>(
     out
 }
 
+fn binder_extent(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+    root_id: usize,
+    visibility: crate::lang::Visibility,
+) -> (u32, ByteRange) {
+    match visibility {
+        crate::lang::Visibility::AfterStmt => {
+            let scope = enclosing_scope(node, src, lang, root_id);
+            (node.end_byte() as u32, scope)
+        }
+        crate::lang::Visibility::Hoisted => {
+            let scope = enclosing_var_scope(node, src, lang, root_id);
+            (scope.start, scope)
+        }
+        crate::lang::Visibility::Sub(fields) => {
+            let scope = sub_field_scope(node, fields)
+                .unwrap_or_else(|| enclosing_scope(node, src, lang, root_id));
+            (scope.start, scope)
+        }
+        crate::lang::Visibility::Whole
+        | crate::lang::Visibility::Chain
+        | crate::lang::Visibility::Inherit => {
+            let scope = enclosing_scope(node, src, lang, root_id);
+            (scope.start, scope)
+        }
+    }
+}
+
+fn enclosing_var_scope(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+    root_id: usize,
+) -> ByteRange {
+    if lang.name() != "javascript" {
+        return enclosing_scope(node, src, lang, root_id);
+    }
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        if is_js_var_scope(parent.kind()) {
+            return byte_range(parent);
+        }
+        if parent.id() == root_id {
+            break;
+        }
+        current = parent.parent();
+    }
+    enclosing_scope(node, src, lang, root_id)
+}
+
+fn is_js_var_scope(kind: &str) -> bool {
+    matches!(
+        kind,
+        "program"
+            | "function_declaration"
+            | "generator_function_declaration"
+            | "function_expression"
+            | "generator_function"
+            | "method_definition"
+            | "arrow_function"
+            | "class_static_block"
+    )
+}
+
+fn sub_field_scope(node: tree_sitter::Node<'_>, fields: &[&str]) -> Option<ByteRange> {
+    let mut current = Some(node);
+    while let Some(n) = current {
+        let mut start = u32::MAX;
+        let mut end = 0u32;
+        let mut found = false;
+        for field in fields {
+            if let Some(child) = n.child_by_field_name(field) {
+                let r = byte_range(child);
+                start = start.min(r.start);
+                end = end.max(r.end);
+                found = true;
+            }
+        }
+        if found {
+            return Some(ByteRange { start, end });
+        }
+        current = n.parent();
+    }
+    None
+}
+
 fn enclosing_scope(
     node: tree_sitter::Node<'_>,
     src: &[u8],
@@ -283,6 +372,19 @@ fn is_pattern_constructor(
         current = parent;
     }
     false
+}
+
+fn is_struct_field_key(node: tree_sitter::Node<'_>) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    if parent.kind() != "field_initializer" {
+        return false;
+    }
+    parent.child_by_field_name("field").is_some_and(|f| {
+        f.id() == node.id()
+            || (f.start_byte() <= node.start_byte() && node.end_byte() <= f.end_byte())
+    })
 }
 
 fn is_rust_nonlocal_ident(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
