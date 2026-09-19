@@ -518,11 +518,7 @@ pub fn merge(repo: &Repo, other: &str) -> Result<MergeOut> {
         None,
         |repo, cur| {
             let b = repo.store().get_snapshot(other_id)?;
-            let mut snap = merge_engine(repo.store(), repo.langs(), base_id, cur.id(), other_id)?;
-            snap.parents = vec![cur.id(), other_id];
-            snap.change = change;
-            snap.predecessors = Vec::new();
-            densify_ordinals(&mut snap);
+            let snap = merged_snapshot(repo.store(), repo.langs(), base_id, cur.id(), other_id, change)?;
             let unified = unified_from(&b, &snap);
             report = Some((conflicts_out(&snap), unified));
             repo.commit_snapshot(&snap)
@@ -536,6 +532,24 @@ pub fn merge(repo: &Repo, other: &str) -> Result<MergeOut> {
         conflicts,
         unified,
     })
+}
+
+/// The merge result as a new change: `engine::merge` plus the wiring (`parents`, `change`,
+/// dense ordinals). Shared by the verb and the O5 replay so both produce the same snapshot.
+pub fn merged_snapshot(
+    store: &dyn Store,
+    langs: &svc_core::Langs,
+    base: SnapshotId,
+    a: SnapshotId,
+    b: SnapshotId,
+    change: ChangeId,
+) -> Result<Snapshot> {
+    let mut snap = merge_engine(store, langs, base, a, b)?;
+    snap.parents = vec![a, b];
+    snap.change = change;
+    snap.predecessors = Vec::new();
+    densify_ordinals(&mut snap);
+    Ok(snap)
 }
 
 /// `svc conflicts`: the current snapshot's conflicts, numbered for `resolve`.

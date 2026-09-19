@@ -6,10 +6,12 @@
 pub mod history;
 pub mod merge;
 pub mod repo;
+pub mod replay;
 pub mod store;
 pub mod text;
 
 pub use history::*;
+pub use replay::{ReplayReport, replay};
 pub use merge::{ConflictOut, MergeOut, Take, conflicts, lca, merge, merge_snapshots, resolve};
 pub use repo::{Mutation, Repo};
 pub use store::RedbStore;

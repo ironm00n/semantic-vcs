@@ -107,7 +107,7 @@ fn op_out(ix: OpIx, e: &OpLogEntry) -> OpOut {
     }
 }
 
-fn child_of(cur: &Snapshot, cur_id: SnapshotId, change: ChangeId) -> Snapshot {
+pub(crate) fn child_of(cur: &Snapshot, cur_id: SnapshotId, change: ChangeId) -> Snapshot {
     Snapshot {
         parents: vec![cur_id],
         predecessors: Vec::new(),
