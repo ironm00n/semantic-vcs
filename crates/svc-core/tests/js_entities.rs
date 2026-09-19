@@ -1,11 +1,16 @@
 //! lang-js lane: entity extraction, Kind refinement, roles, round-trip.
 //! Binding data: `facts/js-binding-tables.md`; Kind variants: DECISIONS §25.
 
-use svc_core::engine::{extract, ingest_file, render};
-use svc_core::ids::{ChangeId, RelPath};
+use std::collections::BTreeMap;
+
+use svc_core::engine::{
+    add_def, edit_def, extract, ingest_file, lookup_name, rename, render, snapshot_files,
+};
+use svc_core::ids::{ChangeId, EntityId, RelPath};
 use svc_core::lang::{Env, Lang, Langs, Locator, Role, Visibility};
+use svc_core::store::MemStore;
 use svc_core::Namespace;
-use svc_core::{js_kind, JsLang, Kind};
+use svc_core::{js_kind, IdentRef, Intent, JsLang, Kind, ObservedClass};
 
 fn parse(src: &str) -> tree_sitter::Tree {
     let lang: tree_sitter::Language = tree_sitter_javascript::LANGUAGE.into();
@@ -480,4 +485,226 @@ fn js_extract_refined_kinds() {
     );
     // The nested declarator is a local, not a child entity (§12).
     assert!(raw2.iter().all(|e| e.name != "inner"));
+}
+
+/// JS line-7 analog (mirrors `o8_shadowing_let_is_binding_changing`): a
+/// binder shadows a parameter, so the edit must classify as
+/// `BindingChanging`. Answers: does JS get the same classifier as Rust?
+/// (Same-scope shape as the Rust test: the inserted line keeps the use line
+/// textually intact so the line-aligning classifier can see the retarget.
+/// The static model does not enforce the redeclaration early-error.)
+#[test]
+fn js_edit_def_shadow_param_is_binding_changing() {
+    let store = MemStore::new();
+    let langs = Langs::new(vec![Box::new(JsLang)]);
+    let path = RelPath::new("src/config.js").unwrap();
+    let src = "function canon(c) {\n  return { retries: c.retries };\n}\nfunction validate(c) {\n  return c.retries > 10;\n}\n";
+    let mut files = BTreeMap::new();
+    files.insert(path, src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "validate").unwrap();
+    let new = b"function validate(c) {\n  const c = canon(c);\n  return c.retries > 10;\n}\n";
+    let (_, class) = edit_def(&store, &langs, &snap, id, new).unwrap();
+    assert_eq!(class, ObservedClass::BindingChanging);
+}
+
+/// Scripted JS agent stand-in (no model): the JS analog of the line-9 Rust
+/// agent run — rename `read`→`read_file`, add_def `checkRetries`, edit_def
+/// `validate` to call it — performed with engine ops on the real
+/// `demo/config-js` sources and recorded as `demo/recordings/js-agent.jsonl`
+/// in the `line9.ops.jsonl` shape.
+#[test]
+fn js_scripted_agent_stand_in() {
+    let store = MemStore::new();
+    let langs = Langs::new(vec![Box::new(JsLang)]);
+    let config_path = RelPath::new("src/config.js").unwrap();
+    let main_path = RelPath::new("src/main.js").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(config_path, fixture("config.js").into_bytes());
+    files.insert(main_path, fixture("main.js").into_bytes());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+
+    // Op 1: rename `read` → `read_file`.
+    let read_id = lookup_name(&snap, "read").unwrap();
+    let snap = rename(&snap, read_id, "read_file").unwrap();
+    assert!(lookup_name(&snap, "read").is_err());
+    let read_file_id = lookup_name(&snap, "read_file").unwrap();
+    assert_eq!(read_file_id, read_id);
+
+    // Op 2: add_def `checkRetries` as a new root after the existing roots.
+    let ordinal = snap
+        .entities
+        .values()
+        .filter(|r| r.parent.is_none())
+        .count() as u32;
+    let check_body = "export function checkRetries(config) {\n  if (config.retries > 10) throw new Error('retries must not exceed 10')\n}\n";
+    let snap = add_def(
+        &store,
+        &langs,
+        &snap,
+        EntityId::new(),
+        None,
+        ordinal,
+        check_body.as_bytes(),
+        Intent::Refactor,
+    )
+    .unwrap();
+    let check_id = lookup_name(&snap, "checkRetries").unwrap();
+
+    // Op 3: edit_def `validate` to call it; the surviving `if` line keeps
+    // its targets, so this must stay BindingPreserving like the Rust run.
+    let validate_id = lookup_name(&snap, "validate").unwrap();
+    let new_validate = "export function validate(config) {\n  checkRetries(config)\n  if (config.retries > 10) throw new Error('retries must not exceed 10')\n}\n";
+    let (snap, class) = edit_def(&store, &langs, &snap, validate_id, new_validate.as_bytes())
+        .unwrap();
+    assert_eq!(class, ObservedClass::BindingPreserving);
+
+    // Rename propagated to the caller: rendered `load` calls `read_file`.
+    let rendered = render(&snap, &store, &langs, false).unwrap();
+    let text: String = rendered
+        .files
+        .values()
+        .flat_map(|b| String::from_utf8(b.clone()))
+        .collect();
+    assert!(
+        text.contains("read_file(path)"),
+        "rename did not propagate to load:\n{text}"
+    );
+    assert_ne!(check_id, validate_id);
+
+    // Record the three ops in the line9.ops.jsonl shape.
+    let lines = [
+        serde_json::json!({"op": "rename", "entity": "read", "new_name": "read_file"}),
+        serde_json::json!({"op": "add_def", "ordinal": ordinal, "intent": "refactor", "definition": check_body}),
+        serde_json::json!({"op": "edit_def", "entity": "validate", "intent": "refactor",
+            "note": "call checkRetries(config) before the retries check; observed BindingPreserving",
+            "patch": {"find": "  if (config.retries > 10)",
+                       "replace": "  checkRetries(config)\n  if (config.retries > 10)"}}),
+    ];
+    let out: String = lines
+        .iter()
+        .map(|v| serde_json::to_string(v).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    let dest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../demo/recordings/js-agent.jsonl");
+    std::fs::write(&dest, &out).unwrap_or_else(|e| panic!("{dest:?}: {e}"));
+}
+
+/// Trap T5: `default` in a specifier is an anonymous token — the visible
+/// `alias:` still binds, and an export `alias:` still binds nothing.
+#[test]
+fn js_trap_specifier_default_tokens() {
+    let src = "import {default as d} from \"m\";";
+    let tree = parse(src);
+    let d = find_text(tree.root_node(), "identifier", "d", src.as_bytes());
+    assert!(
+        matches!(
+            JsLang.roles(d, Some("alias"), src.as_bytes(), &Env::default())[..],
+            [Role::Binder { .. }]
+        ),
+        "default-import alias must bind"
+    );
+    let src2 = "export {default as e};";
+    let tree2 = parse(src2);
+    let e = find_text(tree2.root_node(), "identifier", "e", src2.as_bytes());
+    assert_eq!(
+        JsLang.roles(e, Some("alias"), src2.as_bytes(), &Env::default()),
+        vec![]
+    );
+}
+
+/// Free-reference names across every top-level item of `src`.
+fn free_ref_names(src: &str) -> Vec<String> {
+    use svc_core::engine::{parse as eng_parse, resolve};
+    let lang = JsLang;
+    let tree = eng_parse(src.as_bytes(), &lang).unwrap();
+    let mut names = vec![];
+    let mut cursor = tree.walk();
+    for item in tree.root_node().children(&mut cursor) {
+        if !item.is_named() {
+            continue;
+        }
+        let res = resolve(item, src.as_bytes(), &lang, &Env::default()).unwrap();
+        for (_, ident) in &res.refs {
+            if let IdentRef::Free(n) = ident {
+                names.push(n.to_string());
+            }
+        }
+    }
+    names.sort();
+    names
+}
+
+/// Traps T13/T14/T15/T18/T21: `meta_property` emits no refs; tagged-template
+/// tags/subs, `extends` heads, parenthesized targets, and optional chains
+/// keep theirs.
+#[test]
+fn js_trap_expression_refs_survive() {
+    // T15: `class_heritage` is an unnamed child — the extends head must not
+    // be lost by a fields-only walk.
+    assert!(free_ref_names("class C extends Base {}").contains(&"Base".to_string()));
+    // T14: `arguments:` is a `template_string`, not an `arguments` node —
+    // both the tag and the substitution resolve.
+    let tagged = free_ref_names("tag`hi ${x}`;");
+    assert!(tagged.contains(&"tag".to_string()), "{tagged:?}");
+    assert!(tagged.contains(&"x".to_string()), "{tagged:?}");
+    // T18: parenthesized targets unwrap before the T2/T3 pattern rules.
+    let paren = free_ref_names("for ((h) of list) { log(h); }");
+    assert_eq!(paren.iter().filter(|n| *n == "h").count(), 2, "{paren:?}");
+    assert!(paren.contains(&"list".to_string()), "{paren:?}");
+    // T21: `optional_chain` is a named node — skip it, keep the object.
+    assert!(free_ref_names("o?.p;").contains(&"o".to_string()));
+    // T13: one node kind for `new.target`/`import.meta`, no refs either way.
+    assert_eq!(free_ref_names("new.target;"), Vec::<String>::new());
+    assert_eq!(free_ref_names("import.meta;"), Vec::<String>::new());
+    // T7: reserved words alias to `identifier` — still ordinary references.
+    let reserved = free_ref_names("get(of);");
+    assert!(reserved.contains(&"get".to_string()), "{reserved:?}");
+    assert!(reserved.contains(&"of".to_string()), "{reserved:?}");
+}
+
+/// Trap T11: `switch_statement value:` is evaluated before the `switch_body`
+/// scope exists, so the discriminant never sees a case-level `let`.
+#[test]
+fn js_trap_switch_discriminant_outside_case_scope() {
+    let src = "let d = 0;\nswitch (d) {\n  case 1: {\n    let d = 2;\n  }\n}\n";
+    // The only free reference is the discriminant's `d`: neither the outer
+    // declarator (a binder, not a ref) nor the case `let` (a local) leaks.
+    assert_eq!(free_ref_names(src), ["d".to_string()]);
+}
+
+/// Trap T22: array holes produce no child — `[a, , b]` still yields both
+/// binders-turned-references in an assignment target.
+#[test]
+fn js_trap_array_holes_skip_positions() {
+    assert_eq!(
+        free_ref_names("[a, , b] = arr;"),
+        ["a".to_string(), "arr".to_string(), "b".to_string()]
+    );
+}
+
+/// `using` / `await using` bind exactly like `const` (facts §5, cheap-keep).
+#[test]
+fn js_roles_using_declarations_bind_lexically() {
+    assert!(roles_of("using x = f();", "variable_declarator", None).contains(&Role::Binder {
+        namespace: Namespace::Value,
+        visibility: Visibility::Whole,
+        locator: Locator::Field("name"),
+    }));
+}
+
+/// Trap T19 vs SPEC §68 (corrected 9/18): computed member names get the
+/// source text as the synthetic name — `[k]`, not `None` — and are instead
+/// never matched across a rename (engine-side rule, not the lane's).
+#[test]
+fn js_trap_computed_member_name_keeps_source_text() {
+    let src = "class A {\n  [k]() {}\n}\n";
+    let tree = parse(src);
+    let method = find(tree.root_node(), "method_definition").pop().unwrap();
+    assert_eq!(
+        JsLang.entity_name(method, src.as_bytes()),
+        Some("[k]".to_string())
+    );
 }
