@@ -297,3 +297,15 @@ fn closure_inside_fn_still_sees_type_param() {
         "closure is not a nested item; it must see outer T: {refs:?}"
     );
 }
+
+#[test]
+fn macro_args_are_not_local_refs() {
+    let src = "fn f() { let x = 1; foo!(x); let y = x; }\n";
+    let refs = rust_item_refs(src);
+    let xs = locals_named(&refs, "x");
+    assert_eq!(
+        xs.len(),
+        1,
+        "x inside foo!(x) is opaque; only `let y = x` is a local ref: {refs:?}"
+    );
+}

@@ -97,6 +97,9 @@ fn collect_binders<'a>(
     if skip_nested_item(node, lang, root_id) {
         return;
     }
+    if is_opaque_node(node, lang) && node.id() != root_id {
+        return;
+    }
     for role in lang.roles(node, field, src, &crate::lang::Env::default()) {
         if let Role::Binder {
             namespace,
@@ -157,6 +160,9 @@ fn collect_refs<'a>(
     root_id: usize,
 ) {
     if skip_nested_item(node, lang, root_id) {
+        return;
+    }
+    if is_opaque_node(node, lang) && node.id() != root_id {
         return;
     }
     if is_ident_leaf(node) {
@@ -567,6 +573,10 @@ fn skip_nested_item(node: tree_sitter::Node<'_>, lang: &dyn Lang, root_id: usize
         .any(|r| r.node_kind == node.kind())
 }
 
+fn is_opaque_node(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
+    lang.opaque_nodes().iter().any(|k| *k == node.kind())
+}
+
 fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {
     matches!(
         node.kind(),
@@ -602,6 +612,14 @@ fn walk(
         }
     }
     if lang.trivia_kinds().iter().any(|k| *k == node.kind()) {
+        return;
+    }
+    if is_opaque_node(node, lang) && node.id() != item.id() {
+        let r = byte_range(node);
+        let text = String::from_utf8_lossy(&src[r.start as usize..r.end as usize]);
+        if !text.trim().is_empty() {
+            tokens.push(Token::Lit(text.as_ref().into()));
+        }
         return;
     }
     if node.child_count() == 0 {
