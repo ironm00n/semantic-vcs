@@ -12,6 +12,9 @@
 # render/undo, on the actual multi-crate source tree, gated as a repeatable line
 # instead of a hidden oracle test. Then prove the store is enough: a named
 # checkout into an empty directory still `cargo build`s, and `svc replay` is clean.
+# Section 10 extends the same scratch to JS that ships in this repo
+# (`demo/config-js`): a rename by entity id plus `node --check` on the
+# renamed file.
 #
 #   cargo build -p svc && demo/self-host.sh [path/to/svc]
 set -u
@@ -21,6 +24,7 @@ SVC="${1:-$ROOT/target/debug/svc}"
 [ -x "$SVC" ] || { echo "no svc binary at $SVC (cargo build -p svc)"; exit 2; }
 command -v jq >/dev/null || { echo "jq is required"; exit 2; }
 command -v cargo >/dev/null || { echo "cargo is required"; exit 2; }
+command -v node >/dev/null || { echo "node is required (JS dogfood)"; exit 2; }
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -41,6 +45,9 @@ echo "== self-host 1: pristine copy of this repo's own crates/**"
 mkdir -p "$WORK/repo"
 cp -r "$ROOT/crates" "$WORK/repo/crates"
 cp "$ROOT/Cargo.toml" "$ROOT/Cargo.lock" "$WORK/repo/"
+mkdir -p "$WORK/repo/js"
+cp -r "$ROOT/demo/config-js/." "$WORK/repo/js/"
+rm -rf "$WORK/repo/js/.svc"
 find "$WORK/repo" -name target -type d -prune -exec rm -rf {} +
 cd "$WORK/repo"
 n_files="$(find crates -name '*.rs' | wc -l)"
@@ -82,6 +89,25 @@ check "8c cargo build of the store-only checkout" 'build from-store "$FROM"'
 echo "== self-host 9: op log replays"
 r9="$(svcj replay)"
 check "9  replay is clean" 'echo "$r9" | jq -e ".diverged_at == null and .ops > 0"'
+
+echo "== self-host 10: JS dogfood — config-js ships in this repo, rename by id"
+jsdefs="$(svcj list-defs)"
+check "10a init tracked Js definitions" \
+  'echo "$jsdefs" | jq -e "[.definitions[] | select(.kind|tostring|startswith(\"Js\"))] | length > 0"'
+jsname="validate"
+jsid="$(echo "$jsdefs" | jq -r '.definitions[] | select(.kind|tostring|startswith("Js")) | select(.name=="validate") | .id' | head -1)"
+if [ -z "$jsid" ]; then
+  jsname="normalize"
+  jsid="$(echo "$jsdefs" | jq -r '.definitions[] | select(.kind|tostring|startswith("Js")) | select(.name=="normalize") | .id' | head -1)"
+fi
+echo "picked JS function: $jsname ($jsid)"
+jsnew="${jsname}_js"
+svcj rename --entity "$jsid" --new-name "$jsnew" >/dev/null
+check "10b JS rename by id rendered, old declaration gone" \
+  "grep -q \"function $jsnew\" js/src/config.js && ! grep -q \"function $jsname(\" js/src/config.js"
+check "10c JS caller followed the rename" \
+  "grep -q \"$jsnew(config)\" js/src/config.js"
+check "10d node --check on the renamed file" 'node --check js/src/config.js'
 
 echo
 echo "$fail failure(s); self-host scratch at $WORK (build logs: $WORK/build-*.log)"
