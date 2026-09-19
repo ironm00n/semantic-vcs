@@ -9,6 +9,32 @@ use svc_core::{
 use svc_forge::{Catalog, EntityView, Repository, SnapshotView};
 use tower::ServiceExt;
 
+struct TestDir(std::path::PathBuf);
+
+impl TestDir {
+    fn new() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let path = std::env::temp_dir().join(format!(
+            "svc-forge-test-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for TestDir {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).unwrap();
+    }
+}
+
 fn op(operation: Op) -> OpLogEntry {
     let view = View {
         root: SnapshotId([1; 32]),
@@ -104,6 +130,14 @@ async fn response(app: axum::Router, path: &str) -> (StatusCode, String) {
     (status, text)
 }
 
+fn write_catalog(path: &std::path::Path, slug: &str, head: &str) {
+    let mut value = catalog();
+    value.repositories[0].slug = slug.into();
+    value.repositories[0].name = slug.into();
+    value.repositories[0].head = head.into();
+    std::fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
+}
+
 #[tokio::test]
 async fn serves_ui_and_repository_views() {
     let app = svc_forge::app(catalog());
@@ -181,4 +215,63 @@ fn example_catalog_tracks_the_dogfood_repository() {
         serde_json::from_str(include_str!("../examples/forge.json")).unwrap();
     assert_eq!(parsed.repositories[0].slug, "svc");
     assert_eq!(parsed.repositories[0].snapshots[0].id, "demo-head");
+}
+
+#[tokio::test]
+async fn file_source_merges_two_catalogs() {
+    let dir = TestDir::new();
+    let alpha = dir.path().join("alpha.json");
+    let beta = dir.path().join("beta.json");
+    write_catalog(&alpha, "alpha", "alpha-head");
+    write_catalog(&beta, "beta", "beta-head");
+
+    let app = svc_forge::app_from_paths(vec![alpha, beta]).unwrap();
+    let (_, text) = response(app.clone(), "/api/repositories").await;
+    let repositories: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(repositories.as_array().unwrap().len(), 2);
+    assert_eq!(repositories[0]["slug"], "alpha");
+    assert_eq!(repositories[1]["slug"], "beta");
+
+    let (status, text) = response(app, "/api/repositories/beta").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(serde_json::from_str::<serde_json::Value>(&text).unwrap()["head"], "beta-head");
+}
+
+#[test]
+fn file_source_rejects_duplicate_slugs() {
+    let dir = TestDir::new();
+    let first = dir.path().join("first.json");
+    let second = dir.path().join("second.json");
+    write_catalog(&first, "same", "first-head");
+    write_catalog(&second, "same", "second-head");
+
+    match svc_forge::app_from_paths(vec![first.clone(), second.clone()]) {
+        Err(svc_forge::Error::DuplicateSlug {
+            slug,
+            first: a,
+            second: b,
+        }) => {
+            assert_eq!(slug, "same");
+            assert_eq!(a, first.display().to_string());
+            assert_eq!(b, second.display().to_string());
+        }
+        _ => panic!("duplicate slug was accepted"),
+    }
+}
+
+#[tokio::test]
+async fn file_source_observes_atomic_catalog_replacement() {
+    let dir = TestDir::new();
+    let live = dir.path().join("forge.json");
+    let replacement = dir.path().join("forge.next.json");
+    write_catalog(&live, "svc", "old-head");
+    let app = svc_forge::app_from_paths(vec![live.clone()]).unwrap();
+
+    let (_, before) = response(app.clone(), "/api/repositories/svc").await;
+    assert_eq!(serde_json::from_str::<serde_json::Value>(&before).unwrap()["head"], "old-head");
+
+    write_catalog(&replacement, "svc", "new-head");
+    std::fs::rename(&replacement, &live).unwrap();
+    let (_, after) = response(app, "/api/repositories/svc").await;
+    assert_eq!(serde_json::from_str::<serde_json::Value>(&after).unwrap()["head"], "new-head");
 }

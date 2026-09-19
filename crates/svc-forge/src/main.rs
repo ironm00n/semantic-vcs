@@ -7,7 +7,7 @@ use clap::Parser;
 struct Args {
     /// JSON forge catalog produced by svc or maintained by another local integration.
     #[arg(long, default_value = ".svc/forge.json")]
-    catalog: PathBuf,
+    catalog: Vec<PathBuf>,
     /// Loopback address to serve. Passing a non-loopback address requires --allow-remote.
     #[arg(long, default_value = "127.0.0.1:7742")]
     bind: SocketAddr,
@@ -21,9 +21,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !args.bind.ip().is_loopback() && !args.allow_remote {
         return Err("refusing a non-loopback bind without --allow-remote".into());
     }
-    let catalog = svc_forge::Catalog::load(&args.catalog)?;
+    let app = svc_forge::app_from_paths(args.catalog)?;
     let listener = tokio::net::TcpListener::bind(args.bind).await?;
     eprintln!("svc forge: http://{}", listener.local_addr()?);
-    axum::serve(listener, svc_forge::app(catalog)).await?;
+    axum::serve(listener, app).await?;
     Ok(())
 }

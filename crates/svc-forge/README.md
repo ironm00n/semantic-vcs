@@ -14,6 +14,11 @@ cargo run -p svc-forge -- --catalog .svc/forge.json
 Then open <http://127.0.0.1:7742>. The server rejects non-loopback binds unless
 `--allow-remote` is explicit.
 
+Pass `--catalog` repeatedly to serve several repositories. Repository slugs
+must be unique across the inputs. Catalogs are reopened per request, so an
+atomic `svc forge export` replacement becomes visible without restarting the
+server.
+
 The catalog schema is the serde shape of `svc_forge::Catalog`; operations,
 conflicts and reviews are the canonical `svc-core` types. See
 `examples/forge.json` for a minimal catalog suitable for a smoke test.
