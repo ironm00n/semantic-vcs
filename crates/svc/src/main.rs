@@ -3,11 +3,11 @@ use std::{env, process::ExitCode};
 use clap::{Args, Parser, Subcommand};
 use serde::Serialize;
 use serde_json::{Value, json};
-use svc_core::Intent;
+use svc_core::{Intent, OpIx, SnapshotId};
 use svc_repo::{
-    Repo, blame, branch, changeset_begin, changeset_end, changeset_status, changesets, describe,
-    evolog, heads, log, merge as merge_repo, conflicts as list_conflicts, new, op_log,
-    resolve as resolve_conflict, resolve_entity, undo, Take,
+    Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_status, changesets,
+    checkout, conflicts as list_conflicts, describe, edit, evolog, heads, log,
+    merge as merge_repo, new, op_log, op_restore, resolve as resolve_conflict, resolve_entity, undo,
 };
 
 #[derive(Parser)]
@@ -19,7 +19,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    Init, Status, Describe { message: String }, New, Branch { name: String }, Heads, Log,
+    Init, Status, Describe { message: String }, New, Branch { name: String }, Edit { change: String }, Heads, Log,
     Evolog { change: String }, Show { entity: String }, ListDefs, ShowDef(EntityArg),
     Search { query: String }, Diff { a: String, b: String }, Blame(EntityArg),
     Merge { change: String }, Conflicts,
@@ -32,7 +32,7 @@ enum Command {
     Delete(DeleteArgs), EditDef(EditDefArgs), Classify(ClassifyArgs), Agent { task: String }, Tui,
 }
 
-#[derive(Subcommand)] enum OpCommand { Log }
+#[derive(Subcommand)] enum OpCommand { Log, Restore { index: u64 } }
 #[derive(Subcommand)]
 enum ChangeSetCommand {
     Begin { name: String, #[arg(long, default_value = "refactor")] intent: String, #[arg(long)] force: bool },
@@ -71,6 +71,7 @@ fn run(cli: &Cli) -> Result<Value, String> {
         Command::Describe { message } => value(describe(&repo, message)),
         Command::New => value(new(&repo)),
         Command::Branch { name } => value(branch(&repo, name)),
+        Command::Edit { change } => value(edit(&repo, change)),
         Command::Heads => value(heads(&repo)),
         Command::Log => value(log(&repo, None)),
         Command::Evolog { change } => { let id = repo.resolve_change(change).map_err(|e| e.to_string())?; value(evolog(&repo, id)) }
@@ -82,12 +83,17 @@ fn run(cli: &Cli) -> Result<Value, String> {
             value(resolve_conflict(&repo, *conflict, parse_take(take)?))
         }
         Command::Op(OpCommand::Log) => value(op_log(&repo)),
+        Command::Op(OpCommand::Restore { index }) => value(op_restore(&repo, OpIx(*index))),
         Command::Changeset(ChangeSetCommand::Begin { name, intent, force }) => {
             value(changeset_begin(&repo, name, parse_intent(intent), None, *force))
         }
         Command::Changeset(ChangeSetCommand::End) => value(changeset_end(&repo)),
         Command::Changeset(ChangeSetCommand::Status) => value(changeset_status(&repo)),
         Command::Changeset(ChangeSetCommand::List) => value(changesets(&repo)),
+        Command::Checkout { snapshot } => {
+            let id = snapshot.parse::<SnapshotId>().map_err(|e| e.to_string())?;
+            value(checkout(&repo, id))
+        }
         Command::Render => { let snapshot = repo.current().map_err(|e| e.to_string())?; repo.render_to_disk(&snapshot).map_err(|e| e.to_string())?; Ok(json!({"rendered": true})) }
         Command::ListDefs => list_defs(&repo),
         Command::ShowDef(arg) => show_def(&repo, &arg.entity),
@@ -137,7 +143,7 @@ fn show_def(repo: &Repo, query: &str) -> Result<Value, String> {
 
 fn command_name(command: &Command) -> &'static str {
     match command {
-        Command::Search { .. } => "search", Command::Diff { .. } => "diff", Command::Checkout { .. } => "checkout",
+        Command::Search { .. } => "search", Command::Diff { .. } => "diff",
         Command::Rename(_) => "rename", Command::Move(_) => "move", Command::Relocate(_) => "relocate",
         Command::Extract(_) => "extract", Command::Inline(_) => "inline", Command::AddDef(_) => "add-def",
         Command::Delete(_) => "delete", Command::EditDef(_) => "edit-def", Command::Classify(_) => "classify",
@@ -155,5 +161,7 @@ mod tests {
         Cli::try_parse_from(["svc", "list-defs", "--json"]).unwrap();
         Cli::try_parse_from(["svc", "merge", "feature", "--json"]).unwrap();
         Cli::try_parse_from(["svc", "resolve", "0", "--take", "b", "--json"]).unwrap();
+        Cli::try_parse_from(["svc", "edit", "feature", "--json"]).unwrap();
+        Cli::try_parse_from(["svc", "op", "restore", "7", "--json"]).unwrap();
     }
 }
