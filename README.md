@@ -36,14 +36,27 @@ demo/git-twin/build.sh
 
 It creates two non-overlapping branches. One shadows `raw` with a normalized value; the other adds `log(&raw)` intending the original binding. Git merges cleanly and the crate compiles, but the log call now resolves to the new shadow.
 
-Run the executable acceptance demo (Rust lines 1–7 and 9–11, plus the
-JavaScript replay) with:
+Run the executable acceptance demo (lines 1–12: rename/merge/binding-conflict
+core 1–7, the JavaScript twin on line 8, the agent changeset on line 9,
+evolog/undo on 10–11, the in-TUI agent replay on 12) with:
 
 ```sh
 demo/run.sh target/debug/svc
 ```
 
 (`demo/run.sh` passes an absolute binary path into `demo/demo-lines.sh`, which `cd`s away.)
+`demo/recordings/js-agent.jsonl` records the JavaScript agent run.
+
+The dogfooding line runs `svc` against this repo's own `crates/**` tree —
+init, render, `cargo build`, a real `svc rename`, rebuild, undo, rebuild —
+so a wrong render byte fails loudly:
+
+```sh
+cargo build -p svc && demo/self-host.sh
+```
+
+(`demo/self-host.sh` takes an optional svc binary path, default
+`target/debug/svc`; it runs all nine checks and exits nonzero if any fail.)
 
 The live A/B (stock dsh vs overlay, two processes, reset from `demo/pristine/`) is `demo/ab.sh`. Without a model credential it asserts identical starting trees and exits 0 with SKIP. `demo/recordings/line9.jsonl` records a completed live overlay run; `demo/recordings/line9.ops.jsonl` drives the deterministic in-TUI replay. Plume fields: `PLUME.md`.
 
