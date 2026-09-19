@@ -62,16 +62,30 @@ pub fn merge(
             (Some(_), None, None) => {
                 // deleted both
             }
-            (Some(_), None, Some(_)) => conflicts.push(Conflict::DeleteEdit {
-                id,
-                deleted_by: Side::A,
-                edited_by: Side::B,
-            }),
-            (Some(_), Some(_), None) => conflicts.push(Conflict::DeleteEdit {
-                id,
-                deleted_by: Side::B,
-                edited_by: Side::A,
-            }),
+            // Delete/edit keeps the edited record so the conflict can be resolved by choosing.
+            (Some(ro), None, Some(rb)) => {
+                let rb = rewrite_record(rb, &rewrite);
+                if rb == *ro {
+                    continue;
+                }
+                conflicts.push(Conflict::DeleteEdit {
+                    id,
+                    deleted_by: Side::A,
+                    edited_by: Side::B,
+                });
+                entities.insert(id, rb);
+            }
+            (Some(ro), Some(ra), None) => {
+                if ra == ro {
+                    continue;
+                }
+                conflicts.push(Conflict::DeleteEdit {
+                    id,
+                    deleted_by: Side::B,
+                    edited_by: Side::A,
+                });
+                entities.insert(id, ra.clone());
+            }
             (None, Some(ra), Some(rb)) => {
                 let rb = rewrite_record(rb, &rewrite);
                 if ra.content == rb.content && ra.bytes == rb.bytes {
@@ -348,10 +362,12 @@ fn src_atoms(src: &[u8], lang: &dyn crate::lang::Lang) -> Result<Vec<Vec<u8>>> {
     let Some(body) = item.child_by_field_name("body") else {
         return Ok(vec![src.to_vec()]);
     };
+    // Atom 0 is the signature up to and including the body's opening brace (SPEC §5.3).
+    let open = body.start_byte() + usize::from(src.get(body.start_byte()) == Some(&b'{'));
     let mut atoms = Vec::new();
-    atoms.push(src.get(..body.start_byte()).unwrap_or(src).to_vec());
+    atoms.push(src.get(..open).unwrap_or(src).to_vec());
     let mut c = body.walk();
-    let mut last = body.start_byte() + usize::from(src.get(body.start_byte()) == Some(&b'{'));
+    let mut last = open;
     for ch in body.named_children(&mut c) {
         let start = last;
         let end = ch.end_byte();
@@ -466,7 +482,12 @@ fn binding_post(
             }
             let origin = side_of(*r);
             let stored = stored_ref(origin, store, id, &item, *r);
-            let now = ident.clone();
+            // The declaration site is stored as `Entity(SELF)` (§2.3) and re-resolves to the
+            // entity's own id; that is the same target, not a rebinding.
+            let now = match ident {
+                IdentRef::Entity(x) if *x == id => IdentRef::Entity(EntityId::SELF),
+                other => other.clone(),
+            };
             if let Some(was) = stored {
                 if !ref_eq(&was, &now) {
                     snap.conflicts.push(Conflict::Binding {

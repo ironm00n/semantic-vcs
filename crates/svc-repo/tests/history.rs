@@ -48,11 +48,8 @@ fn new_starts_a_change_and_log_is_scoped_to_it() {
     assert_eq!(heads.len(), 2);
     assert!(heads[0].current && heads[0].change == second);
 
-    let log = svc_repo::log(&repo, None).unwrap();
-    assert_eq!(log.len(), 1);
-    assert!(matches!(log[0].op, Op::New { change } if change == second));
-    let old = svc_repo::log(&repo, Some(first)).unwrap();
-    assert_eq!(old.len(), 1, "the init op moved the first change's head; `new` did not");
+    assert!(svc_repo::log(&repo, None).unwrap().is_empty(), "a fresh change has no events");
+    assert!(svc_repo::log(&repo, Some(first)).unwrap().is_empty(), "a change's birth is not an event");
     assert_eq!(svc_repo::op_log(&repo).unwrap().len(), 2);
 }
 
@@ -113,7 +110,7 @@ fn rename_via_mutate_renders_and_is_visible_in_log_blame_evolog() {
     assert!(repo.working_copy_clean().unwrap());
 
     let log = svc_repo::log(&repo, None).unwrap();
-    assert_eq!(log.len(), 2);
+    assert_eq!(log.len(), 1, "demo line 4: one event");
     assert!(matches!(&log[0].op, Op::Rename { new, .. } if new == "read_file"));
     assert!(!log[0].flagged);
 
@@ -307,4 +304,43 @@ fn resolve_entity_by_name_qualified_name_and_id() {
     let impl_names: Vec<_> = snap.entities.values().filter(|r| r.kind == svc_core::Kind::Impl).map(|r| r.name.clone()).collect();
     let by_impl = svc_repo::resolve_entity(&repo, &format!("{}::new", impl_names[0]));
     assert!(by_impl.is_ok(), "impl names: {impl_names:?}");
+}
+
+#[test]
+fn status_absorbs_hand_edits_and_classifies_a_local_rename_as_layout() {
+    let (dir, repo) = fresh();
+    let clean = svc_repo::status(&repo).unwrap();
+    assert_eq!(clean.deltas.len(), 0);
+    assert!(clean.clean && !clean.absorbed);
+    assert!(clean.summary.contains("0 changes"), "{}", clean.summary);
+
+    std::fs::write(dir.path().join("src/lib.rs"), LIB.replace("path.to_string()", "p.to_string()").replace("read(path: &str)", "read(p: &str)")).unwrap();
+    let before = repo.store().root().unwrap();
+    let s = svc_repo::status(&repo).unwrap();
+    assert!(s.absorbed);
+    assert_ne!(s.snapshot, before);
+    assert_eq!(s.semantic, 0, "{:?}", s.deltas);
+    assert_eq!(s.layout, 1, "{:?}", s.deltas);
+    assert!(s.summary.contains("no semantic changes"), "{}", s.summary);
+    let ids_before: std::collections::BTreeSet<_> = repo.store().get_snapshot(before).unwrap().entities.into_keys().collect();
+    let ids_after: std::collections::BTreeSet<_> = repo.current().unwrap().entities.into_keys().collect();
+    assert_eq!(ids_before, ids_after, "entity ids survive a hand edit");
+    assert!(matches!(svc_repo::op_log(&repo).unwrap()[0].op, Op::Absorb));
+    assert_eq!(svc_repo::evolog(&repo, s.change).unwrap().len(), 2, "demo line 10 shape");
+
+    let again = svc_repo::status(&repo).unwrap();
+    assert_eq!(again.snapshot, s.snapshot, "identical status is a no-op");
+    assert!(!again.absorbed);
+    assert!(repo.working_copy_clean().unwrap());
+}
+
+#[test]
+fn js_files_are_tracked() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("app.js"), "function f(a) { return a; }\nclass C { m() { return 1; } }\n").unwrap();
+    let repo = Repo::init(dir.path(), Repo::default_langs()).unwrap();
+    let snap = repo.current().unwrap();
+    assert!(snap.entities.values().any(|r| r.name == "f"));
+    assert!(snap.entities.values().any(|r| r.name == "C"));
+    assert!(repo.working_copy_clean().unwrap());
 }
