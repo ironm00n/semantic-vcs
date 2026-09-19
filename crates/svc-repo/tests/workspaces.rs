@@ -1,6 +1,6 @@
 //! Named checkouts (`svc workspace add|list|forget`): two directories, one store, each with
-//! its own `root`; snapshots, heads and the op log shared. redb is single-process, so every
-//! `Repo` here is dropped before the next one opens the same store — that is the contract.
+//! its own `root`; snapshots, heads and the op log shared. Any number of `Repo`s may hold the
+//! store at once, one per checkout; here each is dropped before its directory is reopened.
 
 use std::path::Path;
 

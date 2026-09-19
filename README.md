@@ -112,7 +112,8 @@ demo/run.sh target/debug/svc
 That runs the scripted demo (rename, the binding-conflict merge, the JS
 twin, the agent changeset, evolog/undo, the in-TUI replay, the forge, and
 self-hosting `svc` on this repo's own crates), then a multi-checkout stress
-test. `SVC_SKIP_SELF_HOST=1` skips the self-host line.
+test and 32 checkouts publishing at once. `SVC_SKIP_SELF_HOST=1` skips the
+self-host line.
 
 Self-hosting alone:
 
@@ -178,8 +179,11 @@ Hackathon prototype. Not a git replacement.
   as opaque byte records so a checkout still builds. They are not entities.
 - **Classifier** checks surviving-reference capture, not "did the agent do
   the task."
-- **Concurrency:** named checkouts share one store. Writers are serialized
-  (`store busy` after a bounded wait), not merged. Each checkout undoes
+- **Concurrency:** named checkouts share one store (redb multi-writer: any
+  number of `svc` processes, write transactions serialized on the file). A
+  publish that finds its change's head moved is refused with nothing written
+  (`concurrent update`), not merged. A checkout is one working copy: one
+  `svc` at a time (`checkout busy` after a bounded wait). Each checkout undoes
   only its own ops and refuses to mutate while behind its change's head.
 - **Live models.** With `deepseek-chat`, a run sometimes stops after the
   first op; the TUI's `p` continues the same session. The scripted agent

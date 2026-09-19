@@ -1,16 +1,22 @@
 //! Concurrency semantics (ironmoon's done-criterion 4), stated and enforced:
 //!
-//! 1. **Session.** One `Repo` open is one exclusive store session. redb refuses a second
-//!    handle on the file — from another process or this one — until the first is dropped, and
-//!    `Repo::open` waits up to `SVC_LOCK_TIMEOUT_MS` for that, then fails with `store busy`.
-//!    Every verb is therefore serialised and atomic with respect to every other verb.
-//! 2. **Order.** The op log is the total order. `OpIx` is contiguous, and for one checkout
+//! 1. **Store shared, checkout not.** Any number of `svc` processes hold one store open
+//!    (redb `MultiWriter`): write transactions serialise on the file, readers follow commits.
+//!    A checkout is one working copy, so one `Repo` holds it at a time — `Repo::open` waits up
+//!    to `SVC_LOCK_TIMEOUT_MS` for the previous session on *that checkout*, then fails with
+//!    `checkout busy`. Two processes never render into one directory at once.
+//! 2. **Publish is compare-and-swap.** A verb reads its view, computes, and publishes head,
+//!    root and op in one transaction that first checks the persisted root and the heads it
+//!    moves against that view. Two processes racing on one change: exactly one publishes;
+//!    the other is refused with `concurrent update` and nothing written, and is then stale
+//!    (4). Nothing is ever silently overwritten.
+//! 3. **Order.** The op log is the total order. `OpIx` is contiguous, and for one checkout
 //!    entry *i*'s `after` view is entry *i+1*'s `before` view. N writers × M mutations leave
 //!    exactly N·M entries, an intact chain, a working copy equal to the final snapshot, and a
 //!    green O5 replay.
-//! 3. **Checkouts.** A workspace's `root` moves only by ops issued from it; heads are shared.
+//! 4. **Checkouts.** A workspace's `root` moves only by ops issued from it; heads are shared.
 //!    Two checkouts on one change: the one that did not write is *stale* and its mutations
-//!    refuse until `workspace::update_stale`. Nothing is ever silently overwritten.
+//!    refuse until `workspace::update_stale`.
 
 use std::path::Path;
 use std::sync::{Arc, Barrier};
@@ -51,16 +57,66 @@ fn rename_read(repo: &Repo, to: &str) {
 }
 
 #[test]
-fn a_second_session_waits_then_reports_store_busy() {
+fn a_second_session_on_the_same_checkout_waits_then_reports_checkout_busy() {
     let (dir, repo) = fresh();
     let started = std::time::Instant::now();
     let err = Repo::open_with(dir.path(), Repo::default_langs(), Duration::from_millis(300))
         .err()
-        .expect("second session must not open while the first is alive");
-    assert!(err.to_string().contains("store busy"), "{err}");
+        .expect("a second session on one checkout must not open while the first is alive");
+    assert!(err.to_string().contains("checkout busy"), "{err}");
     assert!(started.elapsed() >= Duration::from_millis(300), "it waited");
+
+    // Another checkout of the same store opens at once: the store is shared, the working
+    // copy is not.
+    let b = tempfile::tempdir().unwrap();
+    workspace::add(&repo, "twin", b.path(), None).unwrap();
+    let twin = Repo::open_with(b.path(), Repo::default_langs(), Duration::from_millis(300)).unwrap();
+    assert!(!twin.is_stale().unwrap());
+    drop(twin);
     drop(repo);
     open(dir.path());
+}
+
+#[test]
+fn a_publish_that_finds_the_head_moved_is_refused_with_nothing_written() {
+    let (a, repo) = fresh();
+    svc_repo::new(&repo).unwrap();
+    let change = repo.current_change().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    workspace::add(&repo, "twin", b.path(), None).unwrap();
+    let twin = open(b.path());
+    let ops_before = svc_repo::op_log(&repo).unwrap().len();
+
+    // A passes the stale check and reads its view; B publishes on the shared change while A's
+    // verb is still computing. A's publish must lose: the head it read is gone.
+    let id = svc_repo::resolve_entity(&repo, "read").unwrap();
+    let err = repo
+        .mutate(Op::Rename { id, new: "from_a".into() }, None, |repo, cur| {
+            rename_read(&twin, "from_b");
+            let mut next = cur.clone();
+            next.entities.get_mut(&id).unwrap().name = "from_a".into();
+            repo.amend(cur, next)
+        })
+        .err()
+        .expect("the second publish on one head is refused");
+    assert!(err.to_string().contains("concurrent update"), "{err}");
+
+    let ops = svc_repo::op_log(&repo).unwrap();
+    assert_eq!(ops.len(), ops_before + 1, "only B's op landed");
+    assert_eq!(repo.store().head(change).unwrap(), twin.current().unwrap().id(), "B's head stands");
+    assert!(repo.is_stale().unwrap(), "A is now behind, the ordinary stale path applies");
+    assert_eq!(std::fs::read_to_string(a.path().join("src/lib.rs")).unwrap(), LIB, "A's working copy untouched");
+    assert!(std::fs::read_to_string(b.path().join("src/lib.rs")).unwrap().contains("fn from_b("));
+    // A recovers the usual way and its rename applies on top of B's.
+    workspace::update_stale(&repo).unwrap();
+    let id = svc_repo::resolve_entity(&repo, "from_b").unwrap();
+    repo.mutate(Op::Rename { id, new: "from_a".into() }, None, |repo, cur| {
+        let mut next = cur.clone();
+        next.entities.get_mut(&id).unwrap().name = "from_a".into();
+        repo.amend(cur, next)
+    })
+    .unwrap();
+    assert_eq!(svc_repo::op_log(&repo).unwrap().len(), ops_before + 2);
 }
 
 #[test]

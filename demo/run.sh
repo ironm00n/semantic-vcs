@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The acceptance gate: demo lines 1–12 + the forge + the self-hosting line 14
 # (demo-lines.sh: svc on its own crates, named checkout from the store, replay),
-# then the multi-process stress on one store (store-stress.sh). Exit status is
-# the total number of failures. Resolves a relative binary path first because
+# then the multi-process stress on one store (store-stress.sh) and 32 checkouts
+# publishing at once (tests/concurrency/workspace_stress.sh). Exit status is the
+# total number of failures. Resolves a relative binary path first because
 # the scripts cd away.
 #
 #   demo/run.sh [path/to/svc]            # everything
@@ -18,6 +19,9 @@ fi
 fail=$?
 echo
 "$HERE/store-stress.sh" "$SVC"
+fail=$((fail + $?))
+echo
+SVC_BIN="$SVC" "$HERE/../tests/concurrency/workspace_stress.sh" 32
 fail=$((fail + $?))
 echo
 echo "gate: $fail failure(s) in total"

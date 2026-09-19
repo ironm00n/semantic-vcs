@@ -6,6 +6,7 @@
 //! bytes between disk and store and keeps `root`/`heads`/the op log consistent.
 
 use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -21,6 +22,8 @@ use crate::workspace::{POINTER_FILE, WorkspacePointer};
 pub const STORE_DIR: &str = ".svc";
 pub const STORE_FILE: &str = "store.redb";
 pub const IGNORE_FILE: &str = ".svcignore";
+/// Under `.svc/`: held (`flock`) by the one `Repo` open on the default checkout.
+pub const CHECKOUT_LOCK: &str = "checkout.lock";
 
 /// Directories never walked, on top of `.svcignore`.
 const ALWAYS_IGNORED: &[&str] = &[
@@ -32,10 +35,15 @@ const ALWAYS_IGNORED: &[&str] = &[
     POINTER_FILE,
 ];
 
-/// How long `open` keeps retrying redb's lock unless `SVC_LOCK_TIMEOUT_MS`
-/// or [`Repo::open_with`] says otherwise. One `Repo` is one exclusive store session: redb
-/// refuses a second handle on the file, from another process or this one, until the first
-/// is dropped. Every verb is therefore serialised and atomic with respect to every other.
+/// How long `open` waits for another `svc` process to leave this checkout unless
+/// `SVC_LOCK_TIMEOUT_MS` or [`Repo::open_with`] says otherwise.
+///
+/// The store is shared: any number of processes hold it open (redb `MultiWriter`), write
+/// transactions serialise on the file, readers follow commits, and a publish that finds a
+/// head or this checkout's root moved since the verb read them is refused with nothing
+/// written (`append_op`). The working copy is not shared: one `Repo` per checkout at a
+/// time, held by a lock on [`CHECKOUT_LOCK`] (a named checkout's pointer file doubles as
+/// its lock), so two `svc` processes never render into one directory at once.
 pub const DEFAULT_LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 pub const LOCK_TIMEOUT_ENV: &str = "SVC_LOCK_TIMEOUT_MS";
 
@@ -52,6 +60,7 @@ pub struct Repo {
     store_path: PathBuf,
     pub(crate) store: RedbStore,
     langs: Langs,
+    _checkout_lock: File,
 }
 
 /// What `mutate` did, for the verb to print.
@@ -96,6 +105,7 @@ impl Repo {
             )));
         }
         std::fs::create_dir_all(&dir).map_err(Error::backend)?;
+        let checkout_lock = Self::checkout_lock(&dir.join(CHECKOUT_LOCK), lock_timeout())?;
         let store_path = dir.join(STORE_FILE);
         let store = RedbStore::create(&store_path)?;
         let repo = Self {
@@ -103,6 +113,7 @@ impl Repo {
             store_path,
             store,
             langs,
+            _checkout_lock: checkout_lock,
         };
         let change = ChangeId::new();
         let files = repo.tracked_files()?;
@@ -129,8 +140,8 @@ impl Repo {
         Ok(repo)
     }
 
-    /// Opens an existing repo, waiting out another process's lock, and finishes any render
-    /// a crashed predecessor left pending.
+    /// Opens an existing repo, waiting out another process on the same checkout, and finishes
+    /// any render a crashed predecessor left pending.
     ///
     /// `root` is either the default checkout (holds `.svc/store.redb`) or a named workspace
     /// (holds a `.svc-workspace` pointer at the shared store).
@@ -138,7 +149,8 @@ impl Repo {
         Self::open_with(root, langs, lock_timeout())
     }
 
-    /// [`Repo::open`] with an explicit bound on how long to wait for another session.
+    /// [`Repo::open`] with an explicit bound on how long to wait for another session on this
+    /// checkout.
     pub fn open_with(root: &Path, langs: Langs, wait: Duration) -> Result<Self> {
         let own = root.join(STORE_DIR).join(STORE_FILE);
         let (store_path, workspace) = if own.is_file() {
@@ -155,12 +167,18 @@ impl Repo {
                 store_path.display()
             )));
         }
-        let store = Self::open_store(&store_path, wait)?.with_workspace(workspace.as_deref())?;
+        let lock_path = match workspace {
+            Some(_) => root.join(POINTER_FILE),
+            None => root.join(STORE_DIR).join(CHECKOUT_LOCK),
+        };
+        let checkout_lock = Self::checkout_lock(&lock_path, wait)?;
+        let store = RedbStore::open(&store_path)?.with_workspace(workspace.as_deref())?;
         let repo = Self {
             root: root.to_path_buf(),
             store_path,
             store,
             langs,
+            _checkout_lock: checkout_lock,
         };
         if repo.store.render_pending()? {
             repo.render_to_disk(&repo.current()?)?;
@@ -169,17 +187,25 @@ impl Repo {
         Ok(repo)
     }
 
-    /// Opens the redb file, waiting up to `wait` for another session to end.
-    fn open_store(path: &Path, wait: Duration) -> Result<RedbStore> {
+    /// Takes the checkout's lock, polling up to `wait` while another `svc` holds it. The
+    /// kernel drops it with the process, so a crash never leaves a checkout locked.
+    fn checkout_lock(path: &Path, wait: Duration) -> Result<File> {
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(path)
+            .map_err(Error::backend)?;
         let started = Instant::now();
         let mut backoff = Duration::from_millis(10);
         loop {
-            match RedbStore::open(path) {
-                Ok(s) => return Ok(s),
-                Err(e) if RedbStore::is_already_open(&e) => {
+            match file.try_lock() {
+                Ok(()) => return Ok(file),
+                Err(std::fs::TryLockError::WouldBlock) => {
                     if started.elapsed() >= wait {
                         return Err(Error::Other(format!(
-                            "store busy: another svc session held {} for {}ms (raise {LOCK_TIMEOUT_ENV})",
+                            "checkout busy: another svc session held {} for {}ms (raise {LOCK_TIMEOUT_ENV})",
                             path.display(),
                             wait.as_millis()
                         )));
@@ -187,7 +213,7 @@ impl Repo {
                     std::thread::sleep(backoff);
                     backoff = (backoff * 2).min(Duration::from_millis(250));
                 }
-                Err(e) => return Err(e),
+                Err(std::fs::TryLockError::Error(e)) => return Err(Error::backend(e)),
             }
         }
     }
@@ -345,16 +371,30 @@ impl Repo {
         }
         let before = self.view()?;
         let (group, _) = self.open_group()?;
-        let id = self.amend(&cur, next)?;
-        let after = self.view()?;
-        self.store.append_op(&OpLogEntry {
-            op: Op::Absorb,
-            observed: None,
-            at: now(),
-            group,
-            before,
-            after,
-        })?;
+        self.store.stage(&before);
+        let staged = (|| -> Result<(SnapshotId, OpLogEntry)> {
+            let id = self.amend(&cur, next)?;
+            let after = self.view()?;
+            Ok((
+                id,
+                OpLogEntry {
+                    op: Op::Absorb,
+                    observed: None,
+                    at: now(),
+                    group,
+                    before,
+                    after,
+                },
+            ))
+        })();
+        let (id, entry) = match staged {
+            Ok(value) => value,
+            Err(error) => {
+                self.store.discard_staged();
+                return Err(error);
+            }
+        };
+        self.store.append_op(&entry)?;
         Ok(Some((cur, id)))
     }
 
@@ -398,7 +438,7 @@ impl Repo {
         // From here to `append_op`, head/root/render-pending writes are staged and land in
         // the op's own transaction: a crash never leaves the store a snapshot ahead of
         // the log, and a failing verb publishes nothing.
-        self.store.stage();
+        self.store.stage(&before);
         let staged = (|| -> Result<(SnapshotId, OpLogEntry)> {
             self.store.set_render_pending(true)?;
             let snapshot = f(self, &cur)?;
@@ -429,7 +469,7 @@ impl Repo {
         self.absorb()?;
         let before = self.view()?;
         let (group, closed_stale_changeset) = self.open_group()?;
-        self.store.stage();
+        self.store.stage(&before);
         let staged = (|| -> Result<OpLogEntry> {
             self.store.set_render_pending(true)?;
             for (change, snap) in &view.heads {

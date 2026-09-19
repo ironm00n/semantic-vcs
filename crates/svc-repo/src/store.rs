@@ -9,13 +9,13 @@
 use std::path::{Path, PathBuf};
 
 use redb::{
-    Database, ReadTransaction, ReadableDatabase, ReadableTable, TableDefinition, TableError,
-    WriteTransaction,
+    ConcurrencyMode, Database, ReadTransaction, ReadableDatabase, ReadableTable, TableDefinition,
+    TableError, WriteTransaction,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use svc_core::{
     ChangeId, ChangeSet, ChangeSetId, Error, OpIx, OpLogEntry, OpenChangeSet, Result, Snapshot,
-    SnapshotId, Store,
+    SnapshotId, Store, View,
 };
 use uuid::Uuid;
 
@@ -52,8 +52,13 @@ pub struct WorkspaceRow {
 /// mutation is published in one redb txn and a crash can never leave head and root a
 /// snapshot ahead of the op log. Reads consult it first, so the code in
 /// between (`amend`, `view`) sees what it just wrote.
-#[derive(Default)]
+///
+/// `expected` is the view the verb computed from. Other processes share the store, so
+/// `append_op` compares the persisted root and every head it is about to move against it
+/// inside the write transaction: two processes that both read head H and both try to
+/// publish H→H' cannot both win — the second finds H' and is refused with nothing written.
 struct Staged {
+    expected: View,
     heads: std::collections::BTreeMap<ChangeId, SnapshotId>,
     root: Option<SnapshotId>,
     render_pending: Option<bool>,
@@ -67,9 +72,23 @@ pub struct RedbStore {
 }
 
 impl RedbStore {
+    /// `MultiWriter`: opens never exclude each other (a TUI session and CLI verbs on other
+    /// checkouts share one store); each write transaction takes a byte-range lock on the file
+    /// and readers follow commits. Linux, macOS and Windows only.
+    fn database(path: &Path, create: bool) -> Result<Database> {
+        let mut builder = Database::builder();
+        builder.set_concurrency_mode(ConcurrencyMode::MultiWriter);
+        if create {
+            builder.create(path)
+        } else {
+            builder.open(path)
+        }
+        .map_err(Error::backend)
+    }
+
     /// Creates the file and seeds every table, so readers never see `TableDoesNotExist`.
     pub fn create(path: &Path) -> Result<Self> {
-        let db = Database::create(path).map_err(Error::backend)?;
+        let db = Self::database(path, true)?;
         let store = Self { db, workspace: None, staged: Default::default() };
         store.write(|txn| {
             txn.open_table(OBJECTS).map_err(Error::backend)?;
@@ -115,7 +134,7 @@ impl RedbStore {
     }
 
     pub fn open(path: &Path) -> Result<Self> {
-        let db = Database::open(path).map_err(Error::backend)?;
+        let db = Self::database(path, false)?;
         Ok(Self { db, workspace: None, staged: Default::default() })
     }
 
@@ -131,8 +150,13 @@ impl RedbStore {
 
     /// Hold head/root/render-pending writes until the next `append_op`, which publishes
     /// them with the op in one transaction. `Repo::mutate` brackets every verb with this.
-    pub fn stage(&self) {
-        *self.staged.lock().unwrap() = Some(Staged::default());
+    pub fn stage(&self, expected: &View) {
+        *self.staged.lock().unwrap() = Some(Staged {
+            expected: expected.clone(),
+            heads: Default::default(),
+            root: None,
+            render_pending: None,
+        });
     }
 
     /// Drop everything staged since `stage()` without writing it (the verb failed;
@@ -182,6 +206,26 @@ impl RedbStore {
         let mut table = txn.open_table(META).map_err(Error::backend)?;
         table.insert(key, bytes.as_slice()).map_err(Error::backend)?;
         Ok(())
+    }
+
+    /// This checkout's persisted `root`, read inside an open write transaction (never staged).
+    fn root_in(&self, txn: &WriteTransaction) -> Result<Option<SnapshotId>> {
+        match &self.workspace {
+            None => {
+                let table = txn.open_table(META).map_err(Error::backend)?;
+                match table.get(META_ROOT).map_err(Error::backend)? {
+                    Some(g) => Ok(Some(decode(g.value())?)),
+                    None => Ok(None),
+                }
+            }
+            Some(name) => {
+                let table = txn.open_table(WORKSPACES).map_err(Error::backend)?;
+                match table.get(name.as_str()).map_err(Error::backend)? {
+                    Some(g) => Ok(decode::<WorkspaceRow>(g.value())?.root),
+                    None => Err(Error::NotFound(format!("workspace {name:?}"))),
+                }
+            }
+        }
     }
 
     /// The checkout this handle's `root`/`render_pending`/`open_changeset` refer to.
@@ -249,10 +293,6 @@ impl RedbStore {
     }
 
     /// True when the failure is redb's cross-process lock, the one case worth retrying.
-    pub fn is_already_open(err: &Error) -> bool {
-        matches!(err, Error::Backend(e) if e.to_string().contains("already open"))
-    }
-
     fn read(&self) -> Result<ReadTransaction> {
         self.db.begin_read().map_err(Error::backend)
     }
@@ -343,9 +383,28 @@ impl Store for RedbStore {
         self.write(|txn| {
             // Publish what the verb staged together with the entry that describes it.
             if let Some(s) = &staged {
+                // Compare-and-swap against the view the verb read: another process may have
+                // published since. A mismatch aborts the transaction with nothing written.
+                if self.root_in(txn)? != Some(s.expected.root) {
+                    return Err(Error::Other(
+                        "concurrent update: this checkout's root moved under the verb; nothing was written"
+                            .into(),
+                    ));
+                }
                 if !s.heads.is_empty() {
                     let mut heads = txn.open_table(HEADS).map_err(Error::backend)?;
                     for (c, snap) in &s.heads {
+                        let actual = heads
+                            .get(c.as_uuid())
+                            .map_err(Error::backend)?
+                            .map(|g| SnapshotId(*g.value()));
+                        if actual != s.expected.heads.get(c).copied() {
+                            return Err(Error::Other(format!(
+                                "concurrent update: change {} moved to {} under the verb; nothing was written (run `svc workspace update-stale`)",
+                                c.short(),
+                                actual.map(|a| a.short()).unwrap_or_else(|| "nothing".into())
+                            )));
+                        }
                         heads.insert(c.as_uuid(), &snap.0).map_err(Error::backend)?;
                     }
                 }

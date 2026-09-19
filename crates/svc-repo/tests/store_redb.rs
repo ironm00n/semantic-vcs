@@ -140,10 +140,16 @@ fn evolog_walks_predecessors() {
 }
 
 #[test]
-fn second_open_of_a_held_store_is_already_open() {
+fn two_handles_on_one_store_see_each_others_commits() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("s.redb");
-    let _held = RedbStore::create(&path).unwrap();
-    let err = RedbStore::open(&path).err().expect("second open must fail");
-    assert!(RedbStore::is_already_open(&err), "{err}");
+    let a = RedbStore::create(&path).unwrap();
+    let b = RedbStore::open(&path).expect("the store is shared: a second open succeeds");
+    let change = ChangeId::new();
+    let id = a.put_snapshot(&snapshot(change, "from a")).unwrap();
+    a.set_head(change, id).unwrap();
+    assert_eq!(b.head(change).unwrap(), id, "b follows a's commit");
+    let id2 = b.put_snapshot(&snapshot(change, "from b")).unwrap();
+    b.set_head(change, id2).unwrap();
+    assert_eq!(a.head(change).unwrap(), id2, "and a follows b's");
 }
