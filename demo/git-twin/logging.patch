@@ -1,0 +1,11 @@
+diff --git a/src/main.rs b/src/main.rs
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -69,6 +69,7 @@ fn load(path: &str) -> Result<Config, Error> {
+     validate(&cfg)?;
+     let _path_exists = !cfg.path.is_empty();
+     let _retry_count = cfg.retries;
++    log(&raw);
+     Ok(cfg)
+ }
+ 

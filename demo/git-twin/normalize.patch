@@ -1,0 +1,11 @@
+diff --git a/src/main.rs b/src/main.rs
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -65,6 +65,7 @@ fn canon(c: &Config) -> Config {
+ 
+ fn load(path: &str) -> Result<Config, Error> {
+     let raw = read(path);
++    let raw = normalize(&raw);
+     let cfg = parse(&raw)?;
+     validate(&cfg)?;
+     let _path_exists = !cfg.path.is_empty();
