@@ -1,8 +1,10 @@
 use crate::delta::Delta;
+use crate::entity::Kind;
 use crate::ids::EntityId;
 use crate::ids::{BytesId, ContentId};
-use crate::lang::RawEntity;
+use crate::lang::{Lang, RawEntity};
 use crate::snapshot::Snapshot;
+use crate::{JsLang, RustLang};
 
 pub fn match_entities(
     prev: &Snapshot,
@@ -62,11 +64,19 @@ pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<Delta> {
                     });
                 }
                 if old.file != rec.file || old.ordinal != rec.ordinal {
-                    out.push(Delta::Relocated {
-                        id: *id,
-                        from: (old.file.clone(), old.ordinal),
-                        to: (rec.file.clone(), rec.ordinal),
-                    });
+                    let parent_kind = rec
+                        .parent
+                        .and_then(|pid| next.entities.get(&pid).map(|p| p.kind));
+                    let layout_only = old.parent == rec.parent
+                        && old.file == rec.file
+                        && commutative_layout(rec.file.extension(), parent_kind, rec.kind);
+                    if !layout_only {
+                        out.push(Delta::Relocated {
+                            id: *id,
+                            from: (old.file.clone(), old.ordinal),
+                            to: (rec.file.clone(), rec.ordinal),
+                        });
+                    }
                 }
                 if old.content != rec.content {
                     out.push(Delta::Edited(
@@ -85,4 +95,21 @@ pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<Delta> {
         }
     }
     out
+}
+
+fn commutative_layout(ext: Option<&str>, parent: Option<Kind>, child: Kind) -> bool {
+    let rules = match ext {
+        Some("rs") => RustLang.commutative_parents(),
+        Some("js" | "mjs" | "cjs") => JsLang.commutative_parents(),
+        _ => return false,
+    };
+    rules.iter().any(|rule| {
+        rule.parent == parent
+            && rule
+                .only_child_kinds
+                .is_none_or(|kinds| kinds.contains(&child))
+            && !rule
+                .except_child_kinds
+                .is_some_and(|kinds| kinds.contains(&child))
+    })
 }
