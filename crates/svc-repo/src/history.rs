@@ -36,6 +36,8 @@ pub struct OpOut {
     pub at: Timestamp,
     pub group: Option<ChangeSetId>,
     pub root_after: SnapshotId,
+    /// The entity's name *before* the op (renames need it; the current snapshot has the new one).
+    pub subject: Option<String>,
 }
 
 /// How one op or rewrite touched one entity. `Edited.observed` is the op log's verdict
@@ -94,9 +96,22 @@ impl MutationOut {
     }
 }
 
-fn op_out(ix: OpIx, e: &OpLogEntry) -> OpOut {
+fn op_out(store: &dyn svc_core::Store, ix: OpIx, e: &OpLogEntry) -> OpOut {
+    // Name as of just before the op (so a rename shows its old name); for ops that create
+    // the entity (add-def, extract) fall back to the name just after. Stored on the entry
+    // so the line stays readable after the entity is later deleted or the op undone.
+    let subject = op_entity(&e.op).and_then(|id| {
+        let name_in = |root| {
+            store
+                .get_snapshot(root)
+                .ok()
+                .and_then(|s| s.entities.get(&id).map(|r| r.name.clone()))
+        };
+        name_in(e.before.root).or_else(|| name_in(e.after.root))
+    });
     OpOut {
         ix,
+        subject,
         declared: e.declared().cloned(),
         observed: e.observed,
         flagged: e.flagged(),
@@ -250,7 +265,7 @@ pub fn op_log(repo: &Repo) -> Result<Vec<OpOut>> {
         .store()
         .ops(OpIx(0), true)?
         .iter()
-        .map(|(ix, e)| op_out(*ix, e))
+        .map(|(ix, e)| op_out(repo.store(), *ix, e))
         .collect())
 }
 
@@ -273,7 +288,7 @@ pub fn log(repo: &Repo, change: Option<ChangeId>) -> Result<Vec<OpOut>> {
         .filter(|(_, e)| on_change(e))
         // The change's birth is not one of its events.
         .filter(|(_, e)| !matches!(e.op, Op::New { .. } | Op::Branch { .. }))
-        .map(|(ix, e)| op_out(*ix, e))
+        .map(|(ix, e)| op_out(repo.store(), *ix, e))
         .collect())
 }
 
@@ -505,7 +520,7 @@ fn changeset_out(repo: &Repo, cs: svc_core::ChangeSet, open: bool) -> Result<Cha
         .ops(OpIx(0), true)?
         .iter()
         .filter(|(_, e)| e.group == Some(cs.id))
-        .map(|(ix, e)| op_out(*ix, e))
+        .map(|(ix, e)| op_out(repo.store(), *ix, e))
         .collect();
     Ok(ChangeSetOut {
         id: cs.id,
@@ -556,4 +571,19 @@ pub fn resolve_entity(repo: &Repo, arg: &str) -> Result<EntityId> {
 
 pub fn parse_entity_id(s: &str) -> Option<EntityId> {
     s.parse::<uuid::Uuid>().ok().map(EntityId)
+}
+
+/// The entity an op is about, when it is about one.
+pub fn op_entity(op: &Op) -> Option<EntityId> {
+    match op {
+        Op::Rename { id, .. }
+        | Op::Move { id, .. }
+        | Op::Relocate { id, .. }
+        | Op::Extract { id, .. }
+        | Op::Inline { id }
+        | Op::AddDef { id, .. }
+        | Op::Delete { id, .. }
+        | Op::EditDef { id, .. } => Some(*id),
+        _ => None,
+    }
 }

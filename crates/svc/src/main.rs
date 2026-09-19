@@ -103,10 +103,45 @@ fn main() -> ExitCode {
             }
         };
     }
+    if !cli.json {
+        if let Some(result) = run_text(&cli) {
+            return match result {
+                Ok(text) => { println!("{text}"); ExitCode::SUCCESS }
+                Err(error) => { eprintln!("svc: {error}"); ExitCode::FAILURE }
+            };
+        }
+    }
     match run(&cli) {
         Ok(value) => { println!("{}", if cli.json { value.to_string() } else { serde_json::to_string_pretty(&value).unwrap() }); ExitCode::SUCCESS }
         Err(error) => { if cli.json { eprintln!("{}", json!({"error": error})) } else { eprintln!("svc: {error}") }; ExitCode::FAILURE }
     }
+}
+
+/// The sentence form of the verbs whose output people read at the expo (SPEC §8: `--json`
+/// is the machine form). `None` for every other verb, which then takes the JSON path.
+fn run_text(cli: &Cli) -> Option<Result<String, String>> {
+    use svc_repo::text;
+    let cwd = env::current_dir().ok()?;
+    let repo = Repo::discover(&cwd, Repo::default_langs()).ok()?;
+    let snap = repo.current().ok()?;
+    let out = match &cli.command {
+        Command::Status => status(&repo).map(|s| text::status(&s)),
+        Command::Log => log(&repo, None).map(|l| text::log(&snap, &l)),
+        Command::Op(OpCommand::Log) => op_log(&repo).map(|l| text::log(&snap, &l)),
+        Command::Heads => heads(&repo).map(|h| text::heads(&h)),
+        Command::Evolog { change } => repo
+            .resolve_change(change)
+            .and_then(|id| evolog(&repo, id))
+            .map(|e| text::evolog(&e)),
+        Command::Blame(arg) => resolve_entity(&repo, &arg.entity)
+            .and_then(|id| blame(&repo, id))
+            .map(|b| text::blame(&snap, &b)),
+        Command::Conflicts => list_conflicts(&repo).map(|c| text::conflicts(&snap, &c)),
+        Command::Merge { change } => merge_repo(&repo, change)
+            .and_then(|m| repo.current().map(|s| text::merge(&s, &m))),
+        _ => return None,
+    };
+    Some(out.map_err(|e| e.to_string()))
 }
 
 fn run(cli: &Cli) -> Result<Value, String> {

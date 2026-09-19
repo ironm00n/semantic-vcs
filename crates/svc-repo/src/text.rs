@@ -45,19 +45,27 @@ pub fn op(snap: &Snapshot, e: &OpOut) -> String {
         (None, Some(o)) => format!(" (observed {})", class(Some(o))),
         (None, None) => String::new(),
     };
+    // Prefer the name recorded with the op; the current snapshot may no longer hold it.
+    let subj = |id: EntityId| match &e.subject {
+        Some(n) => format!("{n}⟨{}⟩", id.short()),
+        None => entity_ref(snap, id),
+    };
     let body = match &e.op {
-        Op::Rename { id, new } => format!("renamed {} → {new}", name_before(snap, *id, new)),
+        Op::Rename { id, new } => match &e.subject {
+            Some(old) => format!("renamed {old} → {new}"),
+            None => format!("renamed {} → {new}", name_before(snap, *id, new)),
+        },
         Op::Move { id, parent, .. } => format!(
             "moved {} → {}",
-            entity_ref(snap, *id),
+            subj(*id),
             parent.map(|p| entity_ref(snap, p)).unwrap_or_else(|| "top level".into())
         ),
-        Op::Relocate { id, file, ordinal } => format!("relocated {} → {file}#{ordinal}", entity_ref(snap, *id)),
-        Op::Extract { id, .. } => format!("extracted {}", entity_ref(snap, *id)),
-        Op::Inline { id } => format!("inlined {}", entity_ref(snap, *id)),
-        Op::AddDef { id, .. } => format!("add-def {}", entity_ref(snap, *id)),
-        Op::Delete { id, .. } => format!("deleted {}", entity_ref(snap, *id)),
-        Op::EditDef { id, .. } => format!("edit-def {}", entity_ref(snap, *id)),
+        Op::Relocate { id, file, ordinal } => format!("relocated {} → {file}#{ordinal}", subj(*id)),
+        Op::Extract { id, .. } => format!("extracted {}", subj(*id)),
+        Op::Inline { id } => format!("inlined {}", subj(*id)),
+        Op::AddDef { id, .. } => format!("add-def {}", subj(*id)),
+        Op::Delete { id, .. } => format!("deleted {}", subj(*id)),
+        Op::EditDef { id, .. } => format!("edit-def {}", subj(*id)),
         Op::Merge { other } => format!("merged change {}", other.short()),
         Op::Undo => "undo".into(),
         Op::New { change } => format!("new change {}", change.short()),
@@ -164,6 +172,7 @@ fn op_verb(snap: &Snapshot, o: &Op) -> String {
             at: 0,
             group: None,
             root_after: snap.id(),
+            subject: None,
         },
     )
     .trim_start_matches(|c: char| c == '#' || c.is_ascii_digit() || c == ' ')
