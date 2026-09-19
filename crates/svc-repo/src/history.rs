@@ -346,9 +346,9 @@ pub fn evolog(repo: &Repo, change: ChangeId) -> Result<Vec<EvologEntry>> {
     Ok(out)
 }
 
-/// `svc undo`: restore the view from before the last op. If that op belongs to a changeset,
-/// the whole group is undone in one step. The undo is itself an op, so a second
-/// `undo` redoes.
+/// `svc undo`: restore the view from before this checkout's newest op that no earlier undo
+/// already reverted; an op that belongs to a changeset takes the whole group with it.
+/// Redo is `svc op restore <n>`.
 pub fn undo(repo: &Repo) -> Result<MutationOut> {
     // Each checkout undoes its own ops: another checkout's entry carries
     // *its* root in `before`, and restoring that here would silently switch checkouts.
@@ -478,8 +478,8 @@ pub struct ChangeSetOut {
     pub ops: Vec<OpOut>,
 }
 
-/// `svc changeset begin <name>`: open a group that every following op is stamped with
-///. Refuses while another is open unless `force`; a stale row is closed first.
+/// `svc changeset begin <name>`: open a group that every following op is stamped with.
+/// Refuses while another is open unless `force`; a stale row is closed first.
 pub fn changeset_begin(
     repo: &Repo,
     name: &str,
