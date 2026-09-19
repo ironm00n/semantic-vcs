@@ -3,8 +3,30 @@ use uuid::Uuid;
 
 macro_rules! uuid_id {
     ($name:ident) => {
-        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-        pub struct $name(#[serde(with = "uuid::serde::compact")] pub Uuid);
+        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(pub Uuid);
+
+        /// Compact bytes for postcard (the hashed form); hyphenated text for JSON.
+        impl Serialize for $name {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+                if s.is_human_readable() {
+                    s.serialize_str(&self.0.hyphenated().to_string())
+                } else {
+                    uuid::serde::compact::serialize(&self.0, s)
+                }
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+                if d.is_human_readable() {
+                    let s = String::deserialize(d)?;
+                    Uuid::parse_str(&s).map(Self).map_err(serde::de::Error::custom)
+                } else {
+                    uuid::serde::compact::deserialize(d).map(Self)
+                }
+            }
+        }
 
         impl $name {
             pub fn new() -> Self {
@@ -43,8 +65,37 @@ macro_rules! uuid_id {
 
 macro_rules! hash_id {
     ($name:ident) => {
-        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name(pub [u8; 32]);
+
+        /// Raw bytes for postcard (the hashed form); 64 hex chars for JSON.
+        impl Serialize for $name {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+                if s.is_human_readable() {
+                    s.serialize_str(&hex32(&self.0))
+                } else {
+                    self.0.serialize(s)
+                }
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+                if d.is_human_readable() {
+                    let s = String::deserialize(d)?;
+                    parse_hex32(&s).map(Self).map_err(serde::de::Error::custom)
+                } else {
+                    <[u8; 32]>::deserialize(d).map(Self)
+                }
+            }
+        }
+
+        impl std::str::FromStr for $name {
+            type Err = String;
+            fn from_str(s: &str) -> std::result::Result<Self, String> {
+                parse_hex32(s).map(Self)
+            }
+        }
 
         impl $name {
             pub fn as_bytes(&self) -> &[u8; 32] {
@@ -210,5 +261,39 @@ impl ContentId {
 impl BytesId {
     pub fn of(bytes: &impl Serialize) -> Self {
         Self(hash_postcard(bytes))
+    }
+}
+
+fn parse_hex32(s: &str) -> std::result::Result<[u8; 32], String> {
+    if s.len() != 64 {
+        return Err(format!("expected 64 hex chars, got {}", s.len()));
+    }
+    let mut out = [0u8; 32];
+    for (i, chunk) in s.as_bytes().chunks(2).enumerate() {
+        let pair = std::str::from_utf8(chunk).map_err(|e| e.to_string())?;
+        out[i] = u8::from_str_radix(pair, 16).map_err(|e| e.to_string())?;
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ids_are_compact_in_postcard_and_text_in_json() {
+        let c = ChangeId::new();
+        assert_eq!(postcard::to_stdvec(&c).unwrap().len(), 16);
+        let json = serde_json::to_string(&c).unwrap();
+        assert_eq!(json, format!("\"{}\"", c.0.hyphenated()));
+        assert_eq!(serde_json::from_str::<ChangeId>(&json).unwrap(), c);
+        assert_eq!(postcard::from_bytes::<ChangeId>(&postcard::to_stdvec(&c).unwrap()).unwrap(), c);
+
+        let h = SnapshotId([7; 32]);
+        assert_eq!(postcard::to_stdvec(&h).unwrap().len(), 32);
+        let json = serde_json::to_string(&h).unwrap();
+        assert_eq!(json.len(), 66);
+        assert_eq!(serde_json::from_str::<SnapshotId>(&json).unwrap(), h);
+        assert_eq!(json.trim_matches('"').parse::<SnapshotId>().unwrap(), h);
     }
 }
