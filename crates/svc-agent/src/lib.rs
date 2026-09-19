@@ -1,4 +1,4 @@
-//! The ACP client side of `svc agent` (SPEC §6–7): spawn `dsh --profile acp` with the svc
+//! The ACP client side of `svc agent` (design §6–7): spawn `dsh --profile acp` with the svc
 //! overlay, stream its `session/update`s as [`AgentEvent`]s over **one unbounded channel**,
 //! and park every `session/request_permission` as a [`PermissionAsk`] the reviewer answers
 //! later. Handlers hold the dispatch loop, so nothing here blocks or parses.
@@ -81,7 +81,7 @@ pub enum AgentEvent {
     Thought { text: String },
     ToolCall { id: String, title: String, status: String, raw_input: Option<Value> },
     ToolCallUpdate { id: String, title: Option<String>, status: Option<String>, raw_output: Option<Value> },
-    /// Answer it, or the agent waits forever (SPEC §6).
+    /// Answer it, or the agent waits forever (design §6).
     Permission(PermissionAsk),
     Stopped { reason: String },
     /// A line of the agent's stderr, or a wire frame when `wire_log` is on.

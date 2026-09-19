@@ -75,7 +75,7 @@ fn o5_replay_reproduces_every_snapshot() {
     assert!(report.ok(), "replay diverged: {report:?}");
 }
 
-/// DEBATE §14: two checkouts share one op log but start ops from different roots. Two
+/// design note §14: two checkouts share one op log but start ops from different roots. Two
 /// changes edited alternately look the same to the log (`edit` switches root without an
 /// entry), so [A: rename] [B: rename] [A: describe] must replay by following each entry's
 /// recorded `before.root`, not the last op's result.

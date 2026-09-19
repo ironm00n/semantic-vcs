@@ -1,4 +1,4 @@
-//! `svc tui`: the review surface (SPEC §7) — entity tree, events, review queue — as a view
+//! `svc tui`: the review surface (design §7) — entity tree, events, review queue — as a view
 //! over `svc --json`, optionally hosting one ACP agent run whose permission asks are answered
 //! from the queue.
 

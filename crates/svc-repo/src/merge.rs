@@ -1,4 +1,4 @@
-//! The `merge` / `conflicts` / `resolve` verbs over `svc_core::engine::merge` (SPEC §5.3–5.4).
+//! The `merge` / `conflicts` / `resolve` verbs over `svc_core::engine::merge` (design §5.3–5.4).
 //!
 //! Sides are snapshots; the base is their lowest common ancestor over `Snapshot.parents`.
 //! The engine does the per-entity three-way, the atom-level body merge and the binding
@@ -193,7 +193,7 @@ pub fn conflicts(repo: &Repo) -> Result<Vec<ConflictOut>> {
 }
 
 /// `svc resolve <n> --take a|b|base`: choose one side of an attribute, content, delete/edit or
-/// add/add conflict. Binding conflicts have no side to take (SPEC §5.4) and are rejected here.
+/// add/add conflict. Binding conflicts have no side to take (design §5.4) and are rejected here.
 pub fn resolve(repo: &Repo, n: usize, take: Take) -> Result<MergeOut> {
     let cur = repo.current()?;
     let conflict = cur

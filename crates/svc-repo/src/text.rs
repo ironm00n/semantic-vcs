@@ -1,4 +1,4 @@
-//! Human-readable renderings of the verb outputs (SPEC §8: `--json` is the machine form;
+//! Human-readable renderings of the verb outputs (design §8: `--json` is the machine form;
 //! without it the expo reads sentences). Entity references print as `name⟨short⟩`, never
 //! a bare UUID.
 
@@ -189,7 +189,7 @@ pub fn status(snap: &Snapshot, s: &StatusOut) -> String {
 
 pub fn delta(snap: &Snapshot, d: &svc_core::Delta) -> String {
     use svc_core::Delta;
-    // Alpha edits are the layout-only line of SPEC §10 line 2: bytes differ, content does not.
+    // Alpha edits are the layout-only line of demo line 2: bytes differ, content does not.
     match d {
         Delta::Added(id) => format!("added {}", entity_ref(snap, *id)),
         Delta::Removed(id) => format!("removed ⟨{}⟩", id.short()),

@@ -1,4 +1,4 @@
-//! SPEC §10b, O9 — the compiler as a binding oracle.
+//! the oracle set, O9 — the compiler as a binding oracle.
 //!
 //! "α-rename every local in every entity to a guaranteed-fresh name, render
 //! the result, and run `cargo check`. If our binder table misses an
@@ -21,7 +21,7 @@
 //!   cargo test -p svc-core --test o9_compiler_oracle -- --ignored --nocapture
 //!
 //! STATUS as of this writing: red on main, on purpose. It has already found
-//! four real resolve_locals/by_name bugs, see DEBATE.md #13 and
+//! four real resolve_locals/by_name bugs, see the design notes #13 and
 //! inbox/to-cursor.md for full repros and byte-exact evidence:
 //!  a) by_name is flat/last-write-wins with no lexical-position awareness,
 //!     so a later same-name let (sibling-branch redeclaration, or a
@@ -92,7 +92,7 @@ fn alpha_rename_file(src: &str, lang: &RustLang, next_id: &mut u32) -> String {
 
     for ent in &raw {
         // `resolve()` on this `main` has no entity-boundary guard yet (cursor's branch adds
-        // one, per DEBATE §12's sibling issue for JS) — it walks the *whole* subtree, so
+        // one, per design note §12's sibling issue for JS) — it walks the *whole* subtree, so
         // calling it on a container entity (impl/mod/trait) re-collects its nested entities'
         // own locals too, producing duplicate slots at the same byte range. Container entities
         // never bind locals directly in Rust, so skipping any entity with children sidesteps
@@ -132,7 +132,7 @@ fn alpha_rename_file(src: &str, lang: &RustLang, next_id: &mut u32) -> String {
             if let IdentRef::Local(slot, Namespace::Value) = ident {
                 if let Some(name) = slot_names.get(slot) {
                     // The struct-expression shorthand `S { a }` is a `shorthand_field_initializer`
-                    // wrapping a plain identifier (SPEC §9): it is simultaneously the (fixed)
+                    // wrapping a plain identifier (design §9): it is simultaneously the (fixed)
                     // field name and a value reference to the local. A straight text swap would
                     // rename the field too (`no field named _svc_N`); expand it to `field: newname`.
                     // `find_node` returns the OUTERMOST node whose span matches `range`, and

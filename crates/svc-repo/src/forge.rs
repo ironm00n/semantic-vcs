@@ -72,7 +72,7 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
     let ops = store.ops(OpIx(0), false)?;
     let operations: Vec<Value> = ops.iter().map(|(_, e)| serde_json::to_value(e).unwrap_or(Value::Null)).collect();
 
-    // The review queue as SPEC §7 defines it: every edit-def, and every binding conflict
+    // The review queue as design §7 defines it: every edit-def, and every binding conflict
     // in the current snapshot. (Changesets' own `queue` is not populated by any verb.)
     let mut review: Vec<ReviewItem> = ops
         .iter()

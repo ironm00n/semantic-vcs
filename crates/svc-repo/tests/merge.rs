@@ -1,4 +1,4 @@
-//! Acceptance tests for `svc merge` (DEBATE §11): the verbs are svc-repo's, the algorithm is
+//! Acceptance tests for `svc merge` (design note §11): the verbs are svc-repo's, the algorithm is
 //! `svc_core::engine::merge`. Fixtures go through the real ops so the merged snapshot is
 //! something the §5.4 post-condition can render and re-parse.
 

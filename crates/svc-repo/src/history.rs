@@ -1,4 +1,4 @@
-//! History verbs (SPEC §5, §8): jj-style changes over immutable snapshots.
+//! History verbs (design §5, §8): jj-style changes over immutable snapshots.
 //!
 //! `evolog` walks `Snapshot.predecessors` — the *rewrite* chain of one change — never
 //! `parents`. `Store::evolog` follows `predecessors.first()`, which is exact as long as an
@@ -194,7 +194,7 @@ pub fn describe(repo: &Repo, msg: &str) -> Result<MutationOut> {
 }
 
 /// `svc branch <name>`: a new change that is a *sibling* of the current one — its parent is
-/// the current change's parent (DECISIONS §19) — named `name`, and made current. A root
+/// the current change's parent (design decision §19) — named `name`, and made current. A root
 /// change has no parent, so its sibling would be empty; branch from the root itself instead.
 pub fn branch(repo: &Repo, name: &str) -> Result<MutationOut> {
     if repo.store().branch(name)?.is_some() {
@@ -221,7 +221,7 @@ pub fn edit(repo: &Repo, target: &str) -> Result<View> {
 }
 
 /// `svc checkout <snapshot>`: view a snapshot. Moves `root` only — no change, no head, no
-/// op-log entry — and refuses to overwrite hand edits (SPEC §8).
+/// op-log entry — and refuses to overwrite hand edits (design §8).
 pub fn checkout(repo: &Repo, snapshot: SnapshotId) -> Result<View> {
     if !repo.working_copy_clean()? {
         return Err(Error::Other(
@@ -269,7 +269,7 @@ pub fn op_log(repo: &Repo) -> Result<Vec<OpOut>> {
         .collect())
 }
 
-/// `svc log`: the op view scoped to one change (DECISIONS §20) — every op that moved that
+/// `svc log`: the op view scoped to one change (design decision §20) — every op that moved that
 /// change's head or ran on it (a no-op `edit-def` still happened and still queues for
 /// review) — newest first. Defaults to the current change.
 pub fn log(repo: &Repo, change: Option<ChangeId>) -> Result<Vec<OpOut>> {
@@ -347,10 +347,10 @@ pub fn evolog(repo: &Repo, change: ChangeId) -> Result<Vec<EvologEntry>> {
 }
 
 /// `svc undo`: restore the view from before the last op. If that op belongs to a changeset,
-/// the whole group is undone in one step (SPEC §5.6). The undo is itself an op, so a second
+/// the whole group is undone in one step (design §5.6). The undo is itself an op, so a second
 /// `undo` redoes.
 pub fn undo(repo: &Repo) -> Result<MutationOut> {
-    // Each checkout undoes its own ops (DEBATE §15.3): another checkout's entry carries
+    // Each checkout undoes its own ops (design note §15.3): another checkout's entry carries
     // *its* root in `before`, and restoring that here would silently switch checkouts.
     // Unattributed entries from before op attribution count as the default checkout's.
     let ops = repo.redb().own_ops(OpIx(0), true)?;
@@ -479,7 +479,7 @@ pub struct ChangeSetOut {
 }
 
 /// `svc changeset begin <name>`: open a group that every following op is stamped with
-/// (SPEC §5.6). Refuses while another is open unless `force`; a stale row is closed first.
+/// (design §5.6). Refuses while another is open unless `force`; a stale row is closed first.
 pub fn changeset_begin(
     repo: &Repo,
     name: &str,
@@ -618,7 +618,7 @@ pub fn op_entity(op: &Op) -> Option<EntityId> {
 /// reference svc resolved has already changed; what remains is what it could not resolve —
 /// method calls on typed receivers (`x.word(…)`, which need types), and strings, comments
 /// or unrelated bindings — and did not touch. The honest numbers to print next to
-/// "renamed" (SPEC §10 line 13), not to hide.
+/// "renamed" (demo line 13), not to hide.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Mentions {
     pub method_calls: usize,

@@ -7,7 +7,7 @@ use crate::delta::ObservedClass;
 use crate::ids::{ByteRange, BytesId, Slot};
 use crate::lang::Resolution;
 
-/// SPEC §3.3: first applicable class. Aligns rendered whole items, not neutralized tokens.
+/// design §3.3: first applicable class. Aligns rendered whole items, not neutralized tokens.
 pub fn classify(
     old: &Content,
     new: &Content,

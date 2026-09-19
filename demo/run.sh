@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The acceptance gate: SPEC §10 lines 1–12 + the forge (demo-lines.sh), then the
+# The acceptance gate: demo lines 1–12 + the forge (demo-lines.sh), then the
 # self-hosting line (self-host.sh: svc on its own crates, three real cargo builds,
 # ~80 s). Exit status is the total number of failures. Resolves a relative binary
 # path first because both scripts cd away.

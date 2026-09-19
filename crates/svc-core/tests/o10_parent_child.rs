@@ -1,4 +1,4 @@
-//! SPEC §10b, O10 — parent/child invariant.
+//! the oracle set, O10 — parent/child invariant.
 //!
 //! "for every entity `e` with `parent = Some(p)`, `p`'s chunk list and content
 //! stream each contain exactly one `Child(e)`, and conversely; no orphans."

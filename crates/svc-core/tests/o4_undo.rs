@@ -1,4 +1,4 @@
-//! O4: `undo(op(s)) == s` by restoring the recorded `View` (SPEC §10b).
+//! O4: `undo(op(s)) == s` by restoring the recorded `View` (the oracle set).
 //!
 //! The repo verb (`svc undo`) also re-renders and groups by changeset; this
 //! oracle checks the store law those verbs rest on: after an op, `set_root`

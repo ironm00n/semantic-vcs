@@ -1,6 +1,6 @@
 // A scripted stand-in for the model: an ACP v1 agent over stdio that replays a recording
 // of svc ops (demo/recordings/line9.ops.jsonl; line9.jsonl is the live run's summary) through the real `svc` binary, so the TUI hosts a
-// run with no API key (SPEC §10 line 12 rehearsal). Each op becomes a tool_call; edit_def
+// run with no API key (demo line 12 rehearsal). Each op becomes a tool_call; edit_def
 // asks permission first, exactly as the review queue expects; the ops land in whatever
 // changeset the host opened.
 //

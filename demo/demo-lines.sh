@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scripted run of SPEC §10 demo lines 1–12 (+ the forge, done-criterion 1) against the built `svc` binary, on a scratch
+# Scripted run of demo lines 1–12 (+ the forge, done-criterion 1) against the built `svc` binary, on a scratch
 # copy of demo/config. Prints one PASS/FAIL per observable; exit status is the number of failures.
 #
 #   cargo build -p svc && demo/demo-lines.sh [path/to/svc]

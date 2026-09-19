@@ -20,7 +20,7 @@ pub enum Pane {
     Queue,
 }
 
-/// SPEC §7: every `edit_def` queues (green when declared and observed agree, red when they
+/// design §7: every `edit_def` queues (green when declared and observed agree, red when they
 /// don't), binding conflicts queue, nothing else. The permission ask and the verdict are one
 /// item in two states.
 pub enum QueueItem {

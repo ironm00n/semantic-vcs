@@ -39,7 +39,7 @@ enum Command {
     Checkout { snapshot: String }, Render, Rename(RenameArgs), Move(MoveArgs),
     Relocate(RelocateArgs), Extract(ExtractArgs), Inline(EntityArg), AddDef(AddDefArgs),
     Delete(DeleteArgs), EditDef(EditDefArgs), Classify(ClassifyArgs), Agent { task: String },
-    /// Open the review UI; with `--agent <task>`, run that task under dsh inside it (SPEC §10 line 12).
+    /// Open the review UI; with `--agent <task>`, run that task under dsh inside it (demo line 12).
     Tui { #[arg(long)] agent: Option<String>, #[arg(long)] wire_log: bool },
 }
 
@@ -165,7 +165,7 @@ fn main() -> ExitCode {
     }
 }
 
-/// The sentence form of the verbs whose output people read at the expo (SPEC §8: `--json`
+/// The sentence form of the verbs whose output people read at the expo (design §8: `--json`
 /// is the machine form). `None` for every other verb, which then takes the JSON path.
 fn run_text(cli: &Cli) -> Option<Result<String, String>> {
     use svc_repo::text;
@@ -190,7 +190,7 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
         Command::Merge { change } => merge_repo(&repo, change)
             .and_then(|m| repo.current().map(|s| text::merge(&s, repo.store(), repo.root_dir(), &m))),
         Command::Show { entity } => {
-            // SPEC §10 line 3: the canonical stream — `$n` local slots, `#name⟨hash⟩` refs.
+            // demo line 3: the canonical stream — `$n` local slots, `#name⟨hash⟩` refs.
             return Some(show_canonical(&repo, entity).map(|v| {
                 format!("{entity}⟨{}⟩\n{}", v["short"].as_str().unwrap_or(""), v["canonical"].as_str().unwrap_or(""))
             }));

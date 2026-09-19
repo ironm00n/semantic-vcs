@@ -1,4 +1,4 @@
-//! O5 (SPEC §10b): replaying the op log from the root reproduces every snapshot. The replay
+//! O5 (the oracle set): replaying the op log from the root reproduces every snapshot. The replay
 //! runs on a fresh store with no filesystem, so anything the verbs keep outside the op path
 //! shows up as a divergence. Snapshot hashes include change ids, and `Branch`/`Merge` mint
 //! theirs at run time, so equality is on **content** (`Snapshot::content_eq`) with ids mapped
@@ -93,7 +93,7 @@ impl Replay<'_> {
     fn apply(&mut self, e: &OpLogEntry) -> Result<()> {
         // The entry records which root it started from. With several checkouts on one op
         // log (or a `checkout` between ops) that is not necessarily the last op's result:
-        // switch to it first — a checkout switch, not a content change (DEBATE §14).
+        // switch to it first — a checkout switch, not a content change (design note §14).
         if let Some(mapped) = self.snaps.get(&e.before.root).copied() {
             if mapped != self.store.root()? {
                 self.store.set_root(mapped)?;

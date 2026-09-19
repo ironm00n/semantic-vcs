@@ -84,7 +84,7 @@ its turn early to continue, `u` undo, `c` cancel, `q` quit.
 `svc tui --agent "<task>"` runs the task under dsh **inside** the TUI: the ops
 stream into the panes as they land, the `edit_def` permission request lands in
 the queue and is answered from there, and the whole run is one changeset that
-`svc undo` reverts in one step (SPEC §10 line 12). Without a model credential,
+`svc undo` reverts in one step (demo line 12). Without a model credential,
 `SVC_AGENT_COMMAND="node demo/replay-agent.mjs demo/recordings/line9.ops.jsonl"`
 hosts a scripted ACP agent that replays the three recorded ops through the real
 binary; that is what the acceptance script's line 12 gates. Any ACP-on-stdio

@@ -1,5 +1,5 @@
 //! lang-js lane: entity extraction, Kind refinement, roles, round-trip.
-//! Binding data: `facts/js-binding-tables.md`; Kind variants: DECISIONS §25.
+//! Binding data: the JS binding tables; Kind variants: design decision §25.
 
 use std::collections::BTreeMap;
 
@@ -698,7 +698,7 @@ fn js_roles_using_declarations_bind_lexically() {
     }));
 }
 
-/// Trap T19 vs SPEC §68 (corrected 9/18): computed member names get the
+/// Trap T19 vs design §68 (corrected 9/18): computed member names get the
 /// source text as the synthetic name — `[k]`, not `None` — and are instead
 /// never matched across a rename (engine-side rule, not the lane's).
 #[test]

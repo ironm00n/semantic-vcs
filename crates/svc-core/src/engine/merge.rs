@@ -361,7 +361,7 @@ fn src_atoms(src: &[u8], lang: &dyn crate::lang::Lang) -> Result<Vec<Vec<u8>>> {
     let Some(body) = item.child_by_field_name("body") else {
         return Ok(vec![src.to_vec()]);
     };
-    // Atom 0 is the signature up to and including the body's opening brace (SPEC §5.3).
+    // Atom 0 is the signature up to and including the body's opening brace (design §5.3).
     let open = body.start_byte() + usize::from(src.get(body.start_byte()) == Some(&b'{'));
     let mut atoms = Vec::new();
     atoms.push(src.get(..open).unwrap_or(src).to_vec());

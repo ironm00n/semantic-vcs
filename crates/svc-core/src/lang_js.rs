@@ -1,9 +1,9 @@
 //! JavaScript language module over tree-sitter-javascript 0.25.
 //!
-//! Binding data transcribed from `facts/js-binding-tables.md` (scope §1,
+//! Binding data transcribed from the JS binding tables (scope §1,
 //! binder §2, reference §3); trap IDs below (T1–T23) refer to its §4.
 //! Contradiction resolutions applied: C1 (accessor/static live in `Kind`,
-//! DECISIONS-TAKEN §25), C5 (`Namespace::Label` exists).
+//! design decision §25), C5 (`Namespace::Label` exists).
 
 use crate::content::Namespace;
 use crate::entity::Kind;
@@ -37,7 +37,7 @@ const ENTITY_KINDS: &[EntityKindRule] = &[
         children_field: None,
     },
     // Table kind is the base; `js_kind` refines method/field/declarator.
-    // (DEBATE §8: flat table cannot hold 1 node kind → 4 Kinds.)
+    // (design note §8: flat table cannot hold 1 node kind → 4 Kinds.)
     EntityKindRule {
         node_kind: "method_definition",
         kind: Kind::JsMethod,
@@ -450,7 +450,7 @@ impl Lang for JsLang {
 
     fn commutative_parents(&self) -> &'static [CommutativeRule] {
         // `class_body` is commutative for methods only: field initializers
-        // run in order, so field order is semantic (SPEC §9, facts C6).
+        // run in order, so field order is semantic (design §9, facts C6).
         &[CommutativeRule {
             parent: Some(Kind::JsClass),
             only_child_kinds: Some(&[

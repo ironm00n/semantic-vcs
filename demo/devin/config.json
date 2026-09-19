@@ -4,7 +4,7 @@
 // run exactly one program, `svc`. `deny` is policy — checked before any permission prompt and
 // not overridable by the session's permission mode — so a direct file edit is not "asked",
 // it is impossible. Everything the agent changes therefore goes through typed svc ops and
-// lands in the op log (SPEC §6).
+// lands in the op log (design §6).
 {
   "permissions": {
     "deny": [
