@@ -10,6 +10,213 @@ Agent-generated code is cheap. Understanding it is not.
 2. **The operation is the history.** A rename is recorded as a rename, not reconstructed later from a text diff. Agent work is reviewable as a sequence of declared operations and observed semantic classes.
 3. **Binding is a merge postcondition.** If a clean text merge changes which local binder an existing reference denotes, `svc` can represent that as a binding conflict instead of shipping compilable but incorrect code.
 
+## How the core works
+
+Everything below is `crates/svc-core` (under 5k lines; its only I/O is a
+`Store` trait). The CLI, the redb store, the TUI, the agent host and the
+forge are layers over it.
+
+```mermaid
+flowchart LR
+  W[working source] --> P[tree-sitter + per-language role table]
+  P --> E[entities with stable ids]
+  E --> C[Content: α-normal token stream]
+  E --> B[Bytes: exact source with holes]
+  C --> S[immutable snapshot]
+  B --> S
+  O[typed op log] --> S
+  S --> R[byte-exact render]
+```
+
+### The unit of storage is a definition, not a file
+
+A source file is parsed with tree-sitter and split into **entities**: top-level
+and nested items (`fn`, `struct`, `enum`, `trait`, `impl`, `const`, `mod`, JS
+functions/classes/methods/accessors, …) selected by a per-language table
+(`lang_rust.rs`, `lang_js.rs`). Each entity gets a `EntityId` — a UUIDv7 minted
+once and kept for the entity's whole life — and a record:
+
+```rust
+struct EntityRecord {
+    name: String,               // the only place the declared name is stored
+    kind: Kind,                 // Fn | Struct | Impl | JsMethod | …
+    parent: Option<EntityId>,   // impl/class/mod nesting
+    file: RelPath, ordinal: u32,
+    content: ContentId,         // hash of the canonical token stream
+    bytes: BytesId,             // hash of the byte-exact chunk list
+}
+```
+
+A **snapshot** is `BTreeMap<EntityId, EntityRecord>` plus, per file, only the
+bytes after the last item. There are no file blobs. A file is *derived*: sort
+the file's root entities by ordinal, expand each, append the trailing bytes.
+
+### Two representations per entity, one hash each
+
+Every entity is stored twice, and the two hashes answer different questions.
+
+**`Content`** (`content.rs`, built in `engine/canon.rs`) is the entity in
+α-normal form: a token stream where
+
+- every local binder becomes `Binder(Slot(n), Namespace)` and every use of it
+  `Ident(Local(Slot(n), ns))` — slots are numbered by order of binding within
+  the item, per namespace (value / type / lifetime / label / macro), so the
+  spelling of a parameter or `let` is gone;
+- every reference to another entity in the snapshot becomes
+  `Ident(Entity(id))` — the callee's *name* is gone too, only its identity
+  remains;
+- the entity's own declaration name is `Ident(Entity(SELF))`;
+- nested entities collapse to a single `Child(id)` token;
+- anything unresolved stays `Free(name)`, and comments/whitespace are dropped.
+
+`ContentId = blake3(postcard(Content))`. Two definitions that differ only in
+local names, callee names, formatting or comments have the same `ContentId`.
+That single property is what lets `rename` be an operation rather than a
+diff: renaming `parse` to `parse_config` changes **one `String`** in one
+record. No blob is rewritten, no other entity's hash moves (oracle O3), and
+the 30 call sites in 26 files that mention it (`tokio::asyncify`, below) are
+not edits at all — they are holes that fill in at render time.
+
+**`Bytes`** (`content.rs`, built in `engine/bytes.rs`) is the byte-exact
+source of the item with holes punched out:
+
+```rust
+enum Chunk { Literal(ByteRange), Child(EntityId), Name(EntityId) }
+```
+
+`Literal` ranges index a private copy of the original bytes (spelling,
+trivia, layout preserved); `Child` splices a nested entity; `Name(id)` is a
+hole that renders as *whatever `id` is currently called* in the snapshot the
+render is running against. Alongside, `local_ranges: [(ByteRange, IdentRef)]`
+records where every local binder and reference sits in those bytes, so a
+rendered file can be annotated back to slots without re-parsing.
+`BytesId = blake3(Bytes)`; it changes when you reformat, add a comment or
+rename a local, and `ContentId` does not.
+
+Render (`engine/render_impl.rs`) is a recursive expansion of chunks; O1 checks
+that `render(ingest(src)) == src` byte-for-byte on `svc-core`'s own source, O6
+that `ingest(render(s))` is a fixpoint that mints no new ids.
+
+### Identity across re-parses
+
+When the working copy is re-ingested (`svc status`/`absorb`), parsed items are
+matched to the previous snapshot by `(parent, kind, name)` first, then by
+`ContentId` if exactly one unmatched previous entity has the same canonical
+body (`engine/diff_impl.rs`). Anything else is `Added`/`Removed`. A rename done
+*as text* therefore survives as the same entity when the body is unchanged;
+a rename done as `svc rename` never needs matching at all. O10 pins the
+parent/child invariant: every `parent = Some(p)` has exactly one `Child(e)` in
+`p`'s chunk list and token stream, and vice versa.
+
+### Local binding is resolved once, by table
+
+`engine/canon.rs::resolve_locals` is a small scoped resolver driven by
+per-language `Role` tables rather than by hard-coded grammar knowledge. A
+node can be a `Binder { namespace, visibility, locator }` (parameter, `let`
+pattern, closure param, generic, label, JS `let`/`const`/class field, …), a
+`Reference { namespace }`, or a `Scope { opens, barriers }`. `Visibility`
+distinguishes `let` (visible *after* the statement — so `let x = x + 1` reads
+the outer `x`), parameters visible only in the body, block-scoped JS
+`let`/`const` and hoisted `var`/function declarations. A reference resolves
+to the innermost visible binder
+with the same name and namespace, or stays `Free`. Rust paths
+(`a::b`), pattern constructors (`Some(x)` binds `x`, not `Some`), wildcards
+and `..` are handled; type-relative resolution (methods, fields, associated
+items) is out of scope for the hackathon build. Nothing in the store depends
+on that choice — see below.
+
+The compiler is used as the oracle for this table (O9): every value-namespace
+local in every entity of `svc-core` is α-renamed to a fresh name, rendered,
+and `cargo check`ed. A binder the table misses, a reference it mistakes for a
+binder, or two bindings collapsed to one name breaks the build.
+
+### Classifying an edit
+
+`edit_def` replaces one entity's body and records an **observed class**
+(`engine/classify.rs`) next to the agent's **declared intent**:
+
+| observed | meaning |
+|---|---|
+| `Alpha` | same `Content`, bytes differ only at local-binder spellings |
+| `DocsOnly` | same `Content`, other byte changes (comments, layout) |
+| `BindingPreserving` | body changed, but every reference that survives the edit still denotes the same target |
+| `BindingChanging` | some surviving reference now denotes a different binder or entity |
+
+The surviving-reference check lines up old and new renders with a line diff,
+builds a slot bijection from binder sites on unchanged lines, and asks
+whether each unchanged reference maps through it. `refactor` declared with
+`BindingChanging` observed is flagged in the review queue; so is `docs` that
+changed anything semantic, or `fix` that changed nothing.
+
+### Merge, and the binding post-condition
+
+`engine/merge.rs::merge(base, a, b)` is a three-way merge **per entity**, not
+per file. Attributes (`name`, `parent`, `file`, `ordinal`) merge
+independently — rename on one side and body edit on the other commute for
+free. Bodies that both sides touched are split into **statement atoms**
+(signature-plus-brace, then one atom per body statement), each atom is
+hashed, and the atom-hash sequences are merged as lines; a real overlap is a
+`Content` conflict with hunks expressed as atom ranges. Add/add with the same
+`(parent, kind, name)` is unified to one id; delete/edit keeps the edited
+record and reports it.
+
+Then the step git does not have: the merged snapshot is **rendered and
+re-resolved**, and for every entity, every reference that existed on some
+input side is compared with what it denotes now. One side adds
+`log(&raw)` after `let raw = read(path)`; the other inserts
+`let raw = normalize(&raw)` between them. Neither hunk overlaps, the merge
+succeeds textually and compiles — but `raw` in `log(&raw)` now resolves to a
+different slot than it did on the side that wrote it, and `svc` records
+
+```text
+binding conflict in load: `raw` at src/main.rs:73 meant the `let raw` at :67,
+now means the `let raw` at :68 (shadowed)
+```
+
+as a `Conflict::Binding` on the snapshot (demo line 6; `demo/git-twin` shows
+git merging the same two branches clean). Slots are matched across sides by
+the same line-diff bijection the classifier uses, so an unrelated statement
+inserted above does not renumber a reference into a false conflict.
+
+### History is a log of typed operations
+
+`Op` is a closed enum — `Rename`, `Move`, `Relocate`, `AddDef`, `EditDef`,
+`Delete`, `Merge`, `Undo`, `New`, `Branch`, `Describe`, `Absorb` — and every
+CLI verb appends one `OpLogEntry { op, observed, before: View, after: View }`
+where a `View` is `(root snapshot, all change heads)`. Snapshots are
+content-addressed and immutable (`parents` for merge ancestry,
+`predecessors` for amend history, like jj's evolution log). `undo` is
+"restore `before`" and O4 checks it returns the exact snapshot hash; O5
+replays the op log from an empty store and requires the same head. Because
+`Absorb` (reconciling hand edits) is itself an op that records the resulting
+snapshot, a repository is fully determined by its op log.
+
+### What it is not (yet), and why that is a scope choice
+
+The resolver is lexical only: no types, so `x.parse()` on an unknown
+receiver is a `Free` mention, and `svc rename` reports how many of those it
+left alone instead of guessing. `macro_rules!` bodies and `use` lines are
+opaque entities. Cross-file JS import/export is not modelled. The resolver
+tables are the trust boundary, which is why O9 runs them through the
+compiler.
+
+None of this is baked into the format. The store never sees syntax: an
+entity is a record keyed by `EntityId`, a `Content` stream whose references
+are already `Local(slot)` / `Entity(id)` / `Free(name)`, and a `Bytes` blob
+whose holes are `Name(id)`. The only component that decides *which* of those an
+identifier becomes is `resolve` in `engine/mod.rs`, and it is a pure function
+from (item, source, `Env`) to a `Resolution`. Swapping the name-lookup `Env`
+for a type-aware backend — rust-analyzer's HIR, `tsc`'s checker, or a
+per-language `Lang` that answers "what does this method call denote?" —
+turns the `Free("parse")` in `x.parse()` into an `Entity(id)`, at which point method
+renames, field renames and trait-item renames become the same one-field
+write, the binding post-condition covers receiver-relative rebinding, and
+the classifier sees through `impl` dispatch. Renders, hashes, the op log,
+merge and undo do not change. What exists today is the lexical instance of
+that design plus the oracles O1–O10 that check it. Caveat on the swap: `Env`
+is currently a concrete `HashMap<(name, Namespace), EntityId>`, so a
+type-aware backend means making it a trait, not just a different map.
+
 ## Try the working path
 
 Enter the development shell and build:
@@ -131,22 +338,6 @@ npx -y @deepseek-ai/dsh@0.1.5-rc.2 \
 ```
 
 The overlay keeps read, glob, and grep; removes direct `edit` and `write`; disables shell, web, and subagent tools; and exposes semantic operations such as `rename`, `add_def`, and `edit_def`. `edit_def` requires a complete item and triggers an ACP permission request. `list_tools` reports the agent's own live schema set. DeepSeek session-log upload is disabled.
-
-## Representation
-
-```mermaid
-flowchart LR
-  W[working source] --> P[tree-sitter language module]
-  P --> E[stable entity IDs]
-  E --> C[canonical content and resolved references]
-  E --> B[byte-exact source chunks]
-  C --> S[immutable snapshot]
-  B --> S
-  O[semantic operation log] --> S
-  S --> R[recursive byte-exact render]
-```
-
-Canonical content replaces local names with slots and cross-definition names with stable entity IDs. A separate chunked byte representation preserves spelling, trivia, nesting, and declaration-name holes, allowing unchanged source to round-trip exactly.
 
 ## Scope and limitations
 
