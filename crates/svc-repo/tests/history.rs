@@ -344,3 +344,29 @@ fn js_files_are_tracked() {
     assert!(snap.entities.values().any(|r| r.name == "C"));
     assert!(repo.working_copy_clean().unwrap());
 }
+
+#[test]
+fn text_renderings_read_as_sentences() {
+    let (_dir, repo) = fresh();
+    svc_repo::new(&repo).unwrap();
+    let read = svc_repo::resolve_entity(&repo, "read").unwrap();
+    repo.mutate(Op::Rename { id: read, new: "read_file".into() }, None, |repo, cur| {
+        let mut next = cur.clone();
+        next.entities.get_mut(&read).unwrap().name = "read_file".into();
+        repo.amend(cur, next)
+    })
+    .unwrap();
+    let snap = repo.current().unwrap();
+    let log = svc_repo::text::log(&snap, &svc_repo::log(&repo, None).unwrap());
+    assert!(log.contains("renamed") && log.contains("→ read_file"), "{log}");
+    assert!(!log.contains("-"), "no raw uuids: {log}");
+    let heads = svc_repo::text::heads(&svc_repo::heads(&repo).unwrap());
+    assert!(heads.starts_with("@ "), "{heads}");
+    let evolog = svc_repo::text::evolog(&svc_repo::evolog(&repo, snap.change).unwrap());
+    assert!(evolog.contains("v2") && evolog.contains("read_file renamed read → read_file"), "{evolog}");
+    let blame = svc_repo::text::blame(&snap, &svc_repo::blame(&repo, read).unwrap());
+    assert!(blame.contains("renamed read → read_file") && blame.contains("added"), "{blame}");
+    let status = svc_repo::text::status(&svc_repo::status(&repo).unwrap());
+    assert!(status.contains("0 changes"), "{status}");
+    assert_eq!(svc_repo::text::conflicts(&snap, &[]), "no conflicts");
+}
