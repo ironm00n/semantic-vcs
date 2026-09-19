@@ -16,6 +16,7 @@ use svc_core::{
 };
 
 use crate::store::RedbStore;
+use crate::workspace::{POINTER_FILE, WorkspacePointer};
 
 pub const STORE_DIR: &str = ".svc";
 pub const STORE_FILE: &str = "store.redb";
@@ -24,12 +25,25 @@ pub const IGNORE_FILE: &str = ".svcignore";
 /// Directories never walked, on top of `.svcignore`.
 const ALWAYS_IGNORED: &[&str] = &[STORE_DIR, ".git", ".jj", "target", "node_modules"];
 
-/// How long `open` keeps retrying redb's cross-process lock (DECISIONS §11).
-const OPEN_RETRY: Duration = Duration::from_secs(5);
+/// How long `open` keeps retrying redb's lock (DECISIONS §11) unless `SVC_LOCK_TIMEOUT_MS`
+/// or [`Repo::open_with`] says otherwise. One `Repo` is one exclusive store session: redb
+/// refuses a second handle on the file, from another process or this one, until the first
+/// is dropped. Every verb is therefore serialised and atomic with respect to every other.
+pub const DEFAULT_LOCK_TIMEOUT: Duration = Duration::from_secs(5);
+pub const LOCK_TIMEOUT_ENV: &str = "SVC_LOCK_TIMEOUT_MS";
+
+pub fn lock_timeout() -> Duration {
+    std::env::var(LOCK_TIMEOUT_ENV)
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .map(Duration::from_millis)
+        .unwrap_or(DEFAULT_LOCK_TIMEOUT)
+}
 
 pub struct Repo {
     root: PathBuf,
-    store: RedbStore,
+    store_path: PathBuf,
+    pub(crate) store: RedbStore,
     langs: Langs,
 }
 
@@ -49,12 +63,17 @@ impl Repo {
         Langs::new(vec![Box::new(RustLang), Box::new(JsLang)])
     }
 
-    /// Nearest ancestor of `start` (inclusive) containing `.svc/`.
+    /// Nearest ancestor of `start` (inclusive) that is a checkout: it holds `.svc/store.redb`
+    /// (the default checkout) or a `.svc-workspace` pointer (a named one).
     pub fn find_root(start: &Path) -> Option<PathBuf> {
         start
             .ancestors()
-            .find(|p| p.join(STORE_DIR).join(STORE_FILE).is_file())
+            .find(|p| Self::is_checkout(p))
             .map(Path::to_path_buf)
+    }
+
+    fn is_checkout(dir: &Path) -> bool {
+        dir.join(STORE_DIR).join(STORE_FILE).is_file() || dir.join(POINTER_FILE).is_file()
     }
 
     /// Creates `.svc/` and the first snapshot from every tracked file. Refuses to re-init.
@@ -63,10 +82,18 @@ impl Repo {
         if dir.join(STORE_FILE).exists() {
             return Err(Error::Other(format!("{} already exists", dir.display())));
         }
+        if root.join(POINTER_FILE).exists() {
+            return Err(Error::Other(format!(
+                "{} is already a workspace of another store",
+                root.display()
+            )));
+        }
         std::fs::create_dir_all(&dir).map_err(Error::backend)?;
-        let store = RedbStore::create(&dir.join(STORE_FILE))?;
+        let store_path = dir.join(STORE_FILE);
+        let store = RedbStore::create(&store_path)?;
         let repo = Self {
             root: root.to_path_buf(),
+            store_path,
             store,
             langs,
         };
@@ -97,25 +124,34 @@ impl Repo {
 
     /// Opens an existing repo, waiting out another process's lock, and finishes any render
     /// a crashed predecessor left pending.
+    ///
+    /// `root` is either the default checkout (holds `.svc/store.redb`) or a named workspace
+    /// (holds a `.svc-workspace` pointer at the shared store).
     pub fn open(root: &Path, langs: Langs) -> Result<Self> {
-        let path = root.join(STORE_DIR).join(STORE_FILE);
-        if !path.is_file() {
+        Self::open_with(root, langs, lock_timeout())
+    }
+
+    /// [`Repo::open`] with an explicit bound on how long to wait for another session.
+    pub fn open_with(root: &Path, langs: Langs, wait: Duration) -> Result<Self> {
+        let own = root.join(STORE_DIR).join(STORE_FILE);
+        let (store_path, workspace) = if own.is_file() {
+            (own, None)
+        } else if let Some(ptr) = WorkspacePointer::read(root)? {
+            (ptr.store, Some(ptr.name))
+        } else {
             return Err(Error::Other(format!("no {STORE_DIR} in {}", root.display())));
-        }
-        let started = Instant::now();
-        let mut backoff = Duration::from_millis(10);
-        let store = loop {
-            match RedbStore::open(&path) {
-                Ok(s) => break s,
-                Err(e) if RedbStore::is_already_open(&e) && started.elapsed() < OPEN_RETRY => {
-                    std::thread::sleep(backoff);
-                    backoff = (backoff * 2).min(Duration::from_millis(250));
-                }
-                Err(e) => return Err(e),
-            }
         };
+        if !store_path.is_file() {
+            return Err(Error::Other(format!(
+                "{} points at a missing store {}",
+                root.join(POINTER_FILE).display(),
+                store_path.display()
+            )));
+        }
+        let store = Self::open_store(&store_path, wait)?.with_workspace(workspace.as_deref())?;
         let repo = Self {
             root: root.to_path_buf(),
+            store_path,
             store,
             langs,
         };
@@ -124,6 +160,49 @@ impl Repo {
             repo.store.set_render_pending(false)?;
         }
         Ok(repo)
+    }
+
+    /// Opens the redb file, waiting up to `wait` for another session to end.
+    fn open_store(path: &Path, wait: Duration) -> Result<RedbStore> {
+        let started = Instant::now();
+        let mut backoff = Duration::from_millis(10);
+        loop {
+            match RedbStore::open(path) {
+                Ok(s) => return Ok(s),
+                Err(e) if RedbStore::is_already_open(&e) => {
+                    if started.elapsed() >= wait {
+                        return Err(Error::Other(format!(
+                            "store busy: another svc session held {} for {}ms (raise {LOCK_TIMEOUT_ENV})",
+                            path.display(),
+                            wait.as_millis()
+                        )));
+                    }
+                    std::thread::sleep(backoff);
+                    backoff = (backoff * 2).min(Duration::from_millis(250));
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    /// True when this checkout's `root` is no longer its change's head — another checkout
+    /// (or `svc checkout` of an older evolution) moved on. Mutating from here would silently
+    /// overwrite that head, so [`Repo::mutate`] refuses until `workspace::update_stale`.
+    pub fn is_stale(&self) -> Result<bool> {
+        let cur = self.current()?;
+        Ok(self.store.head(cur.change)? != cur.id())
+    }
+
+    fn refuse_if_stale(&self) -> Result<()> {
+        if self.is_stale()? {
+            let cur = self.current()?;
+            return Err(Error::Other(format!(
+                "checkout is behind change {}: its head moved to {} (run `svc workspace update-stale`, or `svc checkout` it)",
+                cur.change.short(),
+                self.store.head(cur.change)?.short()
+            )));
+        }
+        Ok(())
     }
 
     pub fn discover(start: &Path, langs: Langs) -> Result<Self> {
@@ -136,8 +215,23 @@ impl Repo {
         &self.store
     }
 
+    /// The concrete store, for what the `Store` trait does not cover (workspaces, op attribution).
+    pub fn redb(&self) -> &RedbStore {
+        &self.store
+    }
+
     pub fn root_dir(&self) -> &Path {
         &self.root
+    }
+
+    /// The shared `.svc/store.redb` this checkout reads, wherever the checkout itself lives.
+    pub fn store_path(&self) -> &Path {
+        &self.store_path
+    }
+
+    /// The named workspace this checkout is, or `None` for the default one.
+    pub fn workspace(&self) -> Option<&str> {
+        self.store.workspace()
     }
 
     pub fn langs(&self) -> &Langs {
@@ -235,6 +329,7 @@ impl Repo {
         if self.working_copy_clean()? {
             return Ok(None);
         }
+        self.refuse_if_stale()?;
         let cur = self.current()?;
         let files = self.tracked_files()?;
         let next = self.snapshot_files(&files, Some(&cur), cur.change)?;
@@ -289,6 +384,7 @@ impl Repo {
         f: impl FnOnce(&Repo, &Snapshot) -> Result<SnapshotId>,
     ) -> Result<Mutation> {
         self.absorb()?;
+        self.refuse_if_stale()?;
         let before = self.view()?;
         let (group, closed_stale_changeset) = self.open_group()?;
         let cur = self.current()?;
@@ -365,9 +461,26 @@ impl Repo {
     /// Writes every file of `snapshot` via temp + `rename(2)`, then deletes tracked files it
     /// no longer contains (SPEC §5.5). Never touches untracked files.
     pub fn render_to_disk(&self, snapshot: &Snapshot) -> Result<()> {
+        let rendered = self.render_into(&self.root, snapshot)?;
+        for rel in self.tracked_files()?.keys() {
+            if !rendered.contains_key(rel) {
+                std::fs::remove_file(self.root.join(rel.as_str())).map_err(Error::backend)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The write half of [`Repo::render_to_disk`] aimed at any directory: every file of
+    /// `snapshot` lands under `dir` (temp + `rename(2)`), nothing is deleted. Used to seed a
+    /// new workspace. Returns what was rendered.
+    pub(crate) fn render_into(
+        &self,
+        dir: &Path,
+        snapshot: &Snapshot,
+    ) -> Result<BTreeMap<RelPath, Vec<u8>>> {
         let rendered = render(snapshot, &self.store, &self.langs, false)?;
         for (rel, bytes) in &rendered.files {
-            let path = self.root.join(rel.as_str());
+            let path = dir.join(rel.as_str());
             if std::fs::read(&path).ok().as_deref() == Some(bytes.as_slice()) {
                 continue;
             }
@@ -381,12 +494,7 @@ impl Repo {
             std::fs::write(&tmp, bytes).map_err(Error::backend)?;
             std::fs::rename(&tmp, &path).map_err(Error::backend)?;
         }
-        for rel in self.tracked_files()?.keys() {
-            if !rendered.files.contains_key(rel) {
-                std::fs::remove_file(self.root.join(rel.as_str())).map_err(Error::backend)?;
-            }
-        }
-        Ok(())
+        Ok(rendered.files)
     }
 }
 

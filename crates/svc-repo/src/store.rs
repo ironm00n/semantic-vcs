@@ -1,12 +1,18 @@
 //! `svc_core::Store` over one redb file. Snapshots and blobs are content-addressed and
 //! immutable; only `root`, `heads`, branches and the changeset rows ever move.
+//!
+//! One file can back several checkouts (jj-style named workspaces, see `workspace.rs`).
+//! Snapshots, heads, branches and the op log are shared; the checkout-scoped rows — `root`,
+//! `render_pending`, `open_changeset` — live in `META` for the default checkout and in a
+//! [`WorkspaceRow`] for a named one. Which set a `RedbStore` reads is fixed at open time.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use redb::{
-    Database, ReadTransaction, ReadableDatabase, ReadableTable, TableDefinition, WriteTransaction,
+    Database, ReadTransaction, ReadableDatabase, ReadableTable, TableDefinition, TableError,
+    WriteTransaction,
 };
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use svc_core::{
     ChangeId, ChangeSet, ChangeSetId, Error, OpIx, OpLogEntry, OpenChangeSet, Result, Snapshot,
     SnapshotId, Store,
@@ -22,19 +28,37 @@ const BRANCHES: TableDefinition<&str, Uuid> = TableDefinition::new("branches");
 /// Singleton rows: `root`, `open_changeset`, `render_pending`.
 const META: TableDefinition<&str, &[u8]> = TableDefinition::new("meta");
 
+/// Named checkouts: `name → WorkspaceRow`. The default checkout is not a row here.
+const WORKSPACES: TableDefinition<&str, &[u8]> = TableDefinition::new("workspaces");
+/// Which checkout appended each op (`OpIx → name`; the default checkout writes `""`).
+/// `OpLogEntry` is a frozen `svc-core` shape, so attribution lives beside it, not in it.
+const OP_WORKSPACE: TableDefinition<u64, &str> = TableDefinition::new("op_workspace");
+
 const META_ROOT: &str = "root";
 const META_OPEN_CHANGESET: &str = "open_changeset";
 const META_RENDER_PENDING: &str = "render_pending";
 
+/// Everything a named checkout keeps that the default checkout keeps in `META`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceRow {
+    /// Absolute directory the checkout is rendered into.
+    pub path: PathBuf,
+    pub root: Option<SnapshotId>,
+    pub render_pending: bool,
+    pub open_changeset: Option<OpenChangeSet>,
+}
+
 pub struct RedbStore {
     db: Database,
+    /// `None` = the default checkout (`META` rows); `Some(name)` = a `WORKSPACES` row.
+    workspace: Option<String>,
 }
 
 impl RedbStore {
     /// Creates the file and seeds every table, so readers never see `TableDoesNotExist`.
     pub fn create(path: &Path) -> Result<Self> {
         let db = Database::create(path).map_err(Error::backend)?;
-        let store = Self { db };
+        let store = Self { db, workspace: None };
         store.write(|txn| {
             txn.open_table(OBJECTS).map_err(Error::backend)?;
             txn.open_table(SNAPSHOTS).map_err(Error::backend)?;
@@ -43,14 +67,118 @@ impl RedbStore {
             txn.open_table(CHANGESETS).map_err(Error::backend)?;
             txn.open_table(BRANCHES).map_err(Error::backend)?;
             txn.open_table(META).map_err(Error::backend)?;
+            txn.open_table(WORKSPACES).map_err(Error::backend)?;
+            txn.open_table(OP_WORKSPACE).map_err(Error::backend)?;
             Ok(())
         })?;
         Ok(store)
     }
 
+    /// The checkout that appended op `ix`: `Some("")` for the default one, `None` for ops
+    /// written before attribution existed.
+    pub fn op_workspace(&self, ix: OpIx) -> Result<Option<String>> {
+        let txn = self.read()?;
+        let table = match txn.open_table(OP_WORKSPACE) {
+            Ok(t) => t,
+            Err(TableError::TableDoesNotExist(_)) => return Ok(None),
+            Err(e) => return Err(Error::backend(e)),
+        };
+        Ok(table
+            .get(ix.0)
+            .map_err(Error::backend)?
+            .map(|g| g.value().to_string()))
+    }
+
+    /// `ops(since, rev)` restricted to what this handle's checkout appended (unattributed
+    /// ops count as the default checkout's).
+    pub fn own_ops(&self, since: OpIx, rev: bool) -> Result<Vec<(OpIx, OpLogEntry)>> {
+        let me = self.workspace.clone().unwrap_or_default();
+        let mut out = Vec::new();
+        for (ix, e) in self.ops(since, rev)? {
+            if self.op_workspace(ix)?.unwrap_or_default() == me {
+                out.push((ix, e));
+            }
+        }
+        Ok(out)
+    }
+
     pub fn open(path: &Path) -> Result<Self> {
         let db = Database::open(path).map_err(Error::backend)?;
-        Ok(Self { db })
+        Ok(Self { db, workspace: None })
+    }
+
+    /// Re-scope this handle to checkout `name` (`None` = default). The row must exist.
+    pub fn with_workspace(mut self, name: Option<&str>) -> Result<Self> {
+        if let Some(n) = name {
+            self.workspace_row(n)?
+                .ok_or_else(|| Error::NotFound(format!("workspace {n:?}")))?;
+        }
+        self.workspace = name.map(str::to_string);
+        Ok(self)
+    }
+
+    /// The checkout this handle's `root`/`render_pending`/`open_changeset` refer to.
+    pub fn workspace(&self) -> Option<&str> {
+        self.workspace.as_deref()
+    }
+
+    /// Every named checkout, sorted by name. Stores created before the table existed read
+    /// as empty rather than failing.
+    pub fn workspaces(&self) -> Result<Vec<(String, WorkspaceRow)>> {
+        let txn = self.read()?;
+        let table = match txn.open_table(WORKSPACES) {
+            Ok(t) => t,
+            Err(TableError::TableDoesNotExist(_)) => return Ok(Vec::new()),
+            Err(e) => return Err(Error::backend(e)),
+        };
+        let mut out = Vec::new();
+        for row in table.iter().map_err(Error::backend)? {
+            let (k, v) = row.map_err(Error::backend)?;
+            out.push((k.value().to_string(), decode(v.value())?));
+        }
+        Ok(out)
+    }
+
+    pub fn workspace_row(&self, name: &str) -> Result<Option<WorkspaceRow>> {
+        Ok(self
+            .workspaces()?
+            .into_iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, row)| row))
+    }
+
+    pub fn set_workspace_row(&self, name: &str, row: &WorkspaceRow) -> Result<()> {
+        let bytes = encode(row)?;
+        self.write(|txn| {
+            let mut table = txn.open_table(WORKSPACES).map_err(Error::backend)?;
+            table.insert(name, bytes.as_slice()).map_err(Error::backend)?;
+            Ok(())
+        })
+    }
+
+    /// Drops the row; returns whether it existed. The files on disk are untouched.
+    pub fn remove_workspace(&self, name: &str) -> Result<bool> {
+        self.write(|txn| {
+            let mut table = txn.open_table(WORKSPACES).map_err(Error::backend)?;
+            Ok(table.remove(name).map_err(Error::backend)?.is_some())
+        })
+    }
+
+    /// The default checkout's `root`, whatever this handle is scoped to.
+    pub fn default_root(&self) -> Result<Option<SnapshotId>> {
+        self.get_meta::<SnapshotId>(META_ROOT)
+    }
+
+    /// This handle's row, when scoped to a named checkout.
+    fn own_row(&self, name: &str) -> Result<WorkspaceRow> {
+        self.workspace_row(name)?
+            .ok_or_else(|| Error::NotFound(format!("workspace {name:?}")))
+    }
+
+    fn update_own_row(&self, name: &str, f: impl FnOnce(&mut WorkspaceRow)) -> Result<()> {
+        let mut row = self.own_row(name)?;
+        f(&mut row);
+        self.set_workspace_row(name, &row)
     }
 
     /// True when the failure is redb's cross-process lock, the one case worth retrying.
@@ -143,6 +271,7 @@ impl Store for RedbStore {
 
     fn append_op(&self, e: &OpLogEntry) -> Result<OpIx> {
         let bytes = encode(e)?;
+        let ws = self.workspace.clone().unwrap_or_default();
         self.write(|txn| {
             let mut table = txn.open_table(OPLOG).map_err(Error::backend)?;
             let next = table
@@ -151,6 +280,8 @@ impl Store for RedbStore {
                 .map(|(k, _)| k.value() + 1)
                 .unwrap_or(0);
             table.insert(next, bytes.as_slice()).map_err(Error::backend)?;
+            let mut by = txn.open_table(OP_WORKSPACE).map_err(Error::backend)?;
+            by.insert(next, ws.as_str()).map_err(Error::backend)?;
             Ok(OpIx(next))
         })
     }
@@ -296,31 +427,49 @@ impl Store for RedbStore {
     }
 
     fn root(&self) -> Result<SnapshotId> {
-        self.get_meta::<SnapshotId>(META_ROOT)?
-            .ok_or(Error::NoSuchSnapshot)
+        match &self.workspace {
+            None => self.get_meta::<SnapshotId>(META_ROOT)?,
+            Some(ws) => self.own_row(ws)?.root,
+        }
+        .ok_or(Error::NoSuchSnapshot)
     }
 
     fn set_root(&self, id: SnapshotId) -> Result<()> {
-        self.set_meta(META_ROOT, &id)
+        match &self.workspace {
+            None => self.set_meta(META_ROOT, &id),
+            Some(ws) => self.update_own_row(ws, |r| r.root = Some(id)),
+        }
     }
 
     fn open_changeset(&self) -> Result<Option<OpenChangeSet>> {
-        Ok(self
-            .get_meta::<Option<OpenChangeSet>>(META_OPEN_CHANGESET)?
-            .flatten())
+        match &self.workspace {
+            None => Ok(self
+                .get_meta::<Option<OpenChangeSet>>(META_OPEN_CHANGESET)?
+                .flatten()),
+            Some(ws) => Ok(self.own_row(ws)?.open_changeset),
+        }
     }
 
     fn set_open_changeset(&self, row: Option<OpenChangeSet>) -> Result<()> {
-        self.set_meta(META_OPEN_CHANGESET, &row)
+        match &self.workspace {
+            None => self.set_meta(META_OPEN_CHANGESET, &row),
+            Some(ws) => self.update_own_row(ws, |r| r.open_changeset = row),
+        }
     }
 
     fn render_pending(&self) -> Result<bool> {
-        Ok(self
-            .get_meta::<bool>(META_RENDER_PENDING)?
-            .unwrap_or(false))
+        match &self.workspace {
+            None => Ok(self
+                .get_meta::<bool>(META_RENDER_PENDING)?
+                .unwrap_or(false)),
+            Some(ws) => Ok(self.own_row(ws)?.render_pending),
+        }
     }
 
     fn set_render_pending(&self, v: bool) -> Result<()> {
-        self.set_meta(META_RENDER_PENDING, &v)
+        match &self.workspace {
+            None => self.set_meta(META_RENDER_PENDING, &v),
+            Some(ws) => self.update_own_row(ws, |r| r.render_pending = v),
+        }
     }
 }

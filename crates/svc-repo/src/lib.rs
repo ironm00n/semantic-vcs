@@ -9,9 +9,12 @@ pub mod repo;
 pub mod replay;
 pub mod store;
 pub mod text;
+pub mod workspace;
 
 pub use history::*;
 pub use replay::{ReplayReport, replay};
 pub use merge::{ConflictOut, MergeOut, Take, conflicts, lca, merge, merged_snapshot, resolve};
 pub use repo::{Mutation, Repo};
 pub use store::RedbStore;
+pub use workspace::{WorkspaceOut, WorkspacePointer};
+pub use store::WorkspaceRow;
