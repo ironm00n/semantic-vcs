@@ -13,3 +13,6 @@ thiserror.workspace = true
 tree-sitter.workspace = true
 tree-sitter-rust.workspace = true
 similar.workspace = true
+
+[dev-dependencies]
+serde_json = "1"
