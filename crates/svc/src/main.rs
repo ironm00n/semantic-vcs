@@ -3,8 +3,11 @@ use std::{env, process::ExitCode};
 use clap::{Args, Parser, Subcommand};
 use serde::Serialize;
 use serde_json::{Value, json};
-use svc_core::EntityId;
-use svc_repo::{Repo, blame, branch, describe, evolog, heads, log, new, op_log, undo};
+use svc_core::Intent;
+use svc_repo::{
+    Repo, blame, branch, changeset_begin, changeset_end, changeset_status, changesets, describe,
+    evolog, heads, log, new, op_log, resolve_entity, undo,
+};
 
 #[derive(Parser)]
 #[command(name = "svc", about = "Compiler-grade version control")]
@@ -20,12 +23,20 @@ enum Command {
     Search { query: String }, Diff { a: String, b: String }, Blame(EntityArg),
     Merge { change: String }, Conflicts, Resolve { conflict: String }, Undo,
     #[command(subcommand)] Op(OpCommand),
+    #[command(subcommand)] Changeset(ChangeSetCommand),
     Checkout { snapshot: String }, Render, Rename(RenameArgs), Move(MoveArgs),
     Relocate(RelocateArgs), Extract(ExtractArgs), Inline(EntityArg), AddDef(AddDefArgs),
     Delete(DeleteArgs), EditDef(EditDefArgs), Classify(ClassifyArgs), Agent { task: String }, Tui,
 }
 
 #[derive(Subcommand)] enum OpCommand { Log }
+#[derive(Subcommand)]
+enum ChangeSetCommand {
+    Begin { name: String, #[arg(long, default_value = "refactor")] intent: String, #[arg(long)] force: bool },
+    End,
+    Status,
+    List,
+}
 #[derive(Args)] struct EntityArg { #[arg(long)] entity: String }
 #[derive(Args)] struct RenameArgs { #[arg(long)] entity: String, #[arg(long)] new_name: String }
 #[derive(Args)] struct MoveArgs { #[arg(long)] entity: String, #[arg(long)] new_parent: String, #[arg(long)] ordinal: Option<u32> }
@@ -60,9 +71,15 @@ fn run(cli: &Cli) -> Result<Value, String> {
         Command::Heads => value(heads(&repo)),
         Command::Log => value(log(&repo, None)),
         Command::Evolog { change } => { let id = repo.resolve_change(change).map_err(|e| e.to_string())?; value(evolog(&repo, id)) }
-        Command::Blame(arg) => value(blame(&repo, resolve_entity(&repo, &arg.entity)?)),
+        Command::Blame(arg) => value(blame(&repo, resolve_entity(&repo, &arg.entity).map_err(|e| e.to_string())?)),
         Command::Undo => value(undo(&repo)),
         Command::Op(OpCommand::Log) => value(op_log(&repo)),
+        Command::Changeset(ChangeSetCommand::Begin { name, intent, force }) => {
+            value(changeset_begin(&repo, name, parse_intent(intent), None, *force))
+        }
+        Command::Changeset(ChangeSetCommand::End) => value(changeset_end(&repo)),
+        Command::Changeset(ChangeSetCommand::Status) => value(changeset_status(&repo)),
+        Command::Changeset(ChangeSetCommand::List) => value(changesets(&repo)),
         Command::Render => { let snapshot = repo.current().map_err(|e| e.to_string())?; repo.render_to_disk(&snapshot).map_err(|e| e.to_string())?; Ok(json!({"rendered": true})) }
         Command::ListDefs => list_defs(&repo),
         Command::ShowDef(arg) => show_def(&repo, &arg.entity),
@@ -75,10 +92,14 @@ fn value<T: Serialize>(result: svc_core::Result<T>) -> Result<Value, String> {
     serde_json::to_value(result.map_err(|e| e.to_string())?).map_err(|e| e.to_string())
 }
 
-fn resolve_entity(repo: &Repo, query: &str) -> Result<EntityId, String> {
-    repo.current().map_err(|e| e.to_string())?.entities.into_iter()
-        .find(|(id, entity)| entity.name == query || id.to_string() == query || id.short() == query)
-        .map(|(id, _)| id).ok_or_else(|| format!("no such definition {query}"))
+fn parse_intent(value: &str) -> Intent {
+    match value {
+        "refactor" => Intent::Refactor,
+        "fix" => Intent::Fix,
+        "feature" => Intent::Feature,
+        "docs" => Intent::Docs,
+        other => Intent::Other(other.to_owned()),
+    }
 }
 
 fn list_defs(repo: &Repo) -> Result<Value, String> {
@@ -90,7 +111,7 @@ fn list_defs(repo: &Repo) -> Result<Value, String> {
 }
 
 fn show_def(repo: &Repo, query: &str) -> Result<Value, String> {
-    let id = resolve_entity(repo, query)?;
+    let id = resolve_entity(repo, query).map_err(|e| e.to_string())?;
     let entity = repo.current().map_err(|e| e.to_string())?.entities.remove(&id).unwrap();
     let bytes = repo.store().get_bytes_blob(entity.bytes).map_err(|e| e.to_string())?;
     let content = repo.store().get_content(entity.content).map_err(|e| e.to_string())?;

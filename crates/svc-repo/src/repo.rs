@@ -296,7 +296,7 @@ impl Repo {
     ) -> Result<Mutation> {
         self.absorb()?;
         let before = self.view()?;
-        let (group, closed_stale_changeset) = self.current_group()?;
+        let (group, closed_stale_changeset) = self.open_group()?;
         let cur = self.current()?;
         self.store.set_render_pending(true)?;
         let snapshot = f(self, &cur)?;
@@ -325,7 +325,7 @@ impl Repo {
     pub fn restore_view(&self, view: &View, op: Op) -> Result<Mutation> {
         self.absorb()?;
         let before = self.view()?;
-        let (group, closed_stale_changeset) = self.current_group()?;
+        let (group, closed_stale_changeset) = self.open_group()?;
         self.store.set_render_pending(true)?;
         for (change, snap) in &view.heads {
             self.store.set_head(*change, *snap)?;
@@ -352,7 +352,7 @@ impl Repo {
     }
 
     /// The open changeset to stamp on an op, closing a row whose owner is gone (SPEC §5.6).
-    fn current_group(&self) -> Result<(Option<ChangeSetId>, Option<ChangeSetId>)> {
+    pub fn open_group(&self) -> Result<(Option<ChangeSetId>, Option<ChangeSetId>)> {
         let Some(row) = self.store.open_changeset()? else {
             return Ok((None, None));
         };
