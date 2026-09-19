@@ -10,6 +10,9 @@ use agent_client_protocol::{AcpAgent, AcpAgentConfig, Agent, ConnectionTo, LineD
 use svc_core::Intent;
 use svc_repo::{Repo, changeset_begin, changeset_end};
 
+/// The plugin path as written in `harness/overlay.yml`; substituted with this checkout's at run time.
+const PLUGIN_PLACEHOLDER: &str = "/home/hacker/hackmit2026/harness/svc-tools.mjs";
+
 pub async fn run(task: &str) -> Result<(), String> {
     if !has_model_credentials() {
         return Err("no model credential found; set OPENROUTER_API_KEY, DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY".into());
@@ -47,12 +50,13 @@ async fn run_connection(task: &str, root: &Path) -> Result<(), String> {
     if !overlay.is_file() || !plugin.is_file() {
         return Err("harness assets are missing beside the source checkout".into());
     }
-    let runtime_patch = root.join(".svc/dsh-runtime-overlay.yml");
-    std::fs::write(
-        &runtime_patch,
-        format!("- id: svc-tools\n  name: {}\n", plugin.display()),
-    )
-    .map_err(|e| e.to_string())?;
+    // A later `--patch` replaces a row's `config`, never its `name`, so the inserted plugin
+    // row must carry the absolute path from the start: rewrite the whole overlay.
+    let runtime_overlay = root.join(".svc/dsh-overlay.yml");
+    let text = std::fs::read_to_string(&overlay)
+        .map_err(|e| e.to_string())?
+        .replace(PLUGIN_PLACEHOLDER, &plugin.display().to_string());
+    std::fs::write(&runtime_overlay, text).map_err(|e| e.to_string())?;
     let svc_bin = std::env::current_exe().map_err(|e| e.to_string())?;
 
     let config = AcpAgentConfig::new("npx")
@@ -62,9 +66,7 @@ async fn run_connection(task: &str, root: &Path) -> Result<(), String> {
             "--profile",
             "acp",
             "--patch",
-            overlay.to_str().ok_or("non-UTF-8 harness path")?,
-            "--patch",
-            runtime_patch.to_str().ok_or("non-UTF-8 runtime patch path")?,
+            runtime_overlay.to_str().ok_or("non-UTF-8 overlay path")?,
         ])
         .env("SVC_BIN", svc_bin.to_string_lossy());
     let transport = AcpAgent::new(config).with_debug(|line, direction| {
