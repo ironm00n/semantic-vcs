@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{Chunk, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
-use crate::entity::EntityRecord;
+use crate::entity::{EntityRecord, Kind, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{ChangeId, EntityId, RelPath};
 use crate::lang::Langs;
@@ -48,12 +48,40 @@ pub fn lookup(snap: &Snapshot, spec: &str) -> Result<EntityId> {
 
 /// Attribute-only: referrers keep `Chunk::Name` holes. No rehash.
 pub fn rename(snap: &Snapshot, id: EntityId, new: &str) -> Result<Snapshot> {
-    if !snap.entities.contains_key(&id) {
-        return Err(Error::NoSuchEntity(id));
-    }
+    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+    refuse_duplicate(
+        snap,
+        id,
+        &SigKey {
+            parent: rec.parent,
+            kind: rec.kind,
+            name: new.to_string(),
+        },
+    )?;
     let mut next = snap.clone();
     next.entities.get_mut(&id).unwrap().name = new.to_string();
     Ok(next)
+}
+
+/// `(parent, kind, name)` is how entities are matched across re-parses and unified in
+/// merge, so a verb may not create a second one. Kinds whose name is synthesised from
+/// position (`impl`, static blocks, `use`) may legitimately repeat and are exempt.
+fn refuse_duplicate(snap: &Snapshot, id: EntityId, key: &SigKey) -> Result<()> {
+    if key.kind.is_synthetic_named() || key.kind == Kind::Opaque {
+        return Ok(());
+    }
+    let clash = snap.entities.iter().find(|(other, r)| {
+        **other != id && r.parent == key.parent && r.kind == key.kind && r.name == key.name
+    });
+    match clash {
+        Some((other, _)) => Err(Error::Other(format!(
+            "{:?} {} already exists under the same parent ({})",
+            key.kind,
+            key.name,
+            other.short()
+        ))),
+        None => Ok(()),
+    }
 }
 
 pub fn relocate(snap: &Snapshot, id: EntityId, file: RelPath, ordinal: u32) -> Result<Snapshot> {
@@ -70,6 +98,16 @@ pub fn move_def(
     parent: Option<EntityId>,
     ordinal: Option<u32>,
 ) -> Result<Snapshot> {
+    let cur = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+    refuse_duplicate(
+        snap,
+        id,
+        &SigKey {
+            parent,
+            kind: cur.kind,
+            name: cur.name.clone(),
+        },
+    )?;
     let mut next = snap.clone();
     let rec = next.entities.get_mut(&id).ok_or(Error::NoSuchEntity(id))?;
     rec.parent = parent;
@@ -145,6 +183,12 @@ pub fn edit_def(
             rec.name, new_rec.name
         )));
     }
+    if new_rec.kind != rec.kind {
+        return Err(Error::Other(format!(
+            "edit-def cannot change {} from {:?} to {:?}; delete and add-def instead",
+            rec.name, rec.kind, new_rec.kind
+        )));
+    }
     let new_content = new_rec.content;
     let new_bytes = new_rec.bytes;
     let mut next = snap.clone();
@@ -200,6 +244,15 @@ pub fn add_def(
         .ok_or_else(|| Error::NoLanguage(file.clone()))?;
     let definition = add_def_text(parent, definition);
     let mut rec = ingest_one_item("add-def", store, snap, &file, lang, &definition)?;
+    refuse_duplicate(
+        snap,
+        id,
+        &SigKey {
+            parent,
+            kind: rec.kind,
+            name: rec.name.clone(),
+        },
+    )?;
     let mut next = snap.clone();
     rec.parent = parent;
     rec.file = file;
