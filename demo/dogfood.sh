@@ -30,6 +30,10 @@ case "${1:-}" in
 esac
 
 SVC="${1:-$ROOT/target/debug/svc}"
+case "$SVC" in
+  /*) ;;
+  *) SVC="$PWD/$SVC" ;;
+esac
 SVC="$(cd "$(dirname "$SVC")" && pwd)/$(basename "$SVC")"
 [ -x "$SVC" ] || { echo "no svc binary at $SVC (run: cargo build -p svc)"; exit 2; }
 command -v cargo >/dev/null || { echo "cargo is required"; exit 2; }

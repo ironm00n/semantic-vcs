@@ -5,21 +5,29 @@ use std::{
 };
 
 use axum::{
+    Json, Router,
     extract::{Path as AxumPath, State},
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::get,
-    Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use svc_core::{Conflict, EntityRecord, OpLogEntry, ReviewItem};
+
+mod highlight;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("could not read forge catalog {path}: {source}")]
-    Read { path: String, source: std::io::Error },
+    Read {
+        path: String,
+        source: std::io::Error,
+    },
     #[error("invalid forge catalog {path}: {source}")]
-    Parse { path: String, source: serde_json::Error },
+    Parse {
+        path: String,
+        source: serde_json::Error,
+    },
     #[error("repository slug {slug:?} appears in both {first} and {second}")]
     DuplicateSlug {
         slug: String,
@@ -70,26 +78,40 @@ pub struct EntityView {
     pub id: String,
     #[serde(default)]
     pub source: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_html: String,
     #[serde(flatten)]
     pub record: EntityRecord,
 }
 
+fn null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct OperationSubject {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub before_name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub after_name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub kind: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub file: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub before_source: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub after_source: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub before_source_html: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub after_source_html: String,
     #[serde(default)]
     pub touch: serde_json::Value,
 }
@@ -194,6 +216,10 @@ fn router(source: CatalogSource) -> Router {
         .route("/api/repositories/{slug}", get(repository))
         .route("/api/repositories/{slug}/snapshots", get(snapshots))
         .route("/api/repositories/{slug}/snapshots/{id}", get(snapshot))
+        .route(
+            "/api/repositories/{slug}/entities/{id}/source",
+            get(entity_source),
+        )
         .route("/api/repositories/{slug}/operations", get(operations))
         .route("/api/repositories/{slug}/reviews", get(reviews))
         .with_state(Arc::new(source))
@@ -234,6 +260,37 @@ fn current(source: &AppState) -> Result<Catalog, (StatusCode, String)> {
     source
         .load()
         .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))
+}
+
+fn decorate_entity(entity: &mut EntityView) {
+    if !entity.source.is_empty() {
+        entity.source_html =
+            highlight::source_html(&entity.source, entity.record.file.as_str()).unwrap_or_default();
+    } else {
+        entity.source_html.clear();
+    }
+}
+
+fn decorate_operation(operation: &mut OperationView) {
+    let Some(subject) = operation.subject.as_mut() else {
+        return;
+    };
+    subject.before_source_html = if subject.before_source.is_empty() {
+        String::new()
+    } else {
+        highlight::source_html(&subject.before_source, &subject.file).unwrap_or_default()
+    };
+    subject.after_source_html = if subject.after_source.is_empty() {
+        String::new()
+    } else {
+        highlight::source_html(&subject.after_source, &subject.file).unwrap_or_default()
+    };
+}
+
+fn decorate_repository(repo: &mut Repository) {
+    for operation in &mut repo.operations {
+        decorate_operation(operation);
+    }
 }
 
 async fn repositories(State(source): State<AppState>) -> impl IntoResponse {
@@ -289,7 +346,11 @@ async fn repository(
         Err(error) => return error.into_response(),
     };
     match catalog.repository(&slug) {
-        Some(repo) => Json(repo.clone()).into_response(),
+        Some(repo) => {
+            let mut repo = repo.clone();
+            decorate_repository(&mut repo);
+            Json(repo).into_response()
+        }
         None => (StatusCode::NOT_FOUND, "repository not found").into_response(),
     }
 }
@@ -325,6 +386,29 @@ async fn snapshot(
     }
 }
 
+async fn entity_source(
+    State(source): State<AppState>,
+    AxumPath((slug, id)): AxumPath<(String, String)>,
+) -> impl IntoResponse {
+    let catalog = match current(&source) {
+        Ok(catalog) => catalog,
+        Err(error) => return error.into_response(),
+    };
+    match catalog.repository(&slug).and_then(|repo| {
+        repo.snapshots
+            .iter()
+            .flat_map(|snapshot| &snapshot.entities)
+            .find(|entity| entity.id == id && !entity.source.is_empty())
+    }) {
+        Some(entity) => {
+            let mut entity = entity.clone();
+            decorate_entity(&mut entity);
+            Json(entity).into_response()
+        }
+        None => (StatusCode::NOT_FOUND, "entity source not found").into_response(),
+    }
+}
+
 async fn operations(
     State(source): State<AppState>,
     AxumPath(slug): AxumPath<String>,
@@ -334,7 +418,13 @@ async fn operations(
         Err(error) => return error.into_response(),
     };
     match catalog.repository(&slug) {
-        Some(repo) => Json(repo.operations.clone()).into_response(),
+        Some(repo) => {
+            let mut operations = repo.operations.clone();
+            for operation in &mut operations {
+                decorate_operation(operation);
+            }
+            Json(operations).into_response()
+        }
         None => (StatusCode::NOT_FOUND, "repository not found").into_response(),
     }
 }

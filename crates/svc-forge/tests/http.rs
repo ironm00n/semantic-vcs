@@ -3,12 +3,10 @@ use axum::{
     http::{Request, StatusCode},
 };
 use svc_core::{
-    BytesId, Conflict, ContentId, EntityId, EntityRecord, Intent, Kind, Op, OpIx,
-    OpLogEntry, RelPath, ReviewItem, Side, SnapshotId, View,
+    BytesId, Conflict, ContentId, EntityId, EntityRecord, Intent, Kind, Op, OpIx, OpLogEntry,
+    RelPath, ReviewItem, Side, SnapshotId, View,
 };
-use svc_forge::{
-    Catalog, EntityView, OperationSubject, OperationView, Repository, SnapshotView,
-};
+use svc_forge::{Catalog, EntityView, OperationSubject, OperationView, Repository, SnapshotView};
 use tower::ServiceExt;
 
 struct TestDir(std::path::PathBuf);
@@ -74,6 +72,8 @@ fn catalog() -> Catalog {
         file: "src/main.rs".into(),
         before_source: "fn parse() {}".into(),
         after_source: "fn parse_config() {}".into(),
+        before_source_html: String::new(),
+        after_source_html: String::new(),
         touch: serde_json::json!({"Renamed":{"from":"parse","to":"parse_config"}}),
     });
     Catalog {
@@ -112,6 +112,7 @@ fn catalog() -> Catalog {
                     entities: vec![EntityView {
                         id: entity.to_string(),
                         source: "fn parse_config() {}".into(),
+                        source_html: String::new(),
                         record: EntityRecord {
                             name: "parse_config".into(),
                             kind: Kind::Fn,
@@ -177,15 +178,13 @@ async fn serves_ui_and_repository_views() {
 
 #[tokio::test]
 async fn populated_repository_response_preserves_semantic_types() {
-    let (status, text) = response(svc_forge::app(catalog()), "/api/repositories/svc").await;
+    let app = svc_forge::app(catalog());
+    let (status, text) = response(app.clone(), "/api/repositories/svc").await;
     assert_eq!(status, StatusCode::OK);
     let value: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert_eq!(value["head"], "s2");
     assert_eq!(value["snapshots"][1]["change"], "c2");
-    assert_eq!(
-        value["snapshots"][1]["entities"][0]["name"],
-        "parse_config"
-    );
+    assert_eq!(value["snapshots"][1]["entities"][0]["name"], "parse_config");
     assert_eq!(
         value["snapshots"][1]["entities"][0]["source"],
         "fn parse_config() {}"
@@ -198,9 +197,73 @@ async fn populated_repository_response_preserves_semantic_types() {
     assert_eq!(value["operations"][0]["ix"], 7);
     assert_eq!(value["operations"][0]["change"], "c2");
     assert_eq!(value["operations"][0]["subject"]["before_name"], "parse");
+    assert!(
+        value["operations"][0]["subject"]["before_source_html"]
+            .as_str()
+            .unwrap()
+            .contains("syntax-keyword")
+    );
     assert_eq!(value["operations"][1]["op"], "Undo");
     assert!(value["review_queue"][0]["EditReview"].is_object());
     assert!(value["review_queue"][1]["BindingConflict"].is_object());
+
+    let entity = value["snapshots"][1]["entities"][0]["id"].as_str().unwrap();
+    let path = format!("/api/repositories/svc/entities/{entity}/source");
+    let (status, source) = response(app, &path).await;
+    assert_eq!(status, StatusCode::OK);
+    let source: serde_json::Value = serde_json::from_str(&source).unwrap();
+    assert!(
+        source["source_html"]
+            .as_str()
+            .unwrap()
+            .contains("syntax-keyword")
+    );
+}
+
+#[test]
+fn add_and_delete_subjects_accept_null_source_sides() {
+    let id = EntityId::new();
+    let mut add = serde_json::to_value(op(Op::AddDef {
+        id,
+        parent: None,
+        ordinal: 0,
+        definition: "fn added() {}".into(),
+        intent: Intent::Feature,
+        file: Some(RelPath::new("src/lib.rs").unwrap()),
+    }))
+    .unwrap();
+    add["subject"] = serde_json::json!({
+        "id": id,
+        "before_name": null,
+        "after_name": "added",
+        "kind": "Fn",
+        "file": "src/lib.rs",
+        "before_source": null,
+        "after_source": "fn added() {}",
+        "touch": "Added"
+    });
+    let add: OperationView = serde_json::from_value(add).unwrap();
+    assert_eq!(add.subject.as_ref().unwrap().before_name, "");
+    assert_eq!(add.subject.as_ref().unwrap().before_source, "");
+
+    let mut delete = serde_json::to_value(op(Op::Delete {
+        id,
+        intent: Intent::Refactor,
+    }))
+    .unwrap();
+    delete["subject"] = serde_json::json!({
+        "id": id,
+        "before_name": "added",
+        "after_name": null,
+        "kind": "Fn",
+        "file": "src/lib.rs",
+        "before_source": "fn added() {}",
+        "after_source": null,
+        "touch": "Removed"
+    });
+    let delete: OperationView = serde_json::from_value(delete).unwrap();
+    assert_eq!(delete.subject.as_ref().unwrap().after_name, "");
+    assert_eq!(delete.subject.as_ref().unwrap().after_source, "");
 }
 
 #[tokio::test]
@@ -213,9 +276,12 @@ async fn browser_contract_has_typed_labels_change_navigation_and_entity_filters(
         "renderChangeList",
         "renderChangeDetail",
         "operationIx",
+        "undoTarget",
+        "Undid #${operationIx(target.entry,target.index)}",
         "Renamed ${before} → ${after}",
         "Typed operations",
         "sourceDiff",
+        "syntax-keyword",
         "Current source",
         "Entity history",
         "Review queue",
@@ -234,14 +300,16 @@ async fn browser_contract_has_typed_labels_change_navigation_and_entity_filters(
         "overflow-wrap:anywhere",
         "word-break:break-word",
     ] {
-        assert!(html.contains(contract), "missing browser contract: {contract}");
+        assert!(
+            html.contains(contract),
+            "missing browser contract: {contract}"
+        );
     }
 }
 
 #[test]
 fn example_catalog_tracks_the_dogfood_repository() {
-    let parsed: Catalog =
-        serde_json::from_str(include_str!("../examples/forge.json")).unwrap();
+    let parsed: Catalog = serde_json::from_str(include_str!("../examples/forge.json")).unwrap();
     assert_eq!(parsed.repositories[0].slug, "svc");
     assert_eq!(parsed.repositories[0].snapshots[0].id, "demo-head");
 }
@@ -263,7 +331,10 @@ async fn file_source_merges_two_catalogs() {
 
     let (status, text) = response(app, "/api/repositories/beta").await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(serde_json::from_str::<serde_json::Value>(&text).unwrap()["head"], "beta-head");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&text).unwrap()["head"],
+        "beta-head"
+    );
 }
 
 #[test]
@@ -297,10 +368,16 @@ async fn file_source_observes_atomic_catalog_replacement() {
     let app = svc_forge::app_from_paths(vec![live.clone()]).unwrap();
 
     let (_, before) = response(app.clone(), "/api/repositories/svc").await;
-    assert_eq!(serde_json::from_str::<serde_json::Value>(&before).unwrap()["head"], "old-head");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&before).unwrap()["head"],
+        "old-head"
+    );
 
     write_forge_catalog(&replacement, "svc", "new-head");
     std::fs::rename(&replacement, &live).unwrap();
     let (_, after) = response(app, "/api/repositories/svc").await;
-    assert_eq!(serde_json::from_str::<serde_json::Value>(&after).unwrap()["head"], "new-head");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&after).unwrap()["head"],
+        "new-head"
+    );
 }

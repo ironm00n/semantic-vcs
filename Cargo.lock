@@ -2455,6 +2455,9 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "tower",
+ "tree-sitter-highlight",
+ "tree-sitter-javascript",
+ "tree-sitter-rust",
 ]
 
 [[package]]
