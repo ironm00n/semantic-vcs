@@ -2897,3 +2897,41 @@ fn rename_follows_file_module_declared_inside_a_macro_invocation() {
         "brace-list caller must follow: {file_text}"
     );
 }
+
+#[test]
+fn rename_follows_path_attr_mod_declared_inside_a_macro() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let bar = RelPath::new("src/bar.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"macro_rules! m { ($($item:item)*) => { $($item)* }; }\nm! { #[path = \"bar.rs\"] mod foo; }\nmod caller;\n"
+            .to_vec(),
+    );
+    files.insert(bar.clone(), b"pub fn parse() {}\n".to_vec());
+    files.insert(
+        caller.clone(),
+        b"use crate::foo::parse;\npub fn f() { parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == bar)
+        .map(|(id, _)| *id)
+        .expect("bar parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("use crate::foo::parse_file;"),
+        "#[path] mod in a macro must attach: {text}"
+    );
+    assert!(
+        text.contains("parse_file();"),
+        "call through a macro-declared #[path] module must follow: {text}"
+    );
+}

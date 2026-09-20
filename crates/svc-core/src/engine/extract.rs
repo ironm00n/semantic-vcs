@@ -68,14 +68,50 @@ fn node_text(src: &[u8], node: tree_sitter::Node<'_>) -> String {
     String::from_utf8_lossy(&src[node.start_byte()..node.end_byte()]).into_owned()
 }
 
+fn path_from_attr_token_tree(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
+    let mut c = node.walk();
+    let kids: Vec<_> = node.children(&mut c).collect();
+    let mut i = 0;
+    if i < kids.len() && kids[i].kind() == "[" {
+        i += 1;
+    }
+    if i >= kids.len() || kids[i].kind() != "identifier" || node_text(src, kids[i]) != "path" {
+        return None;
+    }
+    i += 1;
+    if i < kids.len() && kids[i].kind() == "=" {
+        i += 1;
+    }
+    if i >= kids.len() || kids[i].kind() != "string_literal" {
+        return None;
+    }
+    let lit = node_text(src, kids[i]);
+    let inner = lit.strip_prefix('"')?.strip_suffix('"')?;
+    if inner.is_empty() {
+        None
+    } else {
+        Some(inner.to_string())
+    }
+}
+
 fn path_attr_of(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
     let mut prev = node.prev_named_sibling();
     while let Some(p) = prev {
-        if p.kind() != "attribute_item" {
-            break;
-        }
-        if let Some(s) = path_eq_literal(&node_text(src, p)) {
-            return Some(s);
+        match p.kind() {
+            "attribute_item" => {
+                if let Some(s) = path_eq_literal(&node_text(src, p)) {
+                    return Some(s);
+                }
+            }
+            "visibility_modifier" | "pub" => {}
+            // `m! { #[path = "bar.rs"] mod foo; }` — the grammar leaves
+            // `#[path = …]` as `#` plus a token_tree, not `attribute_item`.
+            "token_tree" => {
+                if let Some(s) = path_from_attr_token_tree(p, src) {
+                    return Some(s);
+                }
+            }
+            _ => break,
         }
         prev = p.prev_named_sibling();
     }
