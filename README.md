@@ -83,12 +83,12 @@ demo/git-twin/build.sh
 ```sh
 nix develop
 cargo build -p svc
-demo/play.sh          # scratch copy; already has a rename, a merge, and a binding conflict
-# demo/play.sh --tui  # same, review UI on that story
-# demo/play.sh --agent
+demo/dogfood.sh --tui  # svc manages its own crates: revisions, merge, review, replay, forge
+# demo/dogfood.sh --shell
+# demo/dogfood.sh --agent "rename describe_op to describe_operation"
 ```
 
-Or by hand:
+For a smaller fixture, use `demo/play.sh --tui` (or `--agent`). Or by hand:
 
 ```sh
 cd demo/config
