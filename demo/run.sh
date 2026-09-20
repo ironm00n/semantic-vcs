@@ -4,7 +4,9 @@
 # then the multi-process stress on one store (store-stress.sh), 32 checkouts
 # publishing at once (tests/concurrency/workspace_stress.sh) and renames SIGKILLed
 # at random points (crash.sh: the store is never a snapshot ahead of the log, a killed
-# render is finished by the next open). Then O9, the compiler oracle over the binder
+# render is finished by the next open), and two checkouts of this repository itself
+# making svc changes to one file at once, merged, one conflict resolved, replayed, and
+# type-checked (selfhost-concurrent.sh). Then O9, the compiler oracle over the binder
 # table (alpha-rename every local in svc-core, cargo check): it is #[ignore]d in the
 # unit suite because it shells out to a second cargo, so this is the only gate that
 # runs it. SVC_SKIP_O9=1 skips it.
@@ -31,6 +33,9 @@ SVC_BIN="$SVC" "$HERE/../tests/concurrency/workspace_stress.sh" 32
 fail=$((fail + $?))
 echo
 "$HERE/crash.sh" "$SVC"
+fail=$((fail + $?))
+echo
+"$HERE/selfhost-concurrent.sh" "$SVC"
 fail=$((fail + $?))
 echo
 if [ -z "${SVC_SKIP_O9:-}" ]; then
