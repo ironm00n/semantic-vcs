@@ -259,6 +259,43 @@ fn fill_file_module_includes_from_snapshot(
 ) {
     let mut pending: Vec<(RelPath, EntityId)> =
         env.file_of_mod.iter().map(|(p, m)| (p.clone(), *m)).collect();
+    let hosts: Vec<RelPath> = snapshot
+        .files
+        .keys()
+        .filter(|p| p.extension() == Some("rs") && !env.file_of_mod.contains_key(*p))
+        .cloned()
+        .collect();
+    for path in hosts {
+        let src = approx_file_src(snapshot, store, &path);
+        if src.is_empty() {
+            continue;
+        }
+        let Ok(tree) = parse(&src, &crate::RustLang) else {
+            continue;
+        };
+        for inc in extract::file_include_paths(tree.root_node(), &src) {
+            let Some(cand) = resolve_path_attr(&path, &inc) else {
+                continue;
+            };
+            if !snapshot.files.contains_key(&cand) {
+                continue;
+            }
+            if env.file_of_mod.contains_key(&cand) {
+                continue;
+            }
+            env.include_splices.insert(cand.clone());
+            for (cid, crec) in &snapshot.entities {
+                if crec.file != cand {
+                    continue;
+                }
+                if crec.parent.is_some() || is_inherent_rec(snapshot, crec) {
+                    continue;
+                }
+                env.insert_def_in(&crec.name, crec.kind, *cid, Some(&path));
+            }
+            attach_unowned_mods_from_snapshot(env, snapshot, store, &cand, &mut pending);
+        }
+    }
     let mut seen = HashSet::new();
     while let Some((path, mod_id)) = pending.pop() {
         if !seen.insert(path.clone()) {
@@ -828,44 +865,77 @@ fn link_file_root_includes(
         .map(|(p, src, tree, _, _)| (*p, (*src, *tree)))
         .collect();
     let mut pending: Vec<RelPath> = env.file_of_mod.keys().cloned().collect();
+    for (path, src, tree, _, _) in files {
+        if !extract::file_include_paths(tree.root_node(), src).is_empty() {
+            pending.push((*path).clone());
+        }
+    }
     let mut seen = HashSet::new();
     while let Some(path) = pending.pop() {
         if !seen.insert(path.clone()) {
             continue;
         }
-        let Some(&mod_id) = env.file_of_mod.get(&path) else {
-            continue;
-        };
-        let Some((src, tree)) = src_of.get(&path) else {
-            continue;
-        };
-        for inc in extract::file_include_paths(tree.root_node(), src) {
-            let Some(cand) = resolve_path_attr(&path, &inc) else {
+        if let Some(&mod_id) = env.file_of_mod.get(&path) {
+            let Some((src, tree)) = src_of.get(&path) else {
+                if env.include_splices.contains(&path) {
+                    if let Some((raw, ids)) = by_path.get(&path) {
+                        attach_unowned_mods_raw(env, &by_path, &path, raw, ids, &mut pending);
+                    }
+                }
                 continue;
             };
-            let Some((raw, ids)) = by_path.get(&cand) else {
-                continue;
-            };
-            if env
-                .file_of_mod
-                .get(&cand)
-                .is_some_and(|existing| *existing != mod_id)
-            {
-                continue;
-            }
-            env.file_of_mod.insert(cand.clone(), mod_id);
-            env.mod_decl_file.entry(mod_id).or_insert_with(|| path.clone());
-            env.include_splices.insert(cand.clone());
-            for (i, ent) in raw.iter().enumerate() {
-                if ent.parent_idx.is_some()
-                    || is_inherent_raw(raw, i)
-                    || is_block_local_raw(raw, i)
+            for inc in extract::file_include_paths(tree.root_node(), src) {
+                let Some(cand) = resolve_path_attr(&path, &inc) else {
+                    continue;
+                };
+                let Some((raw, ids)) = by_path.get(&cand) else {
+                    continue;
+                };
+                if env
+                    .file_of_mod
+                    .get(&cand)
+                    .is_some_and(|existing| *existing != mod_id)
                 {
                     continue;
                 }
-                env.insert_mod_child(mod_id, &ent.name, ent.kind, ids[i]);
+                env.file_of_mod.insert(cand.clone(), mod_id);
+                env.mod_decl_file.entry(mod_id).or_insert_with(|| path.clone());
+                env.include_splices.insert(cand.clone());
+                for (i, ent) in raw.iter().enumerate() {
+                    if ent.parent_idx.is_some()
+                        || is_inherent_raw(raw, i)
+                        || is_block_local_raw(raw, i)
+                    {
+                        continue;
+                    }
+                    env.insert_mod_child(mod_id, &ent.name, ent.kind, ids[i]);
+                }
+                pending.push(cand);
             }
-            pending.push(cand);
+        } else if let Some((src, tree)) = src_of.get(&path) {
+            // Crate-root (or any non-file-module) `include!` splices into this file.
+            for inc in extract::file_include_paths(tree.root_node(), src) {
+                let Some(cand) = resolve_path_attr(&path, &inc) else {
+                    continue;
+                };
+                let Some((raw, ids)) = by_path.get(&cand) else {
+                    continue;
+                };
+                if env.file_of_mod.contains_key(&cand) {
+                    continue;
+                }
+                env.include_splices.insert(cand.clone());
+                for (i, ent) in raw.iter().enumerate() {
+                    if ent.parent_idx.is_some()
+                        || is_inherent_raw(raw, i)
+                        || is_block_local_raw(raw, i)
+                    {
+                        continue;
+                    }
+                    env.insert_def_in(&ent.name, ent.kind, ids[i], Some(&path));
+                }
+                pending.push(cand);
+            }
         }
         if env.include_splices.contains(&path) {
             if let Some((raw, ids)) = by_path.get(&path) {
