@@ -44,7 +44,7 @@ fn add(repo: &Repo, definition: &str) -> EntityId {
     let id = EntityId::new();
     let ordinal = repo.current().unwrap().entities.len() as u32;
     repo.mutate(
-        Op::AddDef { id, parent: None, ordinal, definition: definition.into(), intent: Intent::Feature },
+        Op::AddDef { id, parent: None, ordinal, definition: definition.into(), intent: Intent::Feature, file: None },
         None,
         |repo, cur| {
             let next = add_def(repo.store(), repo.langs(), cur, id, None, ordinal, definition.as_bytes(), Intent::Feature)?;

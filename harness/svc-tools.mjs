@@ -43,7 +43,7 @@ const toolSpecs = [
     name: 'add_def',
     description: 'Add one complete definition, including its signature.',
     required: ['ordinal', 'definition', 'intent'],
-    properties: { id: string('Optional stable entity UUID; svc generates one when omitted.'), parent: string('Optional parent name or id.'), ordinal: integer('Sibling position.'), definition: string('Complete item, signature included.'), intent: string('Declared reason for the change.') },
+    properties: { id: string('Optional stable entity UUID; svc generates one when omitted.'), parent: string('Optional parent name or id.'), file: string('Optional repository-relative file. Defaults to the parent file, else the first tracked source file.'), ordinal: integer('Sibling position.'), definition: string('Complete item, signature included.'), intent: string('Declared reason for the change.') },
   },
   {
     name: 'delete',

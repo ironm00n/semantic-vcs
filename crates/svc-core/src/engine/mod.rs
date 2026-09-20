@@ -21,9 +21,9 @@ mod render_impl;
 pub use classify::classify;
 pub use merge::{lca, merge};
 pub use ops::{
-    StatusReport, add_def, classify_def, commit_snapshot, delete, edit_def, extract_hoist,
-    format_tokens, inline, lookup, lookup_name, move_def, redefine, relocate, rename, rust_langs,
-    show, snapshot_working_copy, status_report,
+    StatusReport, add_def, add_def_at, classify_def, commit_snapshot, delete, edit_def,
+    extract_hoist, format_tokens, inline, lookup, lookup_name, move_def, redefine, relocate,
+    rename, resolve_add_def_file, rust_langs, show, snapshot_working_copy, status_report,
 };
 
 #[derive(Clone, Debug, Default)]

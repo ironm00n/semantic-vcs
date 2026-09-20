@@ -4,8 +4,8 @@ use clap::{Args, Parser, Subcommand};
 use serde::Serialize;
 use serde_json::{Value, json};
 use svc_core::engine::{
-    add_def, classify_def, delete, diff as diff_snapshots, edit_def, extract_hoist, inline,
-    move_def, relocate, rename, render_entity, show,
+    add_def_at, classify_def, delete, diff as diff_snapshots, edit_def, extract_hoist, inline,
+    move_def, relocate, rename, render_entity, resolve_add_def_file, show,
 };
 use svc_core::{EntityId, Intent, Op, OpIx, RelPath, Snapshot, SnapshotId};
 use svc_repo::{
@@ -65,7 +65,7 @@ enum ChangeSetCommand {
 #[derive(Args)] struct MoveArgs { #[arg(long)] entity: String, #[arg(long)] new_parent: String, #[arg(long)] ordinal: Option<u32> }
 #[derive(Args)] struct RelocateArgs { #[arg(long)] entity: String, #[arg(long)] file: String, #[arg(long)] ordinal: u32 }
 #[derive(Args)] struct ExtractArgs { #[arg(long)] entity: String, #[arg(long)] new_parent: Option<String> }
-#[derive(Args)] struct AddDefArgs { #[arg(long)] id: Option<String>, #[arg(long)] parent: Option<String>, #[arg(long)] ordinal: u32, #[arg(long)] definition: String, #[arg(long)] intent: String }
+#[derive(Args)] struct AddDefArgs { #[arg(long)] id: Option<String>, #[arg(long)] parent: Option<String>, #[arg(long)] file: Option<String>, #[arg(long)] ordinal: u32, #[arg(long)] definition: String, #[arg(long)] intent: String }
 #[derive(Args)] struct DeleteArgs { #[arg(long)] entity: String, #[arg(long)] intent: String }
 #[derive(Args)] struct EditDefArgs { #[arg(long)] entity: String, #[arg(long)] definition: String, #[arg(long)] intent: String }
 #[derive(Args)] struct ClassifyArgs { #[arg(long)] entity: String, #[arg(long)] definition: String }
@@ -563,18 +563,26 @@ fn add_def_cmd(repo: &Repo, args: &AddDefArgs) -> Result<Value, String> {
         .flatten();
     let intent = parse_intent(&args.intent);
     let definition = definition_bytes(&args.definition);
+    let file = match args.file.as_deref() {
+        Some(s) => Some(RelPath::new(s).map_err(|p| format!("invalid --file {p}"))?),
+        None => None,
+    };
+    let current = repo.current().map_err(|e| e.to_string())?;
+    let file = resolve_add_def_file(&current, repo.langs(), parent, file)
+        .map_err(|e| e.to_string())?;
     let op = Op::AddDef {
         id,
         parent,
         ordinal: args.ordinal,
         definition: args.definition.clone(),
         intent: intent.clone(),
+        file: Some(file.clone()),
     };
     let m = repo
         .mutate(op, None, |repo, cur| {
-            let next = add_def(
-                repo.store(), repo.langs(), cur, id, parent, args.ordinal,
-                &definition, intent,
+            let next = add_def_at(
+                repo.store(), repo.langs(), cur, id, parent, Some(file.clone()),
+                args.ordinal, &definition, intent,
             )?;
             repo.amend(cur, next)
         })
@@ -672,7 +680,7 @@ mod tests {
         .unwrap();
         Cli::try_parse_from([
             "svc", "add-def", "--ordinal", "9", "--definition", "fn added() {}", "--intent",
-            "feature",
+            "feature", "--file", "src/extra.rs",
         ])
         .unwrap();
         Cli::try_parse_from([

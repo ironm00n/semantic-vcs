@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 
 use serde::Serialize;
-use svc_core::engine::{add_def, delete, edit_def, inline, move_def, relocate, rename};
+use svc_core::engine::{add_def_at, delete, edit_def, inline, move_def, relocate, rename};
 use svc_core::{
     ChangeId, Langs, MemStore, Op, OpIx, OpLogEntry, Result, Snapshot, SnapshotId, Store, View,
 };
@@ -116,8 +116,8 @@ impl Replay<'_> {
             Op::Inline { id } => {
                 self.amend(&cur, inline(&cur, &self.store, *id)?)?;
             }
-            Op::AddDef { id, parent, ordinal, definition, intent } => {
-                let next = add_def(&self.store, self.langs, &cur, *id, *parent, *ordinal, definition.as_bytes(), intent.clone())?;
+            Op::AddDef { id, parent, ordinal, definition, intent, file } => {
+                let next = add_def_at(&self.store, self.langs, &cur, *id, *parent, file.clone(), *ordinal, definition.as_bytes(), intent.clone())?;
                 self.amend(&cur, next)?;
             }
             Op::Delete { id, .. } => {

@@ -555,3 +555,28 @@ fn relocate_to_a_new_file_writes_that_file() {
     let main = fs::read_to_string(dir.path().join("src/main.rs")).unwrap();
     assert!(!main.contains("fn log("), "{main}");
 }
+
+#[test]
+fn add_def_to_a_new_file_writes_that_file() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(dir.path(), &["new"]);
+    json(
+        dir.path(),
+        &[
+            "add-def",
+            "--ordinal",
+            "0",
+            "--intent",
+            "feature",
+            "--file",
+            "src/extra.rs",
+            "--definition",
+            "fn extra() {}\n",
+        ],
+    );
+    let dest = fs::read_to_string(dir.path().join("src/extra.rs")).unwrap();
+    assert!(dest.contains("fn extra"), "{dest}");
+    let main = fs::read_to_string(dir.path().join("src/main.rs")).unwrap();
+    assert!(!main.contains("fn extra"), "{main}");
+}

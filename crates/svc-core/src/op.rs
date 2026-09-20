@@ -44,6 +44,11 @@ pub enum Op {
         ordinal: u32,
         definition: String,
         intent: Intent,
+        /// Recorded target. Absent on ops from before this field existed
+        /// (JSON) and on tests that still omit it; apply then uses the parent
+        /// file, else the first tracked source file.
+        #[serde(default)]
+        file: Option<RelPath>,
     },
     Delete {
         id: EntityId,
@@ -79,6 +84,36 @@ impl Op {
                 Some(intent)
             }
             _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ids::EntityId;
+
+    #[test]
+    fn add_def_json_without_file_defaults_to_none() {
+        let id = EntityId::new();
+        let v = serde_json::json!({
+            "AddDef": {
+                "id": id,
+                "parent": null,
+                "ordinal": 0,
+                "definition": "fn x() {}",
+                "intent": "Feature"
+            }
+        });
+        let op: Op = serde_json::from_value(v).unwrap();
+        match op {
+            Op::AddDef {
+                file, definition, ..
+            } => {
+                assert!(file.is_none());
+                assert_eq!(definition, "fn x() {}");
+            }
+            other => panic!("{other:?}"),
         }
     }
 }

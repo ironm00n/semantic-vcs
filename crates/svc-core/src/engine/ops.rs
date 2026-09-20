@@ -219,22 +219,51 @@ pub fn add_def(
     parent: Option<EntityId>,
     ordinal: u32,
     definition: &[u8],
-    _intent: Intent,
+    intent: Intent,
 ) -> Result<Snapshot> {
-    let file = match parent {
-        Some(p) => snap
+    add_def_at(
+        store, langs, snap, id, parent, None, ordinal, definition, intent,
+    )
+}
+
+/// Parent's file, else the first tracked source file. An explicit `file` wins.
+pub fn resolve_add_def_file(
+    snap: &Snapshot,
+    langs: &Langs,
+    parent: Option<EntityId>,
+    file: Option<RelPath>,
+) -> Result<RelPath> {
+    if let Some(file) = file {
+        return Ok(file);
+    }
+    match parent {
+        Some(p) => Ok(snap
             .entities
             .get(&p)
             .ok_or(Error::NoSuchEntity(p))?
             .file
-            .clone(),
-        None => snap
+            .clone()),
+        None => Ok(snap
             .files
             .keys()
             .find(|p| langs.for_path(p).is_some())
             .cloned()
-            .ok_or_else(|| Error::Other("no tracked source file to add into".into()))?,
-    };
+            .ok_or_else(|| Error::Other("no tracked source file to add into".into()))?),
+    }
+}
+
+pub fn add_def_at(
+    store: &dyn Store,
+    langs: &Langs,
+    snap: &Snapshot,
+    id: EntityId,
+    parent: Option<EntityId>,
+    file: Option<RelPath>,
+    ordinal: u32,
+    definition: &[u8],
+    _intent: Intent,
+) -> Result<Snapshot> {
+    let file = resolve_add_def_file(snap, langs, parent, file)?;
     let lang = langs
         .for_path(&file)
         .ok_or_else(|| Error::NoLanguage(file.clone()))?;

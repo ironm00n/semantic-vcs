@@ -54,7 +54,10 @@ fn snapshot_files_matches_ingest_and_status_is_clean() {
     assert!(snap.entities.values().any(|e| e.name == "load"));
     let again = snapshot_files(&store, &langs, &files, Some(&snap), change).unwrap();
     let report = status_report(&snap, &again);
-    assert_eq!(report.summary(), format!("{} entities, 0 changes", snap.entities.len()));
+    assert_eq!(
+        report.summary(),
+        format!("{} entities, 0 changes", snap.entities.len())
+    );
 }
 
 #[test]
@@ -71,12 +74,10 @@ fn redefine_keeps_callees_as_entity_holes() {
     let (content, bytes) = redefine(&store, &langs, &snap, load_id, text).unwrap();
     let c = store.get_content(content).unwrap();
     assert!(
-        c.tokens
-            .iter()
-            .any(|t| match t {
-                Token::Ident(IdentRef::Entity(id)) => *id == parse_id,
-                _ => false,
-            }),
+        c.tokens.iter().any(|t| match t {
+            Token::Ident(IdentRef::Entity(id)) => *id == parse_id,
+            _ => false,
+        }),
         "callee must resolve to parse's entity id, got {:?}",
         c.tokens
     );
@@ -92,7 +93,10 @@ fn layout_local_rename_is_not_semantic() {
     files.insert(path.clone(), SRC.as_bytes().to_vec());
     let change = ChangeId::new();
     let snap = snapshot_files(&store, &langs, &files, None, change).unwrap();
-    let edited = SRC.replace("fn parse(s: &str) -> usize { s.len() }", "fn parse(input: &str) -> usize { input.len() }");
+    let edited = SRC.replace(
+        "fn parse(s: &str) -> usize { s.len() }",
+        "fn parse(input: &str) -> usize { input.len() }",
+    );
     files.insert(path, edited.into_bytes());
     let next = snapshot_files(&store, &langs, &files, Some(&snap), change).unwrap();
     let report = status_report(&snap, &next);
@@ -151,4 +155,36 @@ fn add_def_separates_from_the_previous_item() {
         "add-def glued onto the previous item:\n{text}"
     );
     assert!(text.contains("fn check_retries"), "{text}");
+}
+
+#[test]
+fn add_def_honours_an_explicit_file() {
+    use svc_core::engine::add_def_at;
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let b = RelPath::new("src/b.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(a.clone(), b"fn a() {}\n".to_vec());
+    files.insert(b.clone(), b"fn b() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let next = add_def_at(
+        &store,
+        &langs,
+        &snap,
+        EntityId::new(),
+        None,
+        Some(b.clone()),
+        1,
+        b"fn c() {}\n",
+        Intent::Feature,
+    )
+    .unwrap();
+    let rec = next.entities.values().find(|e| e.name == "c").expect("c");
+    assert_eq!(rec.file, b);
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let b_src = String::from_utf8_lossy(rendered.files.get(&b).unwrap());
+    assert!(b_src.contains("fn c"), "{b_src}");
+    let a_src = String::from_utf8_lossy(rendered.files.get(&a).unwrap());
+    assert!(!a_src.contains("fn c"), "{a_src}");
 }
