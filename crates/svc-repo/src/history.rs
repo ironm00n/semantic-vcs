@@ -146,6 +146,8 @@ pub struct StatusOut {
     /// Semantic deltas versus the snapshot before this status (layout-only ordinal shifts suppressed).
     pub deltas: Vec<Delta>,
     pub absorbed: bool,
+    /// Unresolved merge conflicts on the current snapshot (`svc conflicts` lists them).
+    pub conflicts: usize,
 }
 
 /// `svc status`: absorb hand edits into the current change (recording an `Absorb` op) and
@@ -171,6 +173,7 @@ pub fn status(repo: &Repo) -> Result<StatusOut> {
         snapshot: snap.id(),
         deltas: report.deltas,
         absorbed,
+        conflicts: snap.conflicts.len(),
     })
 }
 

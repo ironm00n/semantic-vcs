@@ -181,7 +181,11 @@ fn op_verb(snap: &Snapshot, o: &Op) -> String {
 }
 
 pub fn status(snap: &Snapshot, s: &StatusOut) -> String {
-    let mut lines = vec![s.summary.clone()];
+    let mut lines = vec![match s.conflicts {
+        0 => s.summary.clone(),
+        1 => format!("{}; 1 conflict — svc conflicts", s.summary),
+        n => format!("{}; {n} conflicts — svc conflicts", s.summary),
+    }];
     for d in &s.deltas {
         lines.push(format!("    {}", delta(snap, d)));
     }
