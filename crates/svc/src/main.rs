@@ -602,12 +602,12 @@ fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
         Command::Push { changeset, dir } => {
             let id = resolve_changeset(&repo, changeset).map_err(|e| e.to_string())?.id;
             let other = svc_repo::sync::open_checkout(dir).map_err(|e| e.to_string())?;
-            value(svc_repo::sync::transfer(&repo, &other, id))
+            value(svc_repo::sync::transfer(&repo, &other, id, &svc_repo::checkout_name(&repo)))
         }
         Command::Pull { changeset, dir } => {
             let other = svc_repo::sync::open_checkout(dir).map_err(|e| e.to_string())?;
             let id = resolve_changeset(&other, changeset).map_err(|e| e.to_string())?.id;
-            value(svc_repo::sync::transfer(&other, &repo, id))
+            value(svc_repo::sync::transfer(&other, &repo, id, &svc_repo::sync::remote_name(&other)))
         }
         Command::Forge(ForgeCommand::Export { out }) => svc_repo::forge::export(&repo, out.as_deref()).map(|p| json!({"path": p})).map_err(|e| e.to_string()),
         Command::History(HistoryCommand::Export { since, out }) => {

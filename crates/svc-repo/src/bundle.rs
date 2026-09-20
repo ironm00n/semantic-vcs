@@ -396,9 +396,13 @@ impl Import<'_> {
                 if let Some(root) = self.snaps.get(&e.after.root) {
                     view.root = *root;
                 }
-                for (change, snap) in &e.after.heads {
+                // A head is keyed by the change this store gave the mapped snapshot — the
+                // recorded change id is the sender's, and a bundle cut after the change began
+                // never named it.
+                for snap in e.after.heads.values() {
                     if let Some(mapped) = self.snaps.get(snap) {
-                        view.heads.insert(self.change(*change), *mapped);
+                        let change = repo.store().get_snapshot(*mapped)?.change;
+                        view.heads.insert(change, *mapped);
                     }
                 }
                 repo.restore_view(&view, e.op.clone())?;
@@ -459,8 +463,14 @@ fn write_file(at: &std::path::Path, bytes: &[u8]) -> Result<()> {
 /// Replay `bundle` into `repo`, whose current tree must be the bundle's base. Stops at the
 /// first entry that cannot be applied; reports the first whose result differs from the record.
 pub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {
+    // Notes change no tree, so a bundle of nothing else — mail, verdicts, claims — lands on
+    // any tree; the base and the recorded trees only bind ops that write.
+    let detached = bundle.entries.iter().all(|b| b.entry.before.root == b.entry.after.root);
+    // Hand edits in this checkout are its own absorb, stamped now, not the first replayed
+    // op's time and group.
+    repo.absorb()?;
     let have = tree_hash(&rendered(repo, &repo.current()?)?);
-    if have != bundle.base_tree {
+    if !detached && have != bundle.base_tree {
         return Err(Error::Other(format!(
             "this tree is not the bundle's base (tree {}…, bundle starts from {}…)",
             &have[..12],
@@ -502,7 +512,7 @@ pub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {
         repo.with_provenance(p, || im.apply(b))?;
         applied += 1;
         im.snaps.insert(b.entry.after.root, repo.store().root()?);
-        if diverged_at.is_none() {
+        if !detached && diverged_at.is_none() {
             let got = tree_hash(&rendered(repo, &repo.current()?)?);
             if got != b.after_tree {
                 diverged_at = Some(b.ix);

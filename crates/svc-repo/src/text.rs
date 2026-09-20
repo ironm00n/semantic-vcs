@@ -145,6 +145,7 @@ pub fn touch(t: &Touch) -> String {
         Touch::Moved { .. } => "moved".into(),
         Touch::Relocated { from, to } => format!("relocated {}#{} → {}#{}", from.0, from.1, to.0, to.1),
         Touch::Edited { observed } => format!("edited ({})", class(*observed)),
+        Touch::Rebound => "rebound (text unchanged)".into(),
     }
 }
 

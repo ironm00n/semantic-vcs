@@ -439,3 +439,26 @@ fn a_failing_verb_publishes_nothing() {
     assert_eq!(svc_repo::op_log(&repo).unwrap().len(), ops_before + 1);
     assert!(read(dir.path(), "src/lib.rs").contains("fn read_file("));
 }
+
+#[test]
+fn same_text_with_a_new_canonical_is_rebound_not_edited() {
+    use svc_core::{BytesId, ContentId, EntityRecord, Kind, RelPath};
+    let file = RelPath::new("src/main.rs").unwrap();
+    let a = EntityRecord {
+        name: "open_with".into(),
+        kind: Kind::Fn,
+        parent: None,
+        file,
+        ordinal: 0,
+        content: ContentId::of(&"canonical as the old analyser read it"),
+        bytes: BytesId::of(&"fn open_with() {}"),
+    };
+    let mut b = a.clone();
+    b.content = ContentId::of(&"canonical as the new analyser reads it");
+    assert_eq!(svc_repo::touch(Some(&a), Some(&b), None), Some(Touch::Rebound));
+    assert_eq!(svc_repo::text::touch(&Touch::Rebound), "rebound (text unchanged)");
+    let mut edited = b.clone();
+    edited.bytes = BytesId::of(&"fn open_with() { changed }");
+    assert!(matches!(svc_repo::touch(Some(&b), Some(&edited), None), Some(Touch::Edited { .. })));
+    assert_eq!(svc_repo::touch(Some(&a), Some(&a), None), None);
+}

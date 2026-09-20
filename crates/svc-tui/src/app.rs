@@ -1079,6 +1079,7 @@ fn entity_touch_line(entity: &EntityTouch) -> Line<'static> {
         Touch::Edited { observed: Some(svc_core::ObservedClass::BindingChanging) } => {
             ("edited: binding-changing".into(), Style::default().fg(Color::Red))
         }
+        Touch::Rebound => ("rebound (text unchanged)".into(), Style::default().fg(Color::DarkGray)),
         Touch::Edited { observed } => (format!("edited: {}", class_name(*observed)), Style::default().fg(Color::Green)),
     };
     Line::from(vec![
@@ -1118,6 +1119,7 @@ fn blame_line(e: &BlameEntry) -> Line<'static> {
         Touch::Moved { .. } => "moved".to_string(),
         Touch::Relocated { from, to } => format!("relocated {}#{} → {}#{}", from.0, from.1, to.0, to.1),
         Touch::Edited { observed } => format!("edited: {}", class_name(*observed)),
+        Touch::Rebound => "rebound (text unchanged)".to_string(),
     };
     let op = match &e.op {
         Op::Rename { .. } => String::new(),
@@ -1126,6 +1128,7 @@ fn blame_line(e: &BlameEntry) -> Line<'static> {
     let style = match &e.touch {
         Touch::Edited { observed: Some(svc_core::ObservedClass::BindingChanging) } => Style::default().fg(Color::Red),
         Touch::Edited { .. } => Style::default().fg(Color::Green),
+        Touch::Rebound => Style::default().fg(Color::DarkGray),
         _ => Style::default(),
     };
     Line::from(vec![

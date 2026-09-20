@@ -78,26 +78,26 @@ fn a_changeset_travels_with_its_review_state_and_only_what_is_new_travels() {
     assert_eq!(review_state(&a, "reviewed").len(), 2);
     assert!(changesets(&b).unwrap().is_empty());
 
-    let r = transfer(&a, &b, cs).unwrap();
+    let r = transfer(&a, &b, cs, "a").unwrap();
     assert_eq!(r.sent, 2);
     assert_eq!(r.import.unwrap().diverged_at, None);
     assert!(std::fs::read_to_string(b_dir.path().join("src/main.rs")).unwrap().contains("read_file("));
     assert_eq!(review_state(&a, "reviewed"), review_state(&b, "reviewed"));
     assert_eq!(resolve_changeset(&b, "reviewed").unwrap().id, cs);
-    assert_eq!(transfer(&a, &b, cs).unwrap().sent, 0, "nothing new to send");
+    assert_eq!(transfer(&a, &b, cs, "a").unwrap().sent, 0, "nothing new to send");
 
     // A follow-up joins the same group and is the only thing sent.
     changeset_reopen(&a, cs).unwrap();
     rename_to(&a, "validate", "check");
     changeset_end(&a).unwrap();
-    assert_eq!(transfer(&a, &b, cs).unwrap().sent, 1);
+    assert_eq!(transfer(&a, &b, cs, "a").unwrap().sent, 1);
     assert_eq!(review_state(&a, "reviewed"), review_state(&b, "reviewed"));
 
     // The reviewer's own op on b comes back to a.
     changeset_reopen(&b, cs).unwrap();
     rename_to(&b, "parse", "parse_config");
     changeset_end(&b).unwrap();
-    assert_eq!(transfer(&b, &a, cs).unwrap().sent, 1);
+    assert_eq!(transfer(&b, &a, cs, "b").unwrap().sent, 1);
     assert!(std::fs::read_to_string(a_dir.path().join("src/main.rs")).unwrap().contains("parse_config("));
     let state = review_state(&a, "reviewed");
     assert_eq!(state.len(), 4);
@@ -106,4 +106,22 @@ fn a_changeset_travels_with_its_review_state_and_only_what_is_new_travels() {
     // A prefix or a name resolves; an unknown one is refused.
     assert_eq!(resolve_changeset(&a, &cs.short()[..4]).unwrap().id, cs);
     assert!(resolve_changeset(&a, "nope").is_err());
+}
+
+#[test]
+fn two_ops_of_one_kind_in_one_millisecond_both_travel() {
+    use svc_repo::repo::Provenance;
+    let (a_dir, b_dir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    demo_crate(a_dir.path());
+    demo_crate(b_dir.path());
+    let a = Repo::init(a_dir.path(), Repo::default_langs()).unwrap();
+    let b = Repo::init(b_dir.path(), Repo::default_langs()).unwrap();
+    let cs = changeset_begin(&a, "same-ms", Intent::Refactor, None, false).unwrap().id;
+    let stamp = Provenance { at: 1234, group: Some(cs), workspace: None };
+    a.with_provenance(stamp.clone(), || Ok(rename_to(&a, "read", "read_file"))).unwrap();
+    assert_eq!(transfer(&a, &b, cs, "a").unwrap().sent, 1);
+    a.with_provenance(stamp, || Ok(rename_to(&a, "validate", "check"))).unwrap();
+    assert_eq!(transfer(&a, &b, cs, "a").unwrap().sent, 1, "the second same-millisecond rename is not the first");
+    assert!(std::fs::read_to_string(b_dir.path().join("src/main.rs")).unwrap().contains("fn check("));
+    assert_eq!(transfer(&a, &b, cs, "a").unwrap().sent, 0);
 }

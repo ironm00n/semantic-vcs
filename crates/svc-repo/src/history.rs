@@ -54,6 +54,9 @@ pub enum Touch {
     Moved { from: Option<EntityId>, to: Option<EntityId> },
     Relocated { from: (RelPath, u32), to: (RelPath, u32) },
     Edited { observed: Option<ObservedClass> },
+    /// Same text, different meaning: the bindings resolve differently because another
+    /// entity changed, or because the analyser did. Not a hand edit.
+    Rebound,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -160,6 +163,9 @@ pub struct StatusOut {
     /// Unread mail/review notes addressed here or `@all`.
     #[serde(default)]
     pub inbox: usize,
+    /// Entities whose text is unchanged but whose bindings now read differently; not edits.
+    #[serde(default)]
+    pub rebound: usize,
 }
 
 /// `svc status`: absorb hand edits into the current change (recording an `Absorb` op) and
@@ -188,6 +194,7 @@ pub fn status(repo: &Repo) -> Result<StatusOut> {
         conflicts: snap.conflicts.len(),
         claims: active_claims(repo)?,
         inbox: inbox(repo)?.unread.len(),
+        rebound: report.rebound,
     })
 }
 
@@ -463,6 +470,8 @@ pub fn touch(
                     from: (a.file.clone(), a.ordinal),
                     to: (b.file.clone(), b.ordinal),
                 })
+            } else if a.bytes == b.bytes && a.content != b.content {
+                Some(Touch::Rebound)
             } else if a.content != b.content || a.bytes != b.bytes {
                 Some(Touch::Edited { observed })
             } else {
@@ -752,11 +761,23 @@ pub fn untracked_mentions(repo: &Repo, word: &str) -> Result<Mentions> {
     Ok(m)
 }
 
-/// The checkout name stamped on notes (`default` when this is the `.svc/` tree).
+/// The checkout name stamped on notes and matched by the inbox: the workspace name; for
+/// the `.svc/` tree itself `SVC_CHECKOUT` if set, else the directory's name — so mail
+/// between stores names its sender without a shared registry.
 pub fn checkout_name(repo: &Repo) -> String {
-    repo.workspace()
-        .unwrap_or(DEFAULT_WORKSPACE)
-        .to_string()
+    if let Some(name) = repo.workspace() {
+        return name.to_string();
+    }
+    if let Ok(name) = std::env::var("SVC_CHECKOUT")
+        && !name.trim().is_empty()
+    {
+        return name;
+    }
+    repo.root_dir()
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| DEFAULT_WORKSPACE.to_string())
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
