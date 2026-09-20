@@ -543,7 +543,7 @@ fn inline_cmd(repo: &Repo, entity: &str) -> Result<Value, String> {
     let id = resolve_entity(repo, entity).map_err(|e| e.to_string())?;
     let m = repo
         .mutate(Op::Inline { id }, None, |repo, cur| {
-            repo.amend(cur, inline(cur, repo.store(), id)?)
+            repo.amend(cur, inline(repo.store(), repo.langs(), cur, id)?)
         })
         .map_err(|e| e.to_string())?;
     mutation_value(m)

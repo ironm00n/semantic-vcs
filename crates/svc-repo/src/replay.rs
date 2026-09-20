@@ -114,7 +114,7 @@ impl Replay<'_> {
                 self.amend(&cur, move_def(&self.store, &cur, *id, *new_parent, Some(*ordinal))?)?;
             }
             Op::Inline { id } => {
-                self.amend(&cur, inline(&cur, &self.store, *id)?)?;
+                self.amend(&cur, inline(&self.store, self.langs, &cur, *id)?)?;
             }
             Op::AddDef { id, parent, ordinal, definition, intent, file } => {
                 let next = add_def_at(&self.store, self.langs, &cur, *id, *parent, file.clone(), *ordinal, definition.as_bytes(), intent.clone())?;

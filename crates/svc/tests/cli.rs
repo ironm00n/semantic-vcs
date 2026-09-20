@@ -665,3 +665,39 @@ fn add_def_of_an_impl_writes_the_method() {
     let src = fs::read_to_string(dir.path().join("src/main.rs")).unwrap();
     assert!(src.contains("fn extra"), "{src}");
 }
+
+#[test]
+fn inline_splices_the_unique_call_then_drops_the_fn() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(dir.path(), &["new"]);
+    json(dir.path(), &["inline", "--entity", "validate"]);
+    let defs = json(dir.path(), &["list-defs"]);
+    assert!(
+        defs["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|d| d["name"] != "validate"),
+        "{defs}"
+    );
+    let load = rust_item(dir.path(), "load");
+    assert!(load.contains("retries must not exceed 10"), "{load}");
+    assert!(!load.contains("validate("), "{load}");
+    let src = fs::read_to_string(dir.path().join("src/main.rs")).unwrap();
+    assert!(!src.contains("fn validate"), "{src}");
+    let replayed = json(dir.path(), &["replay"]);
+    assert!(replayed["diverged_at"].is_null(), "{replayed}");
+}
+
+#[test]
+fn inline_of_an_unused_fn_is_refused() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(dir.path(), &["new"]);
+    let err = stderr_json(dir.path(), &["inline", "--entity", "log"]);
+    assert!(
+        err["error"].as_str().unwrap().contains("found 0"),
+        "{err}"
+    );
+}

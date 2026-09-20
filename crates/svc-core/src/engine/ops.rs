@@ -5,12 +5,14 @@ use crate::delta::{Delta, ObservedClass};
 use crate::entity::EntityRecord;
 use crate::error::{Error, Result};
 use crate::ids::{ByteRange, ChangeId, EntityId, RelPath, resolve_spec};
-use crate::lang::Langs;
+use crate::lang::{Lang, Langs};
 use crate::op::Intent;
 use crate::snapshot::Snapshot;
 use crate::store::Store;
 
-use super::{classify, env_from_snapshot, ingest_file_with_env, render_entity, snapshot_files};
+use super::{
+    classify, env_from_snapshot, ingest_file_with_env, parse, render_entity, snapshot_files,
+};
 
 pub fn lookup_name(snap: &Snapshot, name: &str) -> Result<EntityId> {
     let hits: Vec<_> = snap
@@ -142,15 +144,331 @@ pub fn delete(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapsh
     Ok(next)
 }
 
-pub fn inline(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapshot> {
-    let refs = referrers(snap, store, id)?;
-    if refs.len() != 1 {
+pub fn inline(store: &dyn Store, langs: &Langs, snap: &Snapshot, id: EntityId) -> Result<Snapshot> {
+    snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+    let sites = name_use_sites(snap, store, id)?;
+    if sites.len() != 1 {
         return Err(Error::Other(format!(
             "inline requires a single use; found {}",
-            refs.len()
+            sites.len()
         )));
     }
-    delete(snap, store, id)
+    let referrer = sites[0];
+    if subtree(snap, referrer).contains(&id) {
+        return Err(Error::Other(
+            "inline cannot target an item still nested in the call site; extract first".into(),
+        ));
+    }
+    let replacement = inlined_call_text(store, langs, snap, id, referrer)?;
+    let (next, _) = edit_def(store, langs, snap, referrer, &replacement)?;
+    delete(&next, store, id)
+}
+
+/// `Chunk::Name(id)` sites, including recursive uses inside `id` itself.
+/// The declaration hole is `Name(SELF)`, not `Name(id)`.
+fn name_use_sites(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Vec<EntityId>> {
+    let mut sites = Vec::new();
+    for (oid, rec) in &snap.entities {
+        let n = store
+            .get_bytes_blob(rec.bytes)?
+            .chunks()
+            .iter()
+            .filter(|c| matches!(c, Chunk::Name(e) if *e == id))
+            .count();
+        for _ in 0..n {
+            sites.push(*oid);
+        }
+    }
+    Ok(sites)
+}
+
+fn inlined_call_text(
+    store: &dyn Store,
+    langs: &Langs,
+    snap: &Snapshot,
+    id: EntityId,
+    referrer: EntityId,
+) -> Result<Vec<u8>> {
+    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+    let lang = langs
+        .for_path(&rec.file)
+        .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
+    let (callee, _) = render_entity(snap, store, id, false)?;
+    let (params, body) = callee_params_and_body(lang, &callee)?;
+    let (caller, map) = render_entity(snap, store, referrer, true)?;
+    let ranges: Vec<ByteRange> = map
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|(r, ident)| match ident {
+            IdentRef::Entity(e) if *e == id => Some(*r),
+            _ => None,
+        })
+        .collect();
+    match ranges.as_slice() {
+        [range] => {
+            let name_end = range.end as usize;
+            if name_end > caller.len() || (range.start as usize) > name_end {
+                return Err(Error::Other("inline call range is out of bounds".into()));
+            }
+            let (call_end, args) = extend_call(&caller, name_end)?;
+            if args.len() != params.len() {
+                return Err(Error::Other(format!(
+                    "inline expected {} argument(s), found {}",
+                    params.len(),
+                    args.len()
+                )));
+            }
+            let mut block = bind_and_body(&params, &args, &body);
+            if rust_postfix(&caller, call_end) {
+                if lang.name() != "rust" {
+                    return Err(Error::Other(
+                        "inline of an expression-position call is only supported in rust".into(),
+                    ));
+                }
+                block = format!("({block})");
+            }
+            let start = range.start as usize;
+            let mut out = Vec::with_capacity(caller.len() + block.len());
+            out.extend_from_slice(&caller[..start]);
+            out.extend_from_slice(block.as_bytes());
+            out.extend_from_slice(&caller[call_end..]);
+            Ok(out)
+        }
+        _ => Err(Error::Other(format!(
+            "inline needs one call name in the unique user; found {}",
+            ranges.len()
+        ))),
+    }
+}
+
+fn callee_params_and_body(lang: &dyn Lang, src: &[u8]) -> Result<(Vec<String>, String)> {
+    let tree = parse(src, lang)?;
+    let item = entity_item_node(tree.root_node(), lang)
+        .ok_or_else(|| Error::Other("inline target does not parse as a language item".into()))?;
+    let rule = lang
+        .entity_kinds()
+        .iter()
+        .find(|r| r.node_kind == item.kind())
+        .ok_or_else(|| Error::Other("inline target is not a language item".into()))?;
+    let body_field = rule.body_field.ok_or_else(|| {
+        Error::Other("inline needs an item with a body (not a type or signature)".into())
+    })?;
+    let body = item
+        .child_by_field_name(body_field)
+        .ok_or_else(|| Error::Other("inline target has no body".into()))?;
+    let params = match item.child_by_field_name("parameters") {
+        Some(n) => param_names(n, src)?,
+        None => Vec::new(),
+    };
+    Ok((params, node_src(src, body)))
+}
+
+fn entity_item_node<'a>(
+    node: tree_sitter::Node<'a>,
+    lang: &dyn Lang,
+) -> Option<tree_sitter::Node<'a>> {
+    if lang
+        .entity_kinds()
+        .iter()
+        .any(|r| r.node_kind == node.kind())
+    {
+        return Some(node);
+    }
+    let mut c = node.walk();
+    for ch in node.named_children(&mut c) {
+        if let Some(hit) = entity_item_node(ch, lang) {
+            return Some(hit);
+        }
+    }
+    None
+}
+
+fn param_names(params: tree_sitter::Node<'_>, src: &[u8]) -> Result<Vec<String>> {
+    let mut names = Vec::new();
+    let mut c = params.walk();
+    for ch in params.named_children(&mut c) {
+        match ch.kind() {
+            "self_parameter" => {
+                return Err(Error::Other(
+                    "inline of a method (self) is not supported".into(),
+                ));
+            }
+            "identifier" => names.push(node_src(src, ch)),
+            "parameter" | "required_parameter" | "optional_parameter" | "rest_parameter"
+            | "assignment_pattern" => {
+                let pat = ch
+                    .child_by_field_name("pattern")
+                    .or_else(|| ch.child_by_field_name("name"))
+                    .unwrap_or(ch);
+                match simple_pat_name(pat, src) {
+                    Some(n) => names.push(n),
+                    None => {
+                        return Err(Error::Other(
+                            "inline needs simple identifier parameters".into(),
+                        ));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(names)
+}
+
+fn simple_pat_name(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
+    match node.kind() {
+        "identifier" => Some(node_src(src, node)),
+        "mut_pattern" => {
+            let mut c = node.walk();
+            node.named_children(&mut c)
+                .find(|ch| ch.kind() == "identifier")
+                .map(|id| node_src(src, id))
+        }
+        _ => None,
+    }
+}
+
+fn node_src(src: &[u8], n: tree_sitter::Node<'_>) -> String {
+    let a = n.start_byte().min(src.len());
+    let b = n.end_byte().min(src.len()).max(a);
+    String::from_utf8_lossy(&src[a..b]).into_owned()
+}
+
+fn extend_call(src: &[u8], name_end: usize) -> Result<(usize, Vec<String>)> {
+    let mut i = name_end;
+    while i < src.len() && src[i].is_ascii_whitespace() {
+        i += 1;
+    }
+    if i >= src.len() || src[i] != b'(' {
+        return Err(Error::Other("inline needs a call site".into()));
+    }
+    let close = matching_paren(src, i)?;
+    Ok((close + 1, split_args(&src[i + 1..close])))
+}
+
+fn matching_paren(src: &[u8], open: usize) -> Result<usize> {
+    let mut i = open;
+    let mut depth = 0i32;
+    while i < src.len() {
+        let b = src[i];
+        if b == b'/' && i + 1 < src.len() {
+            if src[i + 1] == b'/' {
+                i += 2;
+                while i < src.len() && src[i] != b'\n' {
+                    i += 1;
+                }
+                continue;
+            }
+            if src[i + 1] == b'*' {
+                i += 2;
+                while i + 1 < src.len() && !(src[i] == b'*' && src[i + 1] == b'/') {
+                    i += 1;
+                }
+                i = i.saturating_add(2);
+                continue;
+            }
+        }
+        if b == b'"' || b == b'\'' {
+            let quote = b;
+            i += 1;
+            while i < src.len() {
+                if src[i] == b'\\' {
+                    i = i.saturating_add(2);
+                    continue;
+                }
+                if src[i] == quote {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+        if b == b'(' {
+            depth += 1;
+        } else if b == b')' {
+            depth -= 1;
+            if depth == 0 {
+                return Ok(i);
+            }
+        }
+        i += 1;
+    }
+    Err(Error::Other("inline call is unclosed".into()))
+}
+
+fn split_args(inner: &[u8]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let mut depth = 0i32;
+    let mut i = 0usize;
+    while i < inner.len() {
+        let b = inner[i];
+        if b == b'"' || b == b'\'' {
+            let quote = b;
+            i += 1;
+            while i < inner.len() {
+                if inner[i] == b'\\' {
+                    i = i.saturating_add(2);
+                    continue;
+                }
+                if inner[i] == quote {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+        match b {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => depth = depth.saturating_sub(1),
+            b',' if depth == 0 => {
+                push_arg(&mut out, &inner[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    push_arg(&mut out, &inner[start..]);
+    out
+}
+
+fn push_arg(out: &mut Vec<String>, piece: &[u8]) {
+    let s = String::from_utf8_lossy(piece).trim().to_string();
+    if !s.is_empty() {
+        out.push(s);
+    }
+}
+
+fn bind_and_body(params: &[String], args: &[String], body: &str) -> String {
+    if params.is_empty() {
+        return body.to_string();
+    }
+    let mut s = String::from("{\n");
+    for (p, a) in params.iter().zip(args) {
+        s.push_str("    let ");
+        s.push_str(p);
+        s.push_str(" = ");
+        s.push_str(a);
+        s.push_str(";\n");
+    }
+    s.push_str(body);
+    if !body.ends_with('\n') {
+        s.push('\n');
+    }
+    s.push('}');
+    s
+}
+
+fn rust_postfix(src: &[u8], after_call: usize) -> bool {
+    let mut i = after_call;
+    while i < src.len() && src[i].is_ascii_whitespace() {
+        i += 1;
+    }
+    i < src.len() && matches!(src[i], b'?' | b'.')
 }
 
 pub fn edit_def(
