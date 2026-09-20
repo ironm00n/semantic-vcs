@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use svc_core::engine::{
-    add_def, ingest_file, lookup_name, redefine, rename, render, rust_langs, snapshot_files,
-    status_report,
+    add_def, edit_def, ingest_file, lookup_name, redefine, rename, render, rust_langs,
+    snapshot_files, status_report,
 };
 use svc_core::ids::{ChangeId, EntityId, RelPath};
 use svc_core::store::MemStore;
@@ -276,5 +276,51 @@ impl S {
     assert!(
         text.contains("other.read()"),
         "x.method() needs types and must stay untracked:\n{text}"
+    );
+}
+
+#[test]
+fn edit_def_of_a_method_keeps_self_calls_as_entity_holes() {
+    const SRC: &str = r#"
+struct S;
+impl S {
+    fn read(&self) {}
+    fn load(&self) {
+        self.read();
+    }
+}
+"#;
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, SRC.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let impl_id = snap
+        .entities
+        .iter()
+        .find(|(_, rec)| rec.kind == svc_core::Kind::Impl)
+        .map(|(id, _)| *id)
+        .expect("impl");
+    let method = named_child(&snap, "read", Some(impl_id));
+    let load = lookup_name(&snap, "load").unwrap();
+    let (next, _) = edit_def(
+        &store,
+        &langs,
+        &snap,
+        load,
+        b"fn load(&self) {\n        self.read();\n        Self::read();\n    }\n",
+    )
+    .unwrap();
+    let content = store.get_content(next.entities[&load].content).unwrap();
+    let hits = content
+        .tokens
+        .iter()
+        .filter(|t| matches!(t, Token::Ident(IdentRef::Entity(id)) if *id == method))
+        .count();
+    assert_eq!(
+        hits, 2,
+        "edit-def must keep same-impl calls as entity holes, got {:?}",
+        content.tokens
     );
 }

@@ -306,11 +306,12 @@ fn materialize(
         let node = extract::find_node(tree.root_node(), ent.item_range)
             .ok_or_else(|| Error::Parse(format!("no node for {}", ent.name)))?;
         let mut local_env = env.clone();
-        if let Some(p) = ent.parent_idx {
-            local_env.self_methods.clear();
-            for (j, sib) in raw.iter().enumerate() {
-                if sib.parent_idx == Some(p) && is_callable_member(sib.kind) {
-                    local_env.self_methods.insert(sib.name.clone(), ids[j]);
+        if local_env.self_methods.is_empty() {
+            if let Some(p) = ent.parent_idx {
+                for (j, sib) in raw.iter().enumerate() {
+                    if sib.parent_idx == Some(p) && is_callable_member(sib.kind) {
+                        local_env.self_methods.insert(sib.name.clone(), ids[j]);
+                    }
                 }
             }
         }

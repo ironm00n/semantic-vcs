@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{Bytes, Chunk, Content, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
-use crate::entity::{EntityRecord, Kind, SigKey};
+use crate::entity::{EntityRecord, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{ByteRange, ChangeId, EntityId, RelPath, resolve_spec};
 use crate::lang::{Lang, Langs};
@@ -11,8 +11,8 @@ use crate::snapshot::Snapshot;
 use crate::store::Store;
 
 use super::{
-    classify, env_from_snapshot, ingest_file_prev, ingest_file_with_env, parse, render,
-    render_entity, snapshot_files,
+    classify, env_from_snapshot, fill_self_methods_from_snapshot, ingest_file_prev,
+    ingest_file_with_env, parse, render, render_entity, snapshot_files,
 };
 
 pub fn lookup_name(snap: &Snapshot, name: &str) -> Result<EntityId> {
@@ -551,17 +551,13 @@ pub fn edit_def(
         .for_path(&rec.file)
         .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
     let definition = item_text(store, snap, id, definition)?;
-    let parent_kind = rec
-        .parent
-        .and_then(|p| snap.entities.get(&p))
-        .map(|r| r.kind);
     let (root_old, part) = ingest_item_tree(
         "edit-def",
         store,
         snap,
         &rec.file,
         lang,
-        parent_kind,
+        rec.parent,
         &definition,
     )?;
     let mapped = remap_tree(store, part.entities, root_old, id, Some(snap))?;
@@ -679,16 +675,8 @@ pub fn add_def_at(
         .map(|p| sibling_indent(store, snap, p))
         .unwrap_or_default();
     let definition = add_def_text(parent, &indent, definition);
-    let parent_kind = parent.and_then(|p| snap.entities.get(&p)).map(|r| r.kind);
-    let (root_old, part) = ingest_item_tree(
-        "add-def",
-        store,
-        snap,
-        &file,
-        lang,
-        parent_kind,
-        &definition,
-    )?;
+    let (root_old, part) =
+        ingest_item_tree("add-def", store, snap, &file, lang, parent, &definition)?;
     let mapped = remap_tree(store, part.entities, root_old, id, None)?;
     let mut next = snap.clone();
     next.ensure_file(file.clone());
@@ -1113,9 +1101,10 @@ fn ingest_item_tree(
     snap: &Snapshot,
     file: &RelPath,
     lang: &dyn crate::lang::Lang,
-    parent_kind: Option<Kind>,
+    parent: Option<EntityId>,
     text: &[u8],
 ) -> Result<(EntityId, Snapshot)> {
+    let parent_kind = parent.and_then(|p| snap.entities.get(&p)).map(|r| r.kind);
     let shell = parent_kind.and_then(|k| lang.member_shell(k));
     let wrapped: Vec<u8> = match shell {
         Some((open, close)) => [open.as_bytes(), text, close.as_bytes()].concat(),
@@ -1127,14 +1116,9 @@ fn ingest_item_tree(
             lang.name()
         )));
     }
-    let mut part = ingest_file_with_env(
-        &wrapped,
-        file.clone(),
-        lang,
-        store,
-        snap.change,
-        &env_from_snapshot(snap),
-    )?;
+    let mut env = env_from_snapshot(snap);
+    fill_self_methods_from_snapshot(&mut env, snap, parent);
+    let mut part = ingest_file_with_env(&wrapped, file.clone(), lang, store, snap.change, &env)?;
     let roots: Vec<EntityId> = part
         .entities
         .iter()
