@@ -60,7 +60,7 @@ pub fn js_extract_refined_kinds(src: &str) -> Result<Vec<(String, crate::entity:
 pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     let mut env = Env::default();
     for (id, rec) in &snapshot.entities {
-        if is_inherent_rec(snapshot, rec) {
+        if is_inherent_rec(snapshot, rec) || is_block_local_rec(snapshot, rec) {
             continue;
         }
         env.insert_def_in(&rec.name, rec.kind, *id, Some(&rec.file));
@@ -123,6 +123,77 @@ fn is_inherent_raw(raw: &[RawEntity], i: usize) -> bool {
     raw[i]
         .parent_idx
         .is_some_and(|p| is_inherent_member(raw[i].kind, raw[p].kind))
+}
+
+/// A function body (and JS function/method body) can host nested items. Those
+/// names are in [`Env::nested_items`] while that body is resolved, not the
+/// file/crate maps.
+fn hosts_block_items(kind: Kind) -> bool {
+    matches!(
+        kind,
+        Kind::Fn | Kind::JsFunction | Kind::JsMethod | Kind::JsGetter | Kind::JsSetter
+    )
+}
+
+fn is_block_local_rec(snapshot: &Snapshot, rec: &EntityRecord) -> bool {
+    rec.parent.is_some_and(|p| {
+        snapshot
+            .entities
+            .get(&p)
+            .is_some_and(|par| hosts_block_items(par.kind))
+    })
+}
+
+fn is_block_local_raw(raw: &[RawEntity], i: usize) -> bool {
+    raw[i]
+        .parent_idx
+        .is_some_and(|p| hosts_block_items(raw[p].kind))
+}
+
+/// Nested `fn`/`struct`/… under `id` and under enclosing functions, inner last.
+pub(crate) fn fill_nested_items_from_snapshot(env: &mut Env, snapshot: &Snapshot, id: EntityId) {
+    env.nested_items.clear();
+    let mut chain = vec![id];
+    let mut walk = snapshot.entities.get(&id).and_then(|r| r.parent);
+    while let Some(pid) = walk {
+        let Some(prec) = snapshot.entities.get(&pid) else {
+            break;
+        };
+        if !hosts_block_items(prec.kind) {
+            break;
+        }
+        chain.push(pid);
+        walk = prec.parent;
+    }
+    chain.reverse();
+    for pid in chain {
+        for (cid, crec) in &snapshot.entities {
+            if crec.parent == Some(pid) && is_block_local_rec(snapshot, crec) {
+                env.insert_nested(&crec.name, crec.kind, *cid);
+            }
+        }
+    }
+}
+
+fn fill_nested_items_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
+    env.nested_items.clear();
+    let mut chain = vec![i];
+    let mut walk = raw[i].parent_idx;
+    while let Some(pi) = walk {
+        if !hosts_block_items(raw[pi].kind) {
+            break;
+        }
+        chain.push(pi);
+        walk = raw[pi].parent_idx;
+    }
+    chain.reverse();
+    for pi in chain {
+        for (j, ch) in raw.iter().enumerate() {
+            if ch.parent_idx == Some(pi) && is_block_local_raw(raw, j) {
+                env.insert_nested(&ch.name, ch.kind, ids[j]);
+            }
+        }
+    }
 }
 
 pub fn resolve(
@@ -236,7 +307,7 @@ pub fn snapshot_files(
     let mut env = Env::default();
     for p in &parsed {
         for (i, ent) in p.raw.iter().enumerate() {
-            if is_inherent_raw(&p.raw, i) {
+            if is_inherent_raw(&p.raw, i) || is_block_local_raw(&p.raw, i) {
                 continue;
             }
             env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));
@@ -307,7 +378,7 @@ pub fn ingest_file_prev(
     let ids = assign_ids(&raw, &path, &mut prev_ids(prev), prev);
     let mut env = extra.clone();
     for (i, ent) in raw.iter().enumerate() {
-        if is_inherent_raw(&raw, i) {
+        if is_inherent_raw(&raw, i) || is_block_local_raw(&raw, i) {
             continue;
         }
         env.insert_def_in(&ent.name, ent.kind, ids[i], Some(&path));
@@ -364,6 +435,7 @@ fn materialize(
                 .cloned()
                 .unwrap_or_default();
         }
+        fill_nested_items_from_raw(&mut local_env, raw, ids, i);
         let res = resolve(node, src, lang, &local_env)?;
         let children: Vec<(ByteRange, EntityId)> = ent
             .children

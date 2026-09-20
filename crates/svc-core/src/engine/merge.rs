@@ -12,7 +12,8 @@ use crate::store::Store;
 
 use super::align::{equal_lines, map_range, slot_bijection};
 use super::{
-    env_from_snapshot, fill_self_methods_from_snapshot, ingest_file_with_env, parse, render_entity,
+    env_from_snapshot, fill_nested_items_from_snapshot, fill_self_methods_from_snapshot,
+    ingest_file_with_env, parse, render_entity,
 };
 
 /// Per-entity 3-way merge plus the §5.4 binding post-condition.
@@ -104,6 +105,7 @@ pub fn merge(
                 let mut env = env_from_snapshot(&a_s);
                 env.current_file = Some(ra.file.clone());
                 fill_self_methods_from_snapshot(&mut env, &a_s, ra.parent);
+                fill_nested_items_from_snapshot(&mut env, &a_s, id);
                 let rec = merge_record(
                     store,
                     langs,
@@ -470,6 +472,7 @@ fn binding_post(
         let mut env = base_env.clone();
         env.current_file = Some(rec.file.clone());
         fill_self_methods_from_snapshot(&mut env, snap, rec.parent);
+        fill_nested_items_from_snapshot(&mut env, snap, id);
         let res = super::resolve(node, &item, lang, &env)?;
         for (i, (r, ident)) in res.refs.iter().enumerate() {
             if own_name == Some(*r) {

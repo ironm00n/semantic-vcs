@@ -28,12 +28,20 @@ pub struct Env {
     /// `self.foo()` / `Self::foo()` / `this.foo()` look here, not in `names`
     /// (a free `fn foo` is a different target).
     pub self_methods: HashMap<String, EntityId>,
+    /// Items nested in the function (or JS function/method) being resolved —
+    /// `fn f() { fn g() {} g(); }`. They are not in [`Self::by_file`]: a sibling
+    /// `fn h() { g(); }` must not bind to `f`'s helper, and a nested `fn parse`
+    /// must not make a file-level `parse` in the same crate look ambiguous.
+    pub nested_items: HashMap<(String, Namespace), EntityId>,
     /// When set, [`Self::lookup`] prefers [`Self::by_file`] for this path.
     pub current_file: Option<RelPath>,
 }
 
 impl Env {
     pub fn lookup(&self, name: &str, ns: Namespace) -> Option<EntityId> {
+        if let Some(id) = Self::lookup_in_map(Some(&self.nested_items), name, ns) {
+            return Some(id);
+        }
         if let Some(file) = &self.current_file {
             if let Some(id) = Self::lookup_in_map(self.by_file.get(file), name, ns) {
                 return Some(id);
@@ -203,6 +211,15 @@ impl Env {
     pub fn insert_defs(&mut self, defs: &[(&str, Kind, EntityId)]) {
         for (name, kind, id) in defs {
             self.insert_def(*name, *kind, *id);
+        }
+    }
+
+    /// Bind a nested item for the duration of one `resolve`. Last insert wins
+    /// so an inner function's helper shadows one on an enclosing function.
+    pub fn insert_nested(&mut self, name: impl Into<String>, kind: Kind, id: EntityId) {
+        let name = name.into();
+        for ns in namespaces_for(kind) {
+            self.nested_items.insert((name.clone(), *ns), id);
         }
     }
 }

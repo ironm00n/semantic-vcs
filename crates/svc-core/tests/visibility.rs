@@ -519,3 +519,30 @@ fn while_let_p_is_not_the_helper_fn_p() {
     );
     assert!(!prefs.is_empty(), "{prefs:?}");
 }
+
+#[test]
+fn nested_fn_is_not_in_the_file_env() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path.clone(), b"fn f() { fn g() {} g(); }\nfn h() { g(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let mut env = env_from_snapshot(&snap);
+    env.current_file = Some(path);
+    assert!(
+        env.lookup("g", Namespace::Value).is_none(),
+        "nested g must not occupy the file map: {:?}",
+        env.lookup("g", Namespace::Value)
+    );
+    let src = "fn h() { g(); }\n";
+    let lang = RustLang;
+    let tree = parse(src.as_bytes(), &lang).unwrap();
+    let item = tree.root_node().named_child(0).expect("fn");
+    let res = resolve(item, src.as_bytes(), &lang, &env).unwrap();
+    assert!(
+        res.refs.iter().any(|(_, ident)| matches!(ident, IdentRef::Free(_))),
+        "sibling g() must be Free: {:?}",
+        res.refs
+    );
+}

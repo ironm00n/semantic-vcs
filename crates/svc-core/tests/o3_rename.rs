@@ -717,3 +717,107 @@ fn absorb_does_not_bind_a_deleted_same_file_def() {
     assert!(text.contains("resolve_entity_in();"), "{text}");
     assert!(!text.contains("fn resolve_entity_in"), "{text}");
 }
+
+#[test]
+fn rename_of_a_nested_fn_rewrites_the_parent_call_not_a_sibling() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn f() { fn g() {}\n g(); }\nfn h() { g(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let nested = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "g" && r.parent.is_some())
+        .map(|(id, _)| *id)
+        .expect("nested g");
+    let next = rename(&snap, nested, "helper").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("fn helper()"), "{text}");
+    assert!(text.contains("helper();"), "{text}");
+    assert!(
+        text.contains("fn h() { g(); }"),
+        "sibling must keep the free g: {text}"
+    );
+    assert_eq!(
+        text.matches("helper();").count(),
+        1,
+        "only the parent call rewrites: {text}"
+    );
+}
+
+#[test]
+fn nested_fn_shadows_a_file_level_fn_inside_the_parent() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn g() {}\nfn f() { fn g() {}\n g(); }\nfn h() { g(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let nested = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "g" && r.parent.is_some())
+        .map(|(id, _)| *id)
+        .expect("nested g");
+    let file_g = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "g" && r.parent.is_none())
+        .map(|(id, _)| *id)
+        .expect("file g");
+    let next = rename(&snap, nested, "helper").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("fn helper()"), "{text}");
+    assert!(text.contains("helper();"), "{text}");
+    assert!(text.contains("fn g() {}"), "{text}");
+    assert!(
+        text.contains("fn h() { g(); }"),
+        "file-level call must stay: {text}"
+    );
+    let next_file = rename(&snap, file_g, "g_file").unwrap();
+    let rendered = render(&next_file, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("fn g_file() {}"), "{text}");
+    assert!(text.contains("fn h() { g_file(); }"), "{text}");
+    assert!(
+        text.contains("fn g() {}") && text.contains("g();"),
+        "nested g and its call must not follow the file-level rename: {text}"
+    );
+}
+
+#[test]
+fn nested_fn_is_not_a_crate_name_collision() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let nested_file = RelPath::new("crates/svc/src/a.rs").unwrap();
+    let def = RelPath::new("crates/svc/src/b.rs").unwrap();
+    let use_file = RelPath::new("crates/svc/src/c.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        nested_file.clone(),
+        b"fn wrap() { fn parse() {} parse(); }\n".to_vec(),
+    );
+    files.insert(def.clone(), b"fn parse() {}\n".to_vec());
+    files.insert(use_file.clone(), b"fn go() { parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = named_in_file(&snap, "parse", &def);
+    let next = rename(&snap, id, "parse_b").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let c_txt = String::from_utf8(rendered.files[&use_file].clone()).unwrap();
+    let a_txt = String::from_utf8(rendered.files[&nested_file].clone()).unwrap();
+    assert!(c_txt.contains("parse_b();"), "{c_txt}");
+    assert!(
+        a_txt.contains("fn parse()") && a_txt.contains("parse();"),
+        "nested parse stays: {a_txt}"
+    );
+}

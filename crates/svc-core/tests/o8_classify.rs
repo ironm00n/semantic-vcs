@@ -142,3 +142,37 @@ fn o8_doc_attribute_is_still_docs_only() {
     .unwrap();
     assert_eq!(class, ObservedClass::DocsOnly);
 }
+
+#[test]
+fn o8_struct_field_in_a_closure_is_not_binding_changing() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let src = r#"struct OpOut { flagged: bool, subject: String, workspace: Option<u8> }
+fn make() {
+    let op = |flagged: bool, subject: &str| OpOut { flagged, subject: subject.into() };
+    let _ = op;
+}
+"#;
+    let mut files = BTreeMap::new();
+    files.insert(path, src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "make").unwrap();
+    let (_, class) = edit_def(
+        &store,
+        &langs,
+        &snap,
+        id,
+        b"fn make() {
+    let op = |flagged: bool, subject: &str| OpOut { flagged, subject: subject.into(), workspace: None };
+    let _ = op;
+}
+",
+    )
+    .unwrap();
+    assert_eq!(
+        class,
+        ObservedClass::BindingPreserving,
+        "adding a struct field that rebinds nothing is not binding-changing"
+    );
+}
