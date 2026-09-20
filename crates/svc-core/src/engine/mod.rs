@@ -527,6 +527,18 @@ pub(crate) fn fill_use_imports_from_snapshot(
     }
 }
 
+pub(crate) fn fill_nested_use_imports(
+    env: &mut Env,
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+) {
+    if lang.name() != "rust" {
+        return;
+    }
+    canon::collect_nested_use_imports(env, node, src);
+}
+
 /// Associated types of the enclosing impl/trait are in scope for signatures
 /// (`fn f() -> Item`) without occupying the file map. Methods stay out: a
 /// bare `f()` is not the sibling method.

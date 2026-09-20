@@ -1203,7 +1203,7 @@ pub(crate) fn fill_use_imports(
     collect_nested_use_imports(env, item, src);
 }
 
-fn collect_nested_use_imports(env: &mut Env, item: tree_sitter::Node<'_>, src: &[u8]) {
+pub(crate) fn collect_nested_use_imports(env: &mut Env, item: tree_sitter::Node<'_>, src: &[u8]) {
     walk_nested_uses(env, item, src, item.id());
 }
 

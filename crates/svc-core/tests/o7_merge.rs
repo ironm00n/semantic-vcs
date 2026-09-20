@@ -550,3 +550,37 @@ fn main() {
         );
     }
 }
+
+#[test]
+fn merge_does_not_flag_a_function_local_use_as_rebinding() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path,
+        b"mod a { pub fn parse() {} }\nfn f() { use a::parse; parse(); }\n".to_vec(),
+    );
+    let base = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let f = lookup_name(&base, "f").unwrap();
+    let a_src = b"fn f() { use a::parse; parse(); let _x = 1; }\n";
+    let b_src = b"fn f() { use a::parse; parse(); let _y = 2; }\n";
+    let (a, _) = edit_def(&store, &langs, &base, f, a_src).unwrap();
+    let (b, _) = edit_def(&store, &langs, &base, f, b_src).unwrap();
+    let merged = merge(
+        &store,
+        &langs,
+        store.put_snapshot(&base).unwrap(),
+        store.put_snapshot(&a).unwrap(),
+        store.put_snapshot(&b).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        !merged
+            .conflicts
+            .iter()
+            .any(|c| matches!(c, Conflict::Binding { .. })),
+        "inner use must still resolve in merge post: {:?}",
+        merged.conflicts
+    );
+}

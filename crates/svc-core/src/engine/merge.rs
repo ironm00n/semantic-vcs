@@ -613,6 +613,7 @@ fn binding_post(
         fill_nested_items_from_snapshot(&mut env, snap, id);
         super::fill_mod_env_from_snapshot(&mut env, snap, id);
         super::fill_use_imports_from_snapshot(&mut env, snap, &rec.file, langs);
+        super::fill_nested_use_imports(&mut env, node, &item, lang);
         let res = super::resolve(node, &item, lang, &env)?;
         for (i, (r, ident)) in res.refs.iter().enumerate() {
             if own_name == Some(*r) {
