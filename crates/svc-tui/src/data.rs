@@ -1,8 +1,9 @@
-//! Everything the TUI knows comes from `svc … --json` subprocesses (the TUI
-//! never holds the redb lock, so the agent's own `svc` calls can proceed while it runs).
+//! Everything the TUI knows comes from `svc … --json` subprocesses (the TUI never holds
+//! the checkout, so the agent's own `svc` calls can proceed while it runs).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::SystemTime;
 
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -78,6 +79,19 @@ impl Svc {
                 String::from_utf8_lossy(&out.stdout).chars().take(200).collect::<String>()
             )
         })
+    }
+
+    /// When the store behind this checkout last changed. Any process publishing to it —
+    /// another checkout's `svc rename`, the agent — bumps the file, so a 1 s probe of this
+    /// is what makes the panes follow without polling `svc` itself.
+    pub fn store_changed_at(&self) -> Option<SystemTime> {
+        let own = self.root.join(svc_repo::repo::STORE_DIR).join(svc_repo::repo::STORE_FILE);
+        let store = if own.is_file() {
+            own
+        } else {
+            svc_repo::WorkspacePointer::read(&self.root).ok().flatten()?.store
+        };
+        std::fs::metadata(store).and_then(|m| m.modified()).ok()
     }
 
     pub fn list_defs(&self) -> Result<Vec<Definition>, String> {

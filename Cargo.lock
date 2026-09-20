@@ -2483,6 +2483,7 @@ dependencies = [
  "svc-agent",
  "svc-core",
  "svc-repo",
+ "tempfile",
  "tokio",
 ]
 

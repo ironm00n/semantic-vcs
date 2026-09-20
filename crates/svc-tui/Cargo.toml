@@ -17,3 +17,4 @@ serde_json = "1"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "time", "sync"] }
+tempfile = "3"

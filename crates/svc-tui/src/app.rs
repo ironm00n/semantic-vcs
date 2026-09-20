@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::Frame;
@@ -78,6 +78,10 @@ pub struct App {
     /// When `events_for` is None, wait until this instant before shelling out
     /// to `show-def`/`blame` so holding j/k does not spawn a process per key.
     detail_at: Instant,
+    /// The store file's mtime as of the last refresh, probed once a second: a change
+    /// is another process (or the agent) publishing, and the panes follow it.
+    store_seen: Option<SystemTime>,
+    store_probe_at: Instant,
     pub should_quit: bool,
     pub log: Vec<String>,
 }
@@ -102,6 +106,8 @@ impl App {
             dirty: true,
             need_draw: true,
             detail_at: Instant::now(),
+            store_seen: None,
+            store_probe_at: Instant::now(),
             should_quit: false,
             log: Vec::new(),
         };
@@ -132,11 +138,24 @@ impl App {
         self.select_touched_if_needed();
         self.events_for = None;
         self.load_events();
+        self.store_seen = self.svc.store_changed_at();
         self.need_draw = true;
     }
 
-    /// Store refresh (if dirty) and the deferred right-pane load.
+    /// Once a second: did anything publish to the store since the last refresh?
+    fn store_moved(&mut self) -> bool {
+        if Instant::now() < self.store_probe_at {
+            return false;
+        }
+        self.store_probe_at = Instant::now() + Duration::from_secs(1);
+        self.svc.store_changed_at() != self.store_seen
+    }
+
+    /// Store refresh (if dirty or another process published) and the deferred right-pane load.
     pub fn pump(&mut self) {
+        if self.store_moved() {
+            self.dirty = true;
+        }
         if self.dirty {
             self.refresh();
         }
@@ -961,5 +980,28 @@ mod tests {
             app.events_for.is_none(),
             "pump must not shell out in the same millisecond as j"
         );
+    }
+
+    #[test]
+    fn another_process_publishing_to_the_store_makes_the_next_probe_refresh() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".svc")).unwrap();
+        let store = dir.path().join(".svc/store.redb");
+        std::fs::write(&store, b"v1").unwrap();
+        let mut app = App::new(Svc::new(PathBuf::from("svc"), dir.path().to_path_buf()));
+        app.refresh(); // no svc binary here: the panes error, the store mtime is still recorded
+        assert!(app.store_seen.is_some());
+        app.store_probe_at = Instant::now();
+        assert!(!app.store_moved(), "nothing published");
+        assert!(!app.store_moved(), "and the probe is rate-limited, not re-run per pump");
+
+        // Another checkout publishes: redb rewrites the file.
+        let later = SystemTime::now() + Duration::from_secs(2);
+        std::fs::File::options().write(true).open(&store).unwrap().set_modified(later).unwrap();
+        app.store_probe_at = Instant::now();
+        assert!(app.store_moved(), "the next probe sees it");
+        app.refresh(); // as pump would: the refresh re-records the mtime
+        app.store_probe_at = Instant::now();
+        assert!(!app.store_moved(), "settled after the refresh");
     }
 }
