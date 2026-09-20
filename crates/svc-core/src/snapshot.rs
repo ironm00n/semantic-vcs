@@ -168,15 +168,7 @@ impl Snapshot {
 
     pub fn rename(&mut self, id: EntityId, new: &str) -> Result<()> {
         let rec = self.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-        refuse_duplicate(
-            self,
-            id,
-            &SigKey {
-                parent: rec.parent,
-                kind: rec.kind,
-                name: new.to_string(),
-            },
-        )?;
+        refuse_duplicate(self, id, &SigKey::new(rec.parent, &rec.file, rec.kind, new.to_string()))?;
         self.entities.get_mut(&id).unwrap().name = new.to_string();
         Ok(())
     }
@@ -188,15 +180,7 @@ impl Snapshot {
         ordinal: Option<u32>,
     ) -> Result<()> {
         let rec = self.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-        refuse_duplicate(
-            self,
-            id,
-            &SigKey {
-                parent,
-                kind: rec.kind,
-                name: rec.name.clone(),
-            },
-        )?;
+        refuse_duplicate(self, id, &SigKey::new(parent, &rec.file, rec.kind, rec.name.clone()))?;
         let rec = self.entities.get_mut(&id).unwrap();
         rec.parent = parent;
         if let Some(o) = ordinal {
@@ -209,7 +193,9 @@ impl Snapshot {
         if !self.files.contains_key(&file) {
             return Err(Error::Other(format!("no file record for {file}")));
         }
-        let rec = self.entities.get_mut(&id).ok_or(Error::NoSuchEntity(id))?;
+        let rec = self.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+        refuse_duplicate(self, id, &SigKey::new(rec.parent, &file, rec.kind, rec.name.clone()))?;
+        let rec = self.entities.get_mut(&id).unwrap();
         rec.file = file;
         rec.ordinal = ordinal;
         Ok(())
@@ -225,9 +211,10 @@ fn refuse_duplicate(snap: &Snapshot, id: EntityId, key: &SigKey) -> Result<()> {
     if key.kind.is_synthetic_named() || key.kind == Kind::Opaque {
         return Ok(());
     }
-    let clash = snap.entities.iter().find(|(other, r)| {
-        **other != id && r.parent == key.parent && r.kind == key.kind && r.name == key.name
-    });
+    let clash = snap
+        .entities
+        .iter()
+        .find(|(other, r)| **other != id && r.sig_key() == *key);
     match clash {
         Some((other, _)) => Err(Error::Other(format!(
             "{:?} {} already exists under the same parent ({})",

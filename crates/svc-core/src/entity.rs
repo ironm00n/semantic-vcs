@@ -31,8 +31,12 @@ pub enum Kind {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
+/// What makes an entity the same one across re-parses and merges. Nested items are
+/// unique under their parent; file-level items (`parent: None`) are unique within their
+/// file, so `file` is set exactly then. Two files may each have a `fn hex32`.
 pub struct SigKey {
     pub parent: Option<EntityId>,
+    pub file: Option<RelPath>,
     pub kind: Kind,
     pub name: String,
 }
@@ -57,10 +61,17 @@ pub struct FileRecord {
 
 impl EntityRecord {
     pub fn sig_key(&self) -> SigKey {
-        SigKey {
-            parent: self.parent,
-            kind: self.kind,
-            name: self.name.clone(),
+        SigKey::new(self.parent, &self.file, self.kind, self.name.clone())
+    }
+}
+
+impl SigKey {
+    pub fn new(parent: Option<EntityId>, file: &RelPath, kind: Kind, name: String) -> Self {
+        Self {
+            parent,
+            file: parent.is_none().then(|| file.clone()),
+            kind,
+            name,
         }
     }
 }

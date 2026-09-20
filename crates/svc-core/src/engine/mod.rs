@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::content::{Bytes, Content, IdentRef};
-use crate::entity::{EntityRecord, FileRecord};
+use crate::entity::{EntityRecord, FileRecord, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{ByteRange, BytesId, ChangeId, ContentId, EntityId, RelPath};
 use crate::lang::{Env, Lang, Langs, RawEntity, Resolution};
@@ -156,7 +156,7 @@ pub fn snapshot_files(
             Some(lang) => {
                 let tree = parse(src, lang)?;
                 let raw = extract(&tree, src, lang)?;
-                let ids = assign_ids(&raw, prev);
+                let ids = assign_ids(&raw, path, prev);
                 parsed.push(Parsed {
                     path: path.clone(),
                     src,
@@ -246,7 +246,7 @@ pub fn ingest_file_prev(
 ) -> Result<Snapshot> {
     let tree = parse(src, lang)?;
     let raw = extract(&tree, src, lang)?;
-    let ids = assign_ids(&raw, prev);
+    let ids = assign_ids(&raw, &path, prev);
     let mut env = extra.clone();
     let defs: Vec<_> = raw
         .iter()
@@ -324,7 +324,9 @@ fn materialize(
     Ok((entities, FileRecord { trailing }))
 }
 
-fn assign_ids(raw: &[RawEntity], prev: Option<&Snapshot>) -> Vec<EntityId> {
+/// Reuse ids from `prev` by SigKey: nested items match under their parent, file-level
+/// items only within `file` (two files may each define `fn hex32`).
+fn assign_ids(raw: &[RawEntity], file: &RelPath, prev: Option<&Snapshot>) -> Vec<EntityId> {
     let mut ids = Vec::with_capacity(raw.len());
     let mut used = BTreeMap::new();
     for ent in raw {
@@ -334,8 +336,7 @@ fn assign_ids(raw: &[RawEntity], prev: Option<&Snapshot>) -> Vec<EntityId> {
                 if used.contains_key(id) {
                     return None;
                 }
-                (rec.name == ent.name && rec.kind == ent.kind && rec.parent == parent)
-                    .then_some(*id)
+                (rec.sig_key() == SigKey::new(parent, file, ent.kind, ent.name.clone())).then_some(*id)
             })
         });
         let id = reuse.unwrap_or_else(EntityId::new);

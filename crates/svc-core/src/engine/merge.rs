@@ -89,11 +89,7 @@ pub fn merge(
                     entities.insert(id, ra.clone());
                 } else {
                     conflicts.push(Conflict::AddAdd {
-                        key: SigKey {
-                            parent: ra.parent,
-                            kind: ra.kind,
-                            name: ra.name.clone(),
-                        },
+                        key: ra.sig_key(),
                         a: id,
                         b: id,
                     });
@@ -140,13 +136,12 @@ pub fn merge(
 }
 
 fn unify_add_add(a: &Snapshot, b: &Snapshot, rewrite: &mut HashMap<EntityId, EntityId>) {
-    let key = |rec: &EntityRecord| (rec.parent, rec.kind, rec.name.clone());
-    let a_by: HashMap<_, _> = a.entities.iter().map(|(id, rec)| (key(rec), *id)).collect();
+    let a_by: HashMap<_, _> = a.entities.iter().map(|(id, rec)| (rec.sig_key(), *id)).collect();
     for (bid, rec) in &b.entities {
         if a.entities.contains_key(bid) {
             continue;
         }
-        if let Some(aid) = a_by.get(&key(rec))
+        if let Some(aid) = a_by.get(&rec.sig_key())
             && !b.entities.contains_key(aid)
         {
             rewrite.insert(*bid, *aid);
@@ -402,18 +397,16 @@ fn merge_files(o: &Snapshot, a: &Snapshot, b: &Snapshot) -> BTreeMap<RelPath, Fi
 }
 
 fn signature_pass(snap: &mut Snapshot) {
-    let mut seen: HashMap<(Option<EntityId>, crate::entity::Kind, String), EntityId> =
-        HashMap::new();
+    let mut seen: HashMap<SigKey, EntityId> = HashMap::new();
     let mut extra = Vec::new();
     for (id, rec) in &snap.entities {
-        let key = (rec.parent, rec.kind, rec.name.clone());
-        if let Some(prev) = seen.insert(key.clone(), *id) {
+        // Position-named kinds (impl, static blocks, use lines) may legitimately repeat.
+        if rec.kind.is_synthetic_named() || rec.kind == Kind::Opaque {
+            continue;
+        }
+        if let Some(prev) = seen.insert(rec.sig_key(), *id) {
             extra.push(Conflict::AddAdd {
-                key: SigKey {
-                    parent: rec.parent,
-                    kind: rec.kind,
-                    name: rec.name.clone(),
-                },
+                key: rec.sig_key(),
                 a: prev,
                 b: *id,
             });
