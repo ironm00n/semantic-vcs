@@ -1062,8 +1062,11 @@ fn rust_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
     let Some(path) = parent.child_by_field_name("path") else {
         return false;
     };
-    let start = path.start_byte();
-    let end = path.end_byte();
+    let Some(qual) = scoped_qualifier(path) else {
+        return false;
+    };
+    let start = qual.start_byte();
+    let end = qual.end_byte();
     if end > src.len() || start >= end {
         return false;
     }

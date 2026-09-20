@@ -395,3 +395,40 @@ fn rename_of_impl_trait_associated_type_rewrites_ufcs() {
         "trait decl and file-level Item must stay: {text}"
     );
 }
+
+#[test]
+fn rename_of_impl_trait_method_rewrites_ufcs() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"trait Tr {\n    fn foo(&self);\n}\nstruct S;\nimpl Tr for S {\n    fn foo(&self) {}\n    fn g(&self) { <S as Tr>::foo(self); }\n}\nfn outside(x: &S) { <S as Tr>::foo(x); }\nfn free() { foo(); }\n"
+            .to_vec(),
+    );
+    let s = snap(&store, &files, None);
+    let (impl_s, _) = impl_named(&s, "impl<Tr for S>");
+    let foo = s
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "foo" && r.parent == Some(impl_s))
+        .map(|(id, _)| *id)
+        .expect("impl method");
+    let next = rename(&store, &s, foo, "bar").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("fn bar(&self) {}"), "{text}");
+    assert!(
+        text.contains("<S as Tr>::bar(self)"),
+        "UFCS method inside the impl follows: {text}"
+    );
+    assert!(
+        text.contains("fn outside(x: &S) { <S as Tr>::foo(x); }"),
+        "UFCS method outside the impl stays type-relative: {text}"
+    );
+    assert!(
+        text.contains("fn foo(&self);") && text.contains("fn free() { foo(); }"),
+        "trait decl and free foo must stay: {text}"
+    );
+}
