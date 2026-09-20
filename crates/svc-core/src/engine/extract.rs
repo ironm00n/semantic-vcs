@@ -220,10 +220,65 @@ fn include_arg_path(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
     let mut c = node.walk();
     for ch in node.named_children(&mut c) {
         if ch.kind() == "token_tree" {
-            return string_lit_in(ch, src);
+            return include_path_from_arg_tree(ch, src);
         }
     }
     None
+}
+
+fn include_path_from_arg_tree(tree: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
+    let mut n = tree.walk();
+    let named: Vec<_> = tree.named_children(&mut n).collect();
+    if named.len() == 1 && named[0].kind() == "macro_invocation" && is_concat_macro(named[0], src)
+    {
+        return concat_string_lits(named[0], src);
+    }
+    let mut c = tree.walk();
+    let kids: Vec<_> = tree.children(&mut c).collect();
+    let mut i = 0;
+    while i + 2 < kids.len() {
+        if kids[i].kind() == "identifier"
+            && node_text(src, kids[i]) == "concat"
+            && kids[i + 1].kind() == "!"
+            && kids[i + 2].kind() == "token_tree"
+        {
+            return concat_string_lits_from_tree(kids[i + 2], src);
+        }
+        i += 1;
+    }
+    string_lit_in(tree, src)
+}
+
+fn is_concat_macro(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    if let Some(m) = node.child_by_field_name("macro") {
+        return node_text(src, m) == "concat";
+    }
+    let mut c = node.walk();
+    node.named_children(&mut c)
+        .any(|ch| ch.kind() == "identifier" && node_text(src, ch) == "concat")
+}
+
+fn concat_string_lits(inv: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
+    let mut c = inv.walk();
+    let tree = inv
+        .named_children(&mut c)
+        .find(|n| n.kind() == "token_tree")?;
+    concat_string_lits_from_tree(tree, src)
+}
+
+fn concat_string_lits_from_tree(tree: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
+    let mut parts = Vec::new();
+    let mut d = tree.walk();
+    for ch in tree.children(&mut d) {
+        match ch.kind() {
+            "string_literal" | "raw_string_literal" => {
+                parts.push(parse_path_lit(&node_text(src, ch))?);
+            }
+            "macro_invocation" => return None,
+            _ => {}
+        }
+    }
+    nonempty_path(&parts.concat())
 }
 
 fn string_lit_in(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
@@ -251,7 +306,7 @@ fn include_paths_from_soup_tree(node: tree_sitter::Node<'_>, src: &[u8]) -> Vec<
             && kids[i + 1].kind() == "!"
             && kids[i + 2].kind() == "token_tree"
         {
-            if let Some(p) = string_lit_in(kids[i + 2], src) {
+            if let Some(p) = include_path_from_arg_tree(kids[i + 2], src) {
                 out.push(p);
             }
             i += 3;
@@ -283,18 +338,28 @@ pub(crate) fn bytes_include_paths(src: &str) -> Vec<String> {
                 i += 1;
             }
             if i < b.len() && matches!(b[i], b'(' | b'[' | b'{') {
-                let close = match b[i] {
+                let open = b[i];
+                let close = match open {
                     b'(' => b')',
                     b'[' => b']',
                     _ => b'}',
                 };
                 i += 1;
                 let start = i;
-                while i < b.len() && b[i] != close {
+                let mut depth = 1i32;
+                while i < b.len() && depth > 0 {
+                    if b[i] == open {
+                        depth += 1;
+                    } else if b[i] == close {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
                     i += 1;
                 }
                 if let Ok(inner) = std::str::from_utf8(&b[start..i]) {
-                    if let Some(p) = parse_path_lit(inner.trim()) {
+                    if let Some(p) = parse_include_arg(inner.trim()) {
                         out.push(p);
                     }
                 }
@@ -304,6 +369,44 @@ pub(crate) fn bytes_include_paths(src: &str) -> Vec<String> {
         i += 1;
     }
     out
+}
+
+fn parse_include_arg(inner: &str) -> Option<String> {
+    parse_path_lit(inner).or_else(|| concat_lits_from_text(inner))
+}
+
+fn concat_lits_from_text(inner: &str) -> Option<String> {
+    let s = inner.trim();
+    if !s.starts_with("concat!") {
+        return None;
+    }
+    if s.contains("env!") {
+        return None;
+    }
+    let mut parts = Vec::new();
+    let b = s.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'"' {
+            let start = i;
+            i += 1;
+            while i < b.len() {
+                if b[i] == b'\\' {
+                    i = i.saturating_add(2);
+                    continue;
+                }
+                if b[i] == b'"' {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            parts.push(parse_path_lit(std::str::from_utf8(&b[start..i]).ok()?)?);
+            continue;
+        }
+        i += 1;
+    }
+    nonempty_path(&parts.concat())
 }
 
 fn attr_body_is(inner: &str, name: &str) -> bool {
