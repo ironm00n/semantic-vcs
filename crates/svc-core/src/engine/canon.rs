@@ -368,7 +368,11 @@ fn collect_refs<'a>(
                         && !blocked_by_barrier(node, b, ns, src, lang, root_id)
                 })
                 .max_by_key(|b| (b.scope.start, b.range.start));
-            if is_struct_field_key(node) || is_dot_field(node) || is_type_binding_name(node) {
+            if is_struct_field_key(node)
+                || is_dot_field(node)
+                || is_type_binding_name(node)
+                || is_use_alias(node)
+            {
                 refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(binder) = local
                 .filter(|_| !is_rust_nonlocal_ident(node, lang))
@@ -861,6 +865,21 @@ fn is_struct_field_key(node: tree_sitter::Node<'_>) -> bool {
     }
 }
 
+/// `use crate::a::h as hh`: `hh` is the local alias, not the imported
+/// entity's name. Rename of `h` must not rewrite the alias.
+fn is_use_alias(node: tree_sitter::Node<'_>) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    if parent.kind() != "use_as_clause" {
+        return false;
+    }
+    parent.child_by_field_name("alias").is_some_and(|n| {
+        n.id() == node.id()
+            || (n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte())
+    })
+}
+
 /// `It<Item = T>`: the left `Item` is an associated-type binding name, not a
 /// reference to a type `Item` in scope (SPEC §9; needs the receiver's type).
 fn is_type_binding_name(node: tree_sitter::Node<'_>) -> bool {
@@ -1115,6 +1134,150 @@ fn node_text(node: tree_sitter::Node<'_>, src: &[u8]) -> String {
     std::str::from_utf8(&src[node.start_byte()..node.end_byte()])
         .unwrap_or("")
         .to_string()
+}
+
+/// File-level `use` names for the module being resolved. Call after
+/// [`Env`] super/self/file-module fields are filled. Nested inline mods
+/// do not inherit the outer file's imports.
+pub(crate) fn fill_use_imports(
+    env: &mut Env,
+    root: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+) {
+    env.use_imports.clear();
+    env.use_aliases.clear();
+    if lang.name() != "rust" || env.inline_mod {
+        return;
+    }
+    collect_use_imports(env, root, src);
+}
+
+pub(crate) fn collect_use_imports(env: &mut Env, root: tree_sitter::Node<'_>, src: &[u8]) {
+    let mut c = root.walk();
+    if !c.goto_first_child() {
+        return;
+    }
+    loop {
+        let n = c.node();
+        if n.kind() == "use_declaration" {
+            if let Some(arg) = n.child_by_field_name("argument") {
+                import_use_tree(env, arg, src, &[]);
+            } else {
+                for i in 0..n.named_child_count() {
+                    let Some(ch) = n.named_child(i as u32) else {
+                        continue;
+                    };
+                    if ch.kind() == "visibility_modifier" {
+                        continue;
+                    }
+                    import_use_tree(env, ch, src, &[]);
+                    break;
+                }
+            }
+        }
+        if !c.goto_next_sibling() {
+            break;
+        }
+    }
+}
+
+fn import_use_tree(env: &mut Env, node: tree_sitter::Node<'_>, src: &[u8], prefix: &[String]) {
+    match node.kind() {
+        "use_as_clause" => {
+            let Some(path) = node.child_by_field_name("path") else {
+                return;
+            };
+            let mut segs = prefix.to_vec();
+            segs.extend(path_idents(path, src));
+            let name = node
+                .child_by_field_name("alias")
+                .map(|a| node_text(a, src))
+                .or_else(|| segs.last().cloned())
+                .unwrap_or_default();
+            bind_use(env, &segs, &name);
+        }
+        "use_list" => {
+            for i in 0..node.named_child_count() {
+                if let Some(ch) = node.named_child(i as u32) {
+                    import_use_tree(env, ch, src, prefix);
+                }
+            }
+        }
+        "scoped_use_list" => {
+            let mut segs = prefix.to_vec();
+            if let Some(p) = node.child_by_field_name("path") {
+                segs.extend(path_idents(p, src));
+            }
+            if let Some(list) = node.child_by_field_name("list") {
+                import_use_tree(env, list, src, &segs);
+                return;
+            }
+            for i in 0..node.named_child_count() {
+                if let Some(ch) = node.named_child(i as u32) {
+                    if ch.kind() == "use_list" {
+                        import_use_tree(env, ch, src, &segs);
+                    }
+                }
+            }
+        }
+        "use_wildcard" => {}
+        _ => {
+            let mut segs = prefix.to_vec();
+            segs.extend(path_idents(node, src));
+            if segs.last().map(|s| s.as_str()) == Some("self") && segs.len() >= 2 {
+                let alias = segs[segs.len() - 2].clone();
+                bind_use(env, &segs[..segs.len() - 1], &alias);
+                return;
+            }
+            let Some(name) = segs.last().cloned() else {
+                return;
+            };
+            if name == "*" {
+                return;
+            }
+            bind_use(env, &segs, &name);
+        }
+    }
+}
+
+fn bind_use(env: &mut Env, segs: &[String], alias: &str) {
+    if alias.is_empty() || segs.is_empty() {
+        return;
+    }
+    let imported = segs
+        .iter()
+        .rev()
+        .find(|s| !matches!(s.as_str(), "self" | "super" | "crate"))
+        .map(|s| s.as_str())
+        .unwrap_or("");
+    let aliased = !imported.is_empty() && alias != imported;
+    for ns in [Namespace::Value, Namespace::Type] {
+        if aliased {
+            env.use_aliases.insert(alias.to_string());
+            continue;
+        }
+        if let Some(id) = resolve_use_path(env, segs, ns) {
+            env.use_imports.insert((alias.to_string(), ns), id);
+        }
+    }
+}
+
+fn resolve_use_path(env: &Env, segs: &[String], ns: Namespace) -> Option<EntityId> {
+    if segs.is_empty() {
+        return None;
+    }
+    match segs[0].as_str() {
+        "crate" => env.lookup_crate_path(&segs[1..], ns),
+        "super" => {
+            let depth = segs.iter().take_while(|s| s.as_str() == "super").count();
+            env.lookup_super_path(depth, &segs[depth..], ns)
+        }
+        "self" => env.lookup_self_path(&segs[1..], ns),
+        _ => env
+            .lookup_self_path(segs, ns)
+            .or_else(|| env.lookup_crate_path(segs, ns)),
+    }
 }
 
 fn path_root_is(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang, want: &str) -> bool {

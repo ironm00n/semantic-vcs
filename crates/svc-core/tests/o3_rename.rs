@@ -1716,3 +1716,95 @@ fn rename_follows_super_super_from_a_nested_file_module() {
         "two supers is the crate root: {text}"
     );
 }
+
+#[test]
+fn rename_follows_self_path_in_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod foo;\n".to_vec());
+    files.insert(foo.clone(), b"fn parse() {}\nfn f() { self::parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let foo_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == foo)
+        .map(|(id, _)| *id)
+        .expect("foo parse");
+    let next = rename(&store, &snap, foo_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&foo].clone()).unwrap();
+    assert!(
+        text.contains("self::parse_file()"),
+        "self::parse in a file module must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_crate_engine_path_from_a_child_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("crates/pkg/src/lib.rs").unwrap();
+    let engine = RelPath::new("crates/pkg/src/engine/mod.rs").unwrap();
+    let merge = RelPath::new("crates/pkg/src/engine/merge.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod engine;\n".to_vec());
+    files.insert(
+        engine.clone(),
+        b"fn snapshot_files() {}\nmod merge;\n".to_vec(),
+    );
+    files.insert(
+        merge.clone(),
+        b"fn f() { crate::engine::snapshot_files(); super::snapshot_files(); }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "snapshot_files" && r.file == engine)
+        .map(|(id, _)| *id)
+        .expect("snapshot_files");
+    let next = rename(&store, &snap, id, "snapshot_tree").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&merge].clone()).unwrap();
+    assert!(
+        text.contains("crate::engine::snapshot_tree()"),
+        "crate::engine::snapshot_files from merge.rs must follow: {text}"
+    );
+    assert!(
+        text.contains("super::snapshot_tree()"),
+        "super::snapshot_files from merge.rs must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_use_super_from_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"fn parse() {}\nmod foo;\n".to_vec());
+    files.insert(
+        foo.clone(),
+        b"use super::parse;\nfn f() { parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let lib_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == lib)
+        .map(|(id, _)| *id)
+        .expect("lib parse");
+    let next = rename(&store, &snap, lib_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&foo].clone()).unwrap();
+    assert!(
+        text.contains("use super::parse_file;"),
+        "use super::parse from a file module must follow: {text}"
+    );
+    assert!(text.contains("parse_file();"), "{text}");
+}

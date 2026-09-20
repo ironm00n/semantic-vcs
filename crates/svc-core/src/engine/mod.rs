@@ -396,6 +396,35 @@ pub(crate) fn fill_mod_env_from_snapshot(env: &mut Env, snapshot: &Snapshot, id:
     }
 }
 
+pub(crate) fn fill_use_imports_from_snapshot(
+    env: &mut Env,
+    snapshot: &Snapshot,
+    file: &RelPath,
+    langs: &Langs,
+) {
+    env.use_imports.clear();
+    env.use_aliases.clear();
+    if env.inline_mod {
+        return;
+    }
+    let Some(lang) = langs.for_path(file) else {
+        return;
+    };
+    for rec in snapshot.entities.values() {
+        if rec.file != *file || rec.kind != Kind::Opaque {
+            continue;
+        }
+        if !rec.name.contains("use ") {
+            continue;
+        }
+        let src = rec.name.as_bytes();
+        let Ok(tree) = parse(src, lang) else {
+            continue;
+        };
+        canon::collect_use_imports(env, tree.root_node(), src);
+    }
+}
+
 /// Associated types of the enclosing impl/trait are in scope for signatures
 /// (`fn f() -> Item`) without occupying the file map. Methods stay out: a
 /// bare `f()` is not the sibling method.
@@ -788,6 +817,7 @@ fn materialize(
         }
         fill_nested_items_from_raw(&mut local_env, raw, ids, i);
         fill_mod_env_from_raw(&mut local_env, raw, ids, i);
+        canon::fill_use_imports(&mut local_env, tree.root_node(), src, lang);
         let res = resolve(node, src, lang, &local_env)?;
         let children: Vec<(ByteRange, EntityId)> = ent
             .children

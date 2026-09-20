@@ -55,6 +55,11 @@ pub struct Env {
     pub super_files: Vec<RelPath>,
     /// Inside an inline `mod inner { }` (not only a file loaded by `mod foo;`).
     pub inline_mod: bool,
+    /// Names brought in by `use` in this module. File-module isolation drops
+    /// unique-crate lookup, so `use super::parse; parse()` must still bind.
+    pub use_imports: HashMap<(String, Namespace), EntityId>,
+    /// `use path::h as hh` — `hh` is a local spelling, not an Entity hole.
+    pub use_aliases: HashSet<String>,
 }
 
 impl Env {
@@ -66,6 +71,12 @@ impl Env {
             if let Some(id) = Self::lookup_in_map(self.mod_items.get(&m), name, ns) {
                 return Some(id);
             }
+        }
+        if let Some(id) = Self::lookup_in_map(Some(&self.use_imports), name, ns) {
+            return Some(id);
+        }
+        if self.use_aliases.contains(name) {
+            return None;
         }
         if self.in_nested_mod {
             return None;
