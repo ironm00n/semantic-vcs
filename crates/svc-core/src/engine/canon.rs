@@ -461,8 +461,30 @@ fn binder_extent(
 ) -> (u32, ByteRange) {
     match visibility {
         crate::lang::Visibility::AfterStmt => {
-            let scope = enclosing_scope(node, src, lang, root_id);
-            (node.end_byte() as u32, scope)
+            let visible_from = node.end_byte() as u32;
+            if node.kind() == "let_condition" {
+                if let Some(parent) = node.parent() {
+                    let end = match parent.kind() {
+                        "if_expression" => parent
+                            .child_by_field_name("consequence")
+                            .map(|c| c.end_byte() as u32),
+                        "while_expression" => {
+                            parent.child_by_field_name("body").map(|c| c.end_byte() as u32)
+                        }
+                        _ => None,
+                    };
+                    if let Some(end) = end {
+                        return (
+                            visible_from,
+                            ByteRange {
+                                start: visible_from,
+                                end,
+                            },
+                        );
+                    }
+                }
+            }
+            (visible_from, enclosing_scope(node, src, lang, root_id))
         }
         crate::lang::Visibility::Hoisted => {
             let scope = enclosing_var_scope(node, src, lang, root_id);

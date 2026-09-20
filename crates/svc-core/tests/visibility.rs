@@ -405,6 +405,38 @@ fn rust_match_arm_binder_does_not_leak_to_other_arms() {
 }
 
 #[test]
+fn rust_if_let_binder_does_not_leak_to_else_or_after() {
+    let src = "fn f(x: Option<u32>) -> u32 { if let Some(a) = x { a } else { a }; a }\n";
+    let refs = rust_item_refs(src);
+    assert_eq!(
+        locals_named(&refs, "a").len(),
+        1,
+        "only the then-branch is Local: {refs:?}"
+    );
+    assert_eq!(
+        frees_named(&refs, "a"),
+        2,
+        "else and after the if must not see the binder: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_while_let_binder_does_not_leak_after_the_loop() {
+    let src = "fn f(mut x: Option<u32>) -> u32 { while let Some(p) = x { x = None; return p; } p }\n";
+    let refs = rust_item_refs(src);
+    assert_eq!(
+        locals_named(&refs, "p").len(),
+        1,
+        "only the loop body is Local: {refs:?}"
+    );
+    assert_eq!(
+        frees_named(&refs, "p"),
+        1,
+        "after the loop must not see the binder: {refs:?}"
+    );
+}
+
+#[test]
 fn rust_or_pattern_binders_share_a_slot() {
     let src = "fn f(r: Result<u32, u32>) -> u32 { match r { Ok(x) | Err(x) => x } }\n";
     let refs = rust_item_refs(src);

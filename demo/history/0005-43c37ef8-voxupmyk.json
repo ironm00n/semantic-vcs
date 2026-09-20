@@ -1,0 +1,109 @@
+{
+  "base_tree": "9821cb7e84a9b256f7fa69f693174a64ce964eb3f7f5fa1648b84c62a7e3802b",
+  "entries": [
+    {
+      "ix": 1,
+      "entry": {
+        "op": {
+          "New": {
+            "change": "01a0bd05-6ffa-771d-b0de-05fd2b793e9d"
+          }
+        },
+        "observed": null,
+        "at": 1789877645533,
+        "group": null,
+        "before": {
+          "root": "a9d0461ddf0720160a7f693969e780628267f0a6f373ad463c5f736d7d4c08fe",
+          "heads": {
+            "01a0bd05-6805-7368-82b2-85ba3644281d": "a9d0461ddf0720160a7f693969e780628267f0a6f373ad463c5f736d7d4c08fe"
+          }
+        },
+        "after": {
+          "root": "b474455e607e90aaa1c4deffb783cd4927ab02f577757aebfa79cefda7affe21",
+          "heads": {
+            "01a0bd05-6805-7368-82b2-85ba3644281d": "a9d0461ddf0720160a7f693969e780628267f0a6f373ad463c5f736d7d4c08fe",
+            "01a0bd05-6ffa-771d-b0de-05fd2b793e9d": "b474455e607e90aaa1c4deffb783cd4927ab02f577757aebfa79cefda7affe21"
+          }
+        }
+      },
+      "refs": {},
+      "files": {},
+      "after_tree": "9821cb7e84a9b256f7fa69f693174a64ce964eb3f7f5fa1648b84c62a7e3802b",
+      "workspace": null
+    },
+    {
+      "ix": 2,
+      "entry": {
+        "op": {
+          "EditDef": {
+            "id": "01a0bd05-682b-77fa-b502-e14bb6cb376a",
+            "definition": "fn binder_extent(\n    node: tree_sitter::Node<'_>,\n    src: &[u8],\n    lang: &dyn Lang,\n    root_id: usize,\n    visibility: crate::lang::Visibility,\n) -> (u32, ByteRange) {\n    match visibility {\n        crate::lang::Visibility::AfterStmt => {\n            let visible_from = node.end_byte() as u32;\n            if node.kind() == \"let_condition\" {\n                if let Some(parent) = node.parent() {\n                    let end = match parent.kind() {\n                        \"if_expression\" => parent\n                            .child_by_field_name(\"consequence\")\n                            .map(|c| c.end_byte() as u32),\n                        \"while_expression\" => {\n                            parent.child_by_field_name(\"body\").map(|c| c.end_byte() as u32)\n                        }\n                        _ => None,\n                    };\n                    if let Some(end) = end {\n                        return (\n                            visible_from,\n                            ByteRange {\n                                start: visible_from,\n                                end,\n                            },\n                        );\n                    }\n                }\n            }\n            (visible_from, enclosing_scope(node, src, lang, root_id))\n        }\n        crate::lang::Visibility::Hoisted => {\n            let scope = enclosing_var_scope(node, src, lang, root_id);\n            (scope.start, scope)\n        }\n        crate::lang::Visibility::Sub(fields) => {\n            let scope = sub_field_scope(node, fields)\n                .unwrap_or_else(|| enclosing_scope(node, src, lang, root_id));\n            (scope.start, scope)\n        }\n        crate::lang::Visibility::Whole => {\n            let scope = enclosing_scope(node, src, lang, root_id);\n            (scope.start, scope)\n        }\n    }\n}",
+            "intent": "Fix"
+          }
+        },
+        "observed": "BindingPreserving",
+        "at": 1789877651542,
+        "group": null,
+        "before": {
+          "root": "b474455e607e90aaa1c4deffb783cd4927ab02f577757aebfa79cefda7affe21",
+          "heads": {
+            "01a0bd05-6805-7368-82b2-85ba3644281d": "a9d0461ddf0720160a7f693969e780628267f0a6f373ad463c5f736d7d4c08fe",
+            "01a0bd05-6ffa-771d-b0de-05fd2b793e9d": "b474455e607e90aaa1c4deffb783cd4927ab02f577757aebfa79cefda7affe21"
+          }
+        },
+        "after": {
+          "root": "b59033f6396828ff40ade44169425cb983c4285892f2adaa8b889cf950e2488b",
+          "heads": {
+            "01a0bd05-6805-7368-82b2-85ba3644281d": "a9d0461ddf0720160a7f693969e780628267f0a6f373ad463c5f736d7d4c08fe",
+            "01a0bd05-6ffa-771d-b0de-05fd2b793e9d": "b59033f6396828ff40ade44169425cb983c4285892f2adaa8b889cf950e2488b"
+          }
+        }
+      },
+      "refs": {
+        "01a0bd05-682b-77fa-b502-e14bb6cb376a": {
+          "file": "crates/svc-core/src/engine/canon.rs",
+          "chain": [
+            [
+              "Fn",
+              "binder_extent"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "df47adaea53dd5b9d03ffde08ca1106ba5490f5d7a01865b870175a68083596a",
+      "workspace": null
+    },
+    {
+      "ix": 3,
+      "entry": {
+        "op": "Absorb",
+        "observed": null,
+        "at": 1789877687253,
+        "group": null,
+        "before": {
+          "root": "b59033f6396828ff40ade44169425cb983c4285892f2adaa8b889cf950e2488b",
+          "heads": {
+            "01a0bd05-6805-7368-82b2-85ba3644281d": "a9d0461ddf0720160a7f693969e780628267f0a6f373ad463c5f736d7d4c08fe",
+            "01a0bd05-6ffa-771d-b0de-05fd2b793e9d": "b59033f6396828ff40ade44169425cb983c4285892f2adaa8b889cf950e2488b"
+          }
+        },
+        "after": {
+          "root": "9410c96eed60e0b7c063f7c9da5e2ab6a25d808cfa89083a16fe40652c1f4c4a",
+          "heads": {
+            "01a0bd05-6805-7368-82b2-85ba3644281d": "a9d0461ddf0720160a7f693969e780628267f0a6f373ad463c5f736d7d4c08fe",
+            "01a0bd05-6ffa-771d-b0de-05fd2b793e9d": "9410c96eed60e0b7c063f7c9da5e2ab6a25d808cfa89083a16fe40652c1f4c4a"
+          }
+        }
+      },
+      "refs": {},
+      "files": {
+        "crates/svc-core/src/lang_rust.rs": {
+          "Text": "use crate::content::Namespace;\nuse crate::entity::Kind;\nuse crate::lang::{\n    Barrier, BinderClass, CommutativeRule, EntityKindRule, Env, Lang, Locator, Role, Visibility,\n    When,\n};\n\npub struct RustLang;\n\nconst ENTITY_KINDS: &[EntityKindRule] = &[\n    EntityKindRule {\n        node_kind: \"function_item\",\n        kind: Kind::Fn,\n        name_field: Some(\"name\"),\n        body_field: Some(\"body\"),\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"function_signature_item\",\n        kind: Kind::Fn,\n        name_field: Some(\"name\"),\n        body_field: None,\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"struct_item\",\n        kind: Kind::Struct,\n        name_field: Some(\"name\"),\n        body_field: Some(\"body\"),\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"enum_item\",\n        kind: Kind::Enum,\n        name_field: Some(\"name\"),\n        body_field: Some(\"body\"),\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"union_item\",\n        kind: Kind::Union,\n        name_field: Some(\"name\"),\n        body_field: Some(\"body\"),\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"trait_item\",\n        kind: Kind::Trait,\n        name_field: Some(\"name\"),\n        body_field: Some(\"body\"),\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"impl_item\",\n        kind: Kind::Impl,\n        name_field: None,\n        body_field: Some(\"body\"),\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"const_item\",\n        kind: Kind::Const,\n        name_field: Some(\"name\"),\n        body_field: None,\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"static_item\",\n        kind: Kind::Static,\n        name_field: Some(\"name\"),\n        body_field: None,\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"mod_item\",\n        kind: Kind::Mod,\n        name_field: Some(\"name\"),\n        body_field: Some(\"body\"),\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"type_item\",\n        kind: Kind::TypeAlias,\n        name_field: Some(\"name\"),\n        body_field: None,\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"macro_definition\",\n        kind: Kind::Macro,\n        name_field: Some(\"name\"),\n        body_field: None,\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"use_declaration\",\n        kind: Kind::Opaque,\n        name_field: None,\n        body_field: None,\n        children_field: None,\n    },\n    EntityKindRule {\n        node_kind: \"extern_crate_declaration\",\n        kind: Kind::Opaque,\n        name_field: None,\n        body_field: None,\n        children_field: None,\n    },\n];\n\nfn text(src: &[u8], node: tree_sitter::Node<'_>) -> String {\n    String::from_utf8_lossy(&src[node.start_byte()..node.end_byte()]).into_owned()\n}\n\nimpl Lang for RustLang {\n    fn language(&self) -> tree_sitter::Language {\n        tree_sitter_rust::LANGUAGE.into()\n    }\n\n    fn name(&self) -> &'static str {\n        \"rust\"\n    }\n\n    fn extensions(&self) -> &'static [&'static str] {\n        &[\"rs\"]\n    }\n\n    fn entity_kinds(&self) -> &'static [EntityKindRule] {\n        ENTITY_KINDS\n    }\n\n    fn entity_name(&self, node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {\n        if node.kind() == \"impl_item\" {\n            let ty = node.child_by_field_name(\"type\").map(|n| text(src, n))?;\n            return Some(match node.child_by_field_name(\"trait\") {\n                Some(tr) => format!(\"impl<{} for {ty}>\", text(src, tr)),\n                None => format!(\"impl<{ty}>\"),\n            });\n        }\n        // Opaque items are named by their text; a byte-offset fallback would give every\n        // `use` below an edited line a new identity.\n        if matches!(node.kind(), \"use_declaration\" | \"extern_crate_declaration\") {\n            return Some(text(src, node));\n        }\n        ENTITY_KINDS\n            .iter()\n            .find(|r| r.node_kind == node.kind())\n            .and_then(|r| r.name_field)\n            .and_then(|f| node.child_by_field_name(f))\n            .map(|n| text(src, n))\n    }\n\n    fn roles(\n        &self,\n        node: tree_sitter::Node<'_>,\n        field: Option<&str>,\n        _src: &[u8],\n        _env: &Env,\n    ) -> Vec<Role> {\n        rust_roles(node, field)\n    }\n\n    // Macro arguments are not opaque: `vec![x]`, `matches!(k, ..)`, `format!(\"{x}\")` use\n    // the local, and renaming the binder without them does not compile (O9). Rust has\n    // no node kind whose identifiers the compiler ignores.\n    fn opaque_nodes(&self) -> &'static [&'static str] {\n        &[]\n    }\n\n    fn commutative_parents(&self) -> &'static [CommutativeRule] {\n        &[\n            CommutativeRule {\n                parent: None,\n                only_child_kinds: None,\n                except_child_kinds: Some(&[Kind::Macro]),\n            },\n            CommutativeRule {\n                parent: Some(Kind::Mod),\n                only_child_kinds: None,\n                except_child_kinds: Some(&[Kind::Macro]),\n            },\n        ]\n    }\n\n    fn trivia_kinds(&self) -> &'static [&'static str] {\n        &[\n            \"line_comment\",\n            \"block_comment\",\n            \"attribute_item\",\n            \"inner_attribute_item\",\n        ]\n    }\n\n    fn literal_kinds(&self) -> &'static [&'static str] {\n        &[\n            \"integer_literal\",\n            \"float_literal\",\n            \"boolean_literal\",\n            \"true\",\n            \"false\",\n            \"char_literal\",\n            \"string_literal\",\n            \"raw_string_literal\",\n            \"string_content\",\n            \"escape_sequence\",\n        ]\n    }\n}\n\nfn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {\n    match node.kind() {\n        \"function_item\" | \"function_signature_item\" => vec![Role::Scope {\n            opens: &[Namespace::Type, Namespace::Lifetime, Namespace::Value],\n            barriers: &[\n                Barrier {\n                    ns: Namespace::Value,\n                    class: BinderClass::Local,\n                    when: When::Always,\n                },\n                Barrier {\n                    ns: Namespace::Value,\n                    class: BinderClass::Generic,\n                    when: When::ThroughBlock,\n                },\n                Barrier {\n                    ns: Namespace::Type,\n                    class: BinderClass::Generic,\n                    when: When::ThroughBlock,\n                },\n                Barrier {\n                    ns: Namespace::Lifetime,\n                    class: BinderClass::Generic,\n                    when: When::ThroughBlock,\n                },\n                Barrier {\n                    ns: Namespace::Label,\n                    class: BinderClass::Label,\n                    when: When::Always,\n                },\n            ],\n        }],\n        \"let_declaration\" => vec![Role::Binder {\n            namespace: Namespace::Value,\n            visibility: Visibility::AfterStmt,\n            locator: Locator::Field(\"pattern\"),\n        }],\n        // `if let` / `while let` / let-chains. AfterStmt covers `&& h > 1` in a\n        // let-chain; `binder_extent` then ends the scope at the then-body / loop body.\n        \"let_condition\" => vec![Role::Binder {\n            namespace: Namespace::Value,\n            visibility: Visibility::AfterStmt,\n            locator: Locator::Field(\"pattern\"),\n        }],\n        \"match_arm\" | \"last_match_arm\" => vec![Role::Binder {\n            namespace: Namespace::Value,\n            // pattern includes the guard; value is the arm body. Whole would\n            // walk to the enclosing function block and leak the binder into\n            // other arms.\n            visibility: Visibility::Sub(&[\"pattern\", \"value\"]),\n            locator: Locator::Field(\"pattern\"),\n        }],\n        \"for_expression\" => vec![Role::Binder {\n            namespace: Namespace::Value,\n            visibility: Visibility::Sub(&[\"body\"]),\n            locator: Locator::Field(\"pattern\"),\n        }],\n        \"parameter\" => vec![Role::Binder {\n            namespace: Namespace::Value,\n            visibility: Visibility::Sub(&[\"body\"]),\n            locator: Locator::Field(\"pattern\"),\n        }],\n        \"identifier\" if field == Some(\"name\") => vec![],\n        // Untyped closure parameter `|s|`: a bare identifier under closure_parameters, scoped\n        // to the closure. Typed ones are `parameter` nodes and bind through their pattern; a\n        // locator over all of `parameters` would also bind the type names (O9 caught that).\n        \"identifier\"\n            if node\n                .parent()\n                .is_some_and(|p| p.kind() == \"closure_parameters\") =>\n        {\n            vec![Role::Binder {\n                namespace: Namespace::Value,\n                visibility: Visibility::Whole,\n                locator: Locator::Itself,\n            }]\n        }\n        \"identifier\" => vec![Role::Reference {\n            namespace: Namespace::Value,\n        }],\n        \"type_identifier\" => vec![Role::Reference {\n            namespace: Namespace::Type,\n        }],\n        \"lifetime\" => vec![Role::Reference {\n            namespace: Namespace::Lifetime,\n        }],\n        \"label\" => match node.parent().map(|p| p.kind()) {\n            Some(\"break_expression\") | Some(\"continue_expression\") => {\n                vec![Role::Reference {\n                    namespace: Namespace::Label,\n                }]\n            }\n            _ => vec![Role::Binder {\n                namespace: Namespace::Label,\n                visibility: Visibility::Whole,\n                locator: Locator::Itself,\n            }],\n        },\n        \"block\" => vec![Role::Scope {\n            opens: &[\n                Namespace::Type,\n                Namespace::Value,\n                Namespace::Macro,\n                Namespace::Label,\n            ],\n            barriers: &[],\n        }],\n        \"closure_expression\" => vec![Role::Scope {\n            opens: &[Namespace::Value],\n            barriers: &[Barrier {\n                ns: Namespace::Label,\n                class: BinderClass::Label,\n                when: When::Always,\n            }],\n        }],\n        \"type_parameter\" | \"lifetime_parameter\" | \"const_parameter\" => {\n            let ns = match node.kind() {\n                \"lifetime_parameter\" => Namespace::Lifetime,\n                \"const_parameter\" => Namespace::Value,\n                _ => Namespace::Type,\n            };\n            vec![Role::Binder {\n                namespace: ns,\n                visibility: Visibility::Whole,\n                locator: Locator::Field(\"name\"),\n            }]\n        }\n        \"self_parameter\" => vec![Role::Binder {\n            namespace: Namespace::Value,\n            visibility: Visibility::Sub(&[\"body\"]),\n            locator: Locator::Itself,\n        }],\n        _ => vec![],\n    }\n}\n"
+        }
+      },
+      "after_tree": "f71f5cd6bfc182ccf495bd75403618da285622f5dad2431ab232f654a7df2938",
+      "workspace": null
+    }
+  ]
+}

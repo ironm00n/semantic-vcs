@@ -245,7 +245,7 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
             locator: Locator::Field("pattern"),
         }],
         // `if let` / `while let` / let-chains. AfterStmt covers `&& h > 1` in a
-        // let-chain; the else branch may see the slot (v1).
+        // let-chain; `binder_extent` then ends the scope at the then-body / loop body.
         "let_condition" => vec![Role::Binder {
             namespace: Namespace::Value,
             visibility: Visibility::AfterStmt,
