@@ -281,7 +281,9 @@ fn collect<'a>(
 /// `cfg_fs! { pub mod fs; }` does not parse a `mod_item` — the grammar leaves
 /// `pub`/`mod`/`fs`/`;` as token-tree children. File-root invocations mint the
 /// Mod so `src/fs/` attaches. The same soup inside `mod outer { … }` must mint
-/// a child of that module so `src/outer/fs.rs` attaches. Token trees under a
+/// a child of that module so `src/outer/fs.rs` attaches. Brace-body
+/// `pub mod fs { pub fn parse() {} }` has no file; mint the Mod and its `fn`
+/// children so `crate::fs::parse` walks. Token trees under a
 /// `macro_definition` stay matcher/body, not declarations.
 fn collect_macro_mod_decls<'a>(
     node: tree_sitter::Node<'a>,
@@ -328,8 +330,67 @@ fn collect_macro_mod_decls<'a>(
             i = j + 3;
             continue;
         }
+        if j + 2 < kids.len()
+            && kids[j].kind() == "mod"
+            && kids[j + 1].kind() == "identifier"
+            && kids[j + 2].kind() == "token_tree"
+        {
+            let name_node = kids[j + 1];
+            let name = node_text(src, name_node);
+            emit(
+                name_node,
+                src,
+                lang,
+                parent_idx,
+                Kind::Mod,
+                name,
+                Some(byte_range(name_node)),
+                raw,
+                nodes,
+            );
+            let mod_idx = raw.len() - 1;
+            collect_macro_mod_decls(kids[j + 2], src, lang, Some(mod_idx), raw, nodes);
+            i = j + 3;
+            continue;
+        }
+        let mut f = i;
+        while f < kids.len() && is_macro_fn_prefix(kids[f]) {
+            f += 1;
+        }
+        if f + 1 < kids.len() && kids[f].kind() == "fn" && kids[f + 1].kind() == "identifier" {
+            let name_node = kids[f + 1];
+            let name = node_text(src, name_node);
+            emit(
+                name_node,
+                src,
+                lang,
+                parent_idx,
+                Kind::Fn,
+                name,
+                Some(byte_range(name_node)),
+                raw,
+                nodes,
+            );
+            i = f + 2;
+            continue;
+        }
         i += 1;
     }
+}
+
+fn is_macro_fn_prefix(node: tree_sitter::Node<'_>) -> bool {
+    matches!(
+        node.kind(),
+        "attribute_item"
+            | "pub"
+            | "visibility_modifier"
+            | "async"
+            | "const"
+            | "unsafe"
+            | "extern"
+            | "string_literal"
+            | "raw_string_literal"
+    )
 }
 
 fn body_first_byte(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<u32> {

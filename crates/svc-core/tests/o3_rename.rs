@@ -3159,3 +3159,38 @@ fn rename_follows_use_super_super_glob_from_a_file_module_under_an_inline_parent
         "use super::super::* under an inline parent must be the crate root: {text}"
     );
 }
+
+#[test]
+fn rename_follows_brace_body_mod_declared_inside_a_macro() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"macro_rules! m { ($($t:tt)*) => { $($t)* } }\nm! { pub mod fs { pub fn parse() {} } }\nmod caller;\n".to_vec(),
+    );
+    files.insert(
+        caller.clone(),
+        b"use crate::fs::parse;\npub fn f() { parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("use crate::fs::parse_file;"),
+        "brace-body mod in a macro must be a crate path: {text}"
+    );
+    assert!(
+        text.contains("parse_file();"),
+        "call through a brace-body macro mod must follow: {text}"
+    );
+}
