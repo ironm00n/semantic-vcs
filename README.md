@@ -8,7 +8,7 @@ rename is recorded as a rename; a merge that would silently make a reference
 point at a different binder is a conflict, even when git merges clean and the
 crate still compiles. The working tree is a render of the store, and an agent
 on the included overlay can only write through `svc` operations. The last
-twelve hours of this repository's own history — 318 operations in 74 bundles —
+twelve hours of this repository's own history — 376 operations in 95 bundles —
 were made through it, and the third command below opens them.
 
 ## Try it
@@ -20,10 +20,10 @@ demo/dogfood.sh --tui  # this repository's own svc-made history, replayed, in th
 ```
 
 The third command unpacks `artifacts/history-store.tar.xz` (the replayed
-checkout, 13 MiB), checks it against `demo/history` (bundle list, op count,
+checkout, 21 MiB), checks it against `demo/history` (bundle list, op count,
 clean tree) and opens `svc tui` on it in about 2 s. The replay is the proof:
 `demo/history/replay.sh <dir>` rebuilds the same store from git's trees and
-the bundles in about 9 minutes. `--shell` instead of `--tui` gives a shell there.
+the bundles in about 12 minutes. `--shell` instead of `--tui` gives a shell there.
 
 ## What you will see
 
@@ -130,7 +130,7 @@ build -p svc` gets:
 | what | number | command |
 |---|---|---|
 | this repository ingested | 2,477 entities, 2.6–4.6 s depending on load | `svc init` at the repo root (`demo/selfhost-full.sh` does it in a copy) |
-| its own history replayed | 74 bundles, 318 operations, every tree as recorded, ≈9 min | `time demo/history/replay.sh <dir>` |
+| its own history replayed | 95 bundles, 376 operations, every tree as recorded, ≈12 min | `time demo/history/replay.sh <dir>` |
 | … or opened from the shipped pack | seconds, verified against the bundles | `demo/dogfood.sh --tui` |
 | the rendered tree still builds | `cargo test --workspace` from an empty checkout: 0 failures | `demo/selfhost-full.sh` |
 | `syn` (97 files) | 7,365 entities in 3.0 s; `status` 0.1–0.2 s | `svc init` in a `syn` checkout |
@@ -208,7 +208,7 @@ Hackathon prototype. Not a git replacement.
 ## Built with
 
 svc itself: the last twelve hours of this repository's changes were made
-through `svc` verbs and are the 74 bundles in `demo/history/` (318
+through `svc` verbs and are the 95 bundles in `demo/history/` (376
 operations); the agents coordinated through `svc mail` for the last eight. HackMIT 2026. Codex,
 Claude Code, Muse, Cursor, Devin, Warp and DeepSeek Harness. Rust,
 tree-sitter (Rust and JavaScript), redb, postcard, BLAKE3, similar, clap,

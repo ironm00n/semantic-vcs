@@ -31,7 +31,7 @@ twelve hours of it were built through svc; the history is checked in and
 replayed, not staged.
 
 1. `demo/dogfood.sh --tui` — the review UI opens on this repository's store:
-   2,426 entities, 318 operations in 74 bundles, each with who, when and the
+   2,515 entities, 376 operations in 95 bundles, each with who, when and the
    verdict. Walk the revisions (`j`/`k`, `Enter`), open the op log (`o`) and
    `j` past the latest landings' `new change` / `absorbed hand edits` pairs to
    the renames, edit-defs, undos, and the mail the agents sent each other.
@@ -91,7 +91,7 @@ definition, re-resolves every reference, and refuses that merge with the
 line that moved. Same store: a rename is one operation, not 25 files of diff;
 every agent edit carries `declared refactor, observed binding-changing`; the
 review and the mail between agents are operations too and travel between
-clones. We built the tool's own history inside it — 318 operations,
+clones. We built the tool's own history inside it — 376 operations,
 replayed, and that replay is the demo." Then open `demo/dogfood.sh --tui`
 and scroll the op log.
 
