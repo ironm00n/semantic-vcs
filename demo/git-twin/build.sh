@@ -4,12 +4,21 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 work="$here/work"
 
+verify() {
+  local first_raw shadow_raw logged_raw
+  test "$(git -C "$work" rev-parse --show-toplevel)" = "$work" || return 1
+  test "$(git -C "$work" rev-list --parents -n 1 HEAD | wc -w)" -eq 3 || return 1
+  git -C "$work" diff --quiet HEAD -- || return 1
+  first_raw=$(grep -n '^[[:space:]]*let raw = read(' "$work/src/main.rs" | cut -d: -f1) || return 1
+  shadow_raw=$(grep -n '^[[:space:]]*let raw = normalize(' "$work/src/main.rs" | cut -d: -f1) || return 1
+  logged_raw=$(grep -n '^[[:space:]]*log(&raw);' "$work/src/main.rs" | cut -d: -f1) || return 1
+  test "$first_raw" -lt "$shadow_raw" && test "$shadow_raw" -lt "$logged_raw" || return 1
+  cargo check -q --manifest-path "$work/Cargo.toml" || return 1
+  echo "git merged cleanly; log(&raw) now resolves to the normalized shadow at line $shadow_raw"
+}
+
 if [[ -e "$work" ]]; then
-  if git -C "$work" rev-parse --git-dir >/dev/null 2>&1 \
-      && grep -q 'let raw = normalize' "$work/src/main.rs" \
-      && grep -q 'log(&raw)' "$work/src/main.rs"; then
-    cargo check -q --manifest-path "$work/Cargo.toml"
-    echo "existing git twin is merged, compilable, and still contains the binding bug"
+  if verify; then
     exit 0
   fi
   echo "refusing to replace unrecognized $work; remove it before rebuilding" >&2
@@ -19,9 +28,9 @@ fi
 mkdir -p "$work"
 cp -R "$here/../config/." "$work/"
 
+export GIT_AUTHOR_NAME="HackMIT Demo" GIT_AUTHOR_EMAIL="demo@localhost"
+export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
 git -C "$work" init -q -b main
-git -C "$work" config user.name "HackMIT Demo"
-git -C "$work" config user.email "demo@localhost"
 git -C "$work" add .
 git -C "$work" commit -qm "base"
 
@@ -34,12 +43,4 @@ git -C "$work" apply "$here/logging.patch"
 git -C "$work" commit -qam "log the original input"
 
 git -C "$work" merge --no-edit normalize
-cargo check -q --manifest-path "$work/Cargo.toml"
-
-first_raw=$(grep -n 'let raw = read' "$work/src/main.rs" | cut -d: -f1)
-shadow_raw=$(grep -n 'let raw = normalize' "$work/src/main.rs" | cut -d: -f1)
-logged_raw=$(grep -n 'log(&raw)' "$work/src/main.rs" | cut -d: -f1)
-test "$first_raw" -lt "$shadow_raw"
-test "$shadow_raw" -lt "$logged_raw"
-
-echo "git merged cleanly; log(&raw) now resolves to the normalized shadow at line $shadow_raw"
+verify
