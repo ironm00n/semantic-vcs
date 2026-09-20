@@ -5,8 +5,9 @@
 //! what a snapshot *contains* — that is `svc_core::engine`'s job; this module only moves
 //! bytes between disk and store and keeps `root`/`heads`/the op log consistent.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{File, OpenOptions};
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -536,10 +537,14 @@ impl Repo {
     /// Writes every file of `snapshot` via temp + `rename(2)`, then deletes tracked files it
     /// no longer contains. Never touches untracked files.
     pub fn render_to_disk(&self, snapshot: &Snapshot) -> Result<()> {
-        let rendered = self.render_into(&self.root, snapshot)?;
-        for rel in self.tracked_files()?.keys() {
-            if !rendered.contains_key(rel) {
-                std::fs::remove_file(self.root.join(rel.as_str())).map_err(Error::backend)?;
+        let tracked = self.tracked_files()?;
+        let rendered = render(snapshot, &self.store, &self.langs, false)?.files;
+        let removed = self.clear_render_obstructions(&rendered, &tracked)?;
+        Self::write_rendered_files(&self.root, &rendered)?;
+        for rel in tracked.keys() {
+            let path = self.root.join(rel.as_str());
+            if !rendered.contains_key(rel) && !removed.contains(&path) {
+                std::fs::remove_file(path).map_err(Error::backend)?;
             }
         }
         Ok(())
@@ -553,23 +558,92 @@ impl Repo {
         dir: &Path,
         snapshot: &Snapshot,
     ) -> Result<BTreeMap<RelPath, Vec<u8>>> {
-        let rendered = render(snapshot, &self.store, &self.langs, false)?;
-        for (rel, bytes) in &rendered.files {
+        let rendered = render(snapshot, &self.store, &self.langs, false)?.files;
+        Self::write_rendered_files(dir, &rendered)?;
+        Ok(rendered)
+    }
+
+    fn clear_render_obstructions(
+        &self,
+        rendered: &BTreeMap<RelPath, Vec<u8>>,
+        tracked: &BTreeMap<RelPath, Vec<u8>>,
+    ) -> Result<BTreeSet<PathBuf>> {
+        let obsolete: BTreeSet<_> = tracked.keys()
+            .filter(|rel| !rendered.contains_key(*rel))
+            .map(|rel| self.root.join(rel.as_str()))
+            .collect();
+        let mut files = BTreeSet::new();
+        let mut dirs = BTreeSet::new();
+        let obstruction = |path: &Path| Error::Other(format!(
+            "untracked path obstructs render: {}", path.display()
+        ));
+        let kind = |path: &Path| match std::fs::symlink_metadata(path) {
+            Ok(meta) => Ok(Some(meta.file_type())),
+            Err(e) if matches!(e.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => Ok(None),
+            Err(e) => Err(Error::backend(e)),
+        };
+        for (rel, bytes) in rendered {
+            let path = self.root.join(rel.as_str());
+            for parent in path.ancestors().skip(1).take_while(|p| *p != self.root) {
+                if kind(parent)?.is_some_and(|t| !t.is_dir()) {
+                    if !obsolete.contains(parent) {
+                        return Err(obstruction(parent));
+                    }
+                    files.insert(parent.to_path_buf());
+                }
+            }
+            match kind(&path)? {
+                Some(t) if t.is_dir() => {
+                    let mut pending = vec![path];
+                    while let Some(dir) = pending.pop() {
+                        for entry in std::fs::read_dir(&dir).map_err(Error::backend)? {
+                            let entry = entry.map_err(Error::backend)?;
+                            let path = entry.path();
+                            if entry.file_type().map_err(Error::backend)?.is_dir() {
+                                pending.push(path);
+                            } else if obsolete.contains(&path) {
+                                files.insert(path);
+                            } else {
+                                return Err(obstruction(&path));
+                            }
+                        }
+                        dirs.insert(dir);
+                    }
+                }
+                Some(_) if !tracked.contains_key(rel)
+                    && std::fs::read(&path).ok().as_deref() != Some(bytes.as_slice()) => {
+                    return Err(obstruction(&path));
+                }
+                _ => {}
+            }
+        }
+        for path in &files {
+            std::fs::remove_file(path).map_err(Error::backend)?;
+        }
+        for path in dirs.iter().rev() {
+            std::fs::remove_dir(path).map_err(|e| Error::Other(format!(
+                "cannot clear render obstruction {}: {e}", path.display()
+            )))?;
+        }
+        Ok(files)
+    }
+
+    fn write_rendered_files(dir: &Path, rendered: &BTreeMap<RelPath, Vec<u8>>) -> Result<()> {
+        for (rel, bytes) in rendered {
             let path = dir.join(rel.as_str());
             if std::fs::read(&path).ok().as_deref() == Some(bytes.as_slice()) {
                 continue;
             }
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent).map_err(Error::backend)?;
+            let parent = path.parent().ok_or_else(|| Error::InvalidPath(rel.to_string()))?;
+            std::fs::create_dir_all(parent).map_err(Error::backend)?;
+            let mut tmp = tempfile::NamedTempFile::new_in(parent).map_err(Error::backend)?;
+            tmp.write_all(bytes).map_err(Error::backend)?;
+            if let Ok(meta) = std::fs::metadata(&path) {
+                tmp.as_file().set_permissions(meta.permissions()).map_err(Error::backend)?;
             }
-            let tmp = path.with_extension(format!(
-                "{}.svc-tmp",
-                path.extension().and_then(|e| e.to_str()).unwrap_or("")
-            ));
-            std::fs::write(&tmp, bytes).map_err(Error::backend)?;
-            std::fs::rename(&tmp, &path).map_err(Error::backend)?;
+            tmp.persist(&path).map_err(Error::backend)?;
         }
-        Ok(rendered.files)
+        Ok(())
     }
 }
 
