@@ -288,6 +288,23 @@ fn impl_method_sees_impl_type_param() {
 }
 
 #[test]
+fn rust_closure_param_is_local_in_the_body() {
+    let src = "fn f() { let _ = |x| x; }\n";
+    let refs = rust_item_refs(src);
+    assert!(
+        refs.iter().any(|(n, ident)| n == "x"
+            && matches!(ident, IdentRef::Local(_, Namespace::Value))),
+        "closure body `x` must be the parameter slot: {refs:?}"
+    );
+    assert!(
+        !refs
+            .iter()
+            .any(|(n, ident)| n == "x" && matches!(ident, IdentRef::Free(_))),
+        "closure body `x` must not be Free: {refs:?}"
+    );
+}
+
+#[test]
 fn closure_inside_fn_still_sees_type_param() {
     let src = "fn outer<T>(x: T) { let _f = |y: T| y; }\n";
     let refs = rust_item_refs(src);

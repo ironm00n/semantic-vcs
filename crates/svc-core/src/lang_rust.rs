@@ -259,14 +259,21 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
             opens: &[Namespace::Type, Namespace::Value, Namespace::Macro, Namespace::Label],
             barriers: &[],
         }],
-        "closure_expression" => vec![Role::Scope {
-            opens: &[Namespace::Value],
-            barriers: &[Barrier {
-                ns: Namespace::Label,
-                class: BinderClass::Label,
-                when: When::Always,
-            }],
-        }],
+        "closure_expression" => vec![
+            Role::Scope {
+                opens: &[Namespace::Value],
+                barriers: &[Barrier {
+                    ns: Namespace::Label,
+                    class: BinderClass::Label,
+                    when: When::Always,
+                }],
+            },
+            Role::Binder {
+                namespace: Namespace::Value,
+                visibility: Visibility::Sub(&["body"]),
+                locator: Locator::Field("parameters"),
+            },
+        ],
         "type_parameter" | "lifetime_parameter" | "const_parameter" => {
             let ns = match node.kind() {
                 "lifetime_parameter" => Namespace::Lifetime,

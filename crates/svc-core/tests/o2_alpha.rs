@@ -25,3 +25,14 @@ fn o2_rename_is_not_free_name() {
     let b = "fn parse(s: &str) -> usize { s.len() + 1 }\n";
     assert_ne!(content_of(a), content_of(b));
 }
+
+#[test]
+fn o2_alpha_rename_closure_param() {
+    let a = "fn f() { let _ = |s| s.len(); }\n";
+    let b = "fn f() { let _ = |x| x.len(); }\n";
+    assert_eq!(
+        content_of(a),
+        content_of(b),
+        "α-rename of a closure parameter must preserve content"
+    );
+}
