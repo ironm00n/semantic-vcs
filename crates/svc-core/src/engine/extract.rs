@@ -189,7 +189,16 @@ fn collect_include_paths(
             if let Some(p) = include_arg_path(node, src) {
                 out.push(p);
             }
+            return;
         }
+        let mut c = node.walk();
+        for ch in node.named_children(&mut c) {
+            collect_include_paths(ch, src, out, false);
+        }
+        return;
+    }
+    if node.kind() == "token_tree" {
+        out.extend(include_paths_from_soup_tree(node, src));
         return;
     }
     let mut c = node.walk();

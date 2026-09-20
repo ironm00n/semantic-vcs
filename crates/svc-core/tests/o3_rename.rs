@@ -4359,3 +4359,60 @@ fn rename_does_not_attach_include_inside_a_file_module_function() {
         "include! inside a file-module fn must not attach: {text}"
     );
 }
+
+#[test]
+fn rename_follows_super_from_include_in_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let inner = RelPath::new("src/inner.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib, b"fn parse() {}\nmod foo;\n".to_vec());
+    files.insert(foo, b"include!(\"inner.rs\");\n".to_vec());
+    files.insert(inner.clone(), b"fn f() { super::parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&inner].clone()).unwrap();
+    assert!(
+        text.contains("super::parse_file()"),
+        "include! into a file module: super:: is the parent of that module: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_soup_include_in_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let body = RelPath::new("src/foo_body.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod foo;\nfn f() { crate::foo::parse(); }\n".to_vec());
+    files.insert(
+        foo,
+        b"macro_rules! m { ($($t:tt)*) => {}; }\nm! { include!(\"foo_body.rs\"); }\n".to_vec(),
+    );
+    files.insert(body, b"pub fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::foo::parse_file()"),
+        "include! inside a soup invocation in a file module must attach: {text}"
+    );
+}

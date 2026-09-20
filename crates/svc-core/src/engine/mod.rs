@@ -140,7 +140,7 @@ fn attach_included_file(
         return;
     }
     env.file_of_mod.insert(cand.clone(), mod_id);
-    env.mod_decl_file.insert(mod_id, decl.clone());
+    env.mod_decl_file.entry(mod_id).or_insert_with(|| decl.clone());
     for (cid, crec) in &snapshot.entities {
         if crec.file != cand {
             continue;
@@ -726,7 +726,7 @@ fn link_file_root_includes(
                 continue;
             }
             env.file_of_mod.insert(cand.clone(), mod_id);
-            env.mod_decl_file.insert(mod_id, (*path).clone());
+            env.mod_decl_file.entry(mod_id).or_insert_with(|| (*path).clone());
             for (i, ent) in raw.iter().enumerate() {
                 if ent.parent_idx.is_some()
                     || is_inherent_raw(raw, i)
