@@ -54,4 +54,5 @@ for bundle in $ordered; do
   n=$((n + 1))
 done
 "$SVC" forge export --json >/dev/null 2>&1   # the catalog the forge serves, beside the store
-echo "$n bundle(s); $("$SVC" op log --json | jq length) ops in $DIR/.svc (forge catalog: .svc/forge.json)"
+summary="$("$SVC" op log --json | jq -r '[.[] | (.op | if type == "object" then keys[0] else . end)] | group_by(.) | map("\(length) \(.[0])") | join(", ")')"
+echo "$n bundle(s); $("$SVC" op log --json | jq length) ops in $DIR/.svc — $summary (forge catalog: .svc/forge.json)"
