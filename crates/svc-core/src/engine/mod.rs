@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::content::{Bytes, Content, IdentRef};
 use crate::entity::{EntityRecord, FileRecord, Kind, SigKey};
@@ -213,7 +213,7 @@ pub fn snapshot_files(
             Some(lang) => {
                 let tree = parse(src, lang)?;
                 let raw = extract(&tree, src, lang)?;
-                let ids = assign_ids(&raw, path, &mut prev_ids);
+                let ids = assign_ids(&raw, path, &mut prev_ids, prev);
                 parsed.push(Parsed {
                     path: path.clone(),
                     src,
@@ -304,7 +304,7 @@ pub fn ingest_file_prev(
 ) -> Result<Snapshot> {
     let tree = parse(src, lang)?;
     let raw = extract(&tree, src, lang)?;
-    let ids = assign_ids(&raw, &path, &mut prev_ids(prev));
+    let ids = assign_ids(&raw, &path, &mut prev_ids(prev), prev);
     let mut env = extra.clone();
     for (i, ent) in raw.iter().enumerate() {
         if is_inherent_raw(&raw, i) {
@@ -423,16 +423,72 @@ fn prev_ids(prev: Option<&Snapshot>) -> PrevIds {
     by_sig
 }
 
-fn assign_ids(raw: &[RawEntity], file: &RelPath, prev: &mut PrevIds) -> Vec<EntityId> {
-    let mut ids = Vec::with_capacity(raw.len());
-    for ent in raw {
-        let parent = ent.parent_idx.map(|p| ids[p]);
+fn assign_ids(
+    raw: &[RawEntity],
+    file: &RelPath,
+    prev: &mut PrevIds,
+    snap: Option<&Snapshot>,
+) -> Vec<EntityId> {
+    let mut assigned: Vec<Option<EntityId>> = vec![None; raw.len()];
+    let mut used = HashSet::new();
+    for (i, ent) in raw.iter().enumerate() {
+        let parent = match ent.parent_idx {
+            Some(p) => match assigned[p] {
+                Some(id) => Some(id),
+                None => continue,
+            },
+            None => None,
+        };
         let key = SigKey::new(parent, file, ent.kind, ent.name.clone());
-        let id = prev
-            .get_mut(&key)
-            .and_then(|same| same.pop_front())
-            .unwrap_or_else(EntityId::new);
-        ids.push(id);
+        if let Some(id) = prev.get_mut(&key).and_then(|same| same.pop_front()) {
+            assigned[i] = Some(id);
+            used.insert(id);
+        }
     }
-    ids
+    // A `use` line's name is its text. Rename of an imported fn (or a hand
+    // edit of the path) changes that spelling, so SigKey misses and the line
+    // used to mint a new id. Reuse an unused Opaque in this file whose text
+    // still shares most of its prefix (`use crate::a::f` → `use crate::a::f2`).
+    if let Some(snap) = snap {
+        let leftover: Vec<(u32, EntityId, String)> = snap
+            .entities
+            .iter()
+            .filter(|(id, rec)| rec.file == *file && rec.kind == Kind::Opaque && !used.contains(id))
+            .map(|(id, rec)| (rec.ordinal, *id, rec.name.clone()))
+            .collect();
+        for (i, ent) in raw.iter().enumerate() {
+            if assigned[i].is_some() || ent.kind != Kind::Opaque {
+                continue;
+            }
+            let mut best: Option<(usize, u32, EntityId)> = None;
+            for (ord, id, name) in &leftover {
+                if used.contains(id) {
+                    continue;
+                }
+                let n = lcp(&ent.name, name);
+                if n * 2 < ent.name.len().min(name.len()) {
+                    continue;
+                }
+                match best {
+                    Some((bn, bord, _)) if (n, std::cmp::Reverse(*ord)) < (bn, std::cmp::Reverse(bord)) => {}
+                    _ => best = Some((n, *ord, *id)),
+                }
+            }
+            if let Some((_, _, id)) = best {
+                assigned[i] = Some(id);
+                used.insert(id);
+            }
+        }
+    }
+    assigned
+        .into_iter()
+        .map(|id| id.unwrap_or_else(EntityId::new))
+        .collect()
+}
+
+fn lcp(a: &str, b: &str) -> usize {
+    a.bytes()
+        .zip(b.bytes())
+        .take_while(|(x, y)| x == y)
+        .count()
 }

@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use svc_core::Kind;
 use svc_core::engine::{
-    edit_def, lookup_name, merge, render, rust_langs, snapshot_files, status_report,
+    edit_def, lookup_name, merge, rename, render, rust_langs, snapshot_files, status_report,
 };
 use svc_core::ids::{ChangeId, RelPath};
 use svc_core::store::{MemStore, Store};
@@ -83,4 +83,74 @@ fn both_sides_editing_above_the_uses_does_not_duplicate_them() {
     assert_eq!(text.matches("use std::io;").count(), 1, "{text}");
     assert_eq!(text.matches("use std::fs;").count(), 1, "{text}");
     assert!(merged.conflicts.is_empty(), "{:?}", merged.conflicts);
+}
+
+#[test]
+fn a_changed_use_line_keeps_its_id() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let before = "mod a;\nuse crate::a::f;\nfn main() { f(); }\n";
+    let s = snap(&store, &langs, before, None);
+    let use_id = s
+        .entities
+        .iter()
+        .find(|(_, r)| r.kind == Kind::Opaque && r.name.contains("crate::a::f"))
+        .map(|(id, _)| *id)
+        .expect("use line");
+    let after = snap(
+        &store,
+        &langs,
+        "mod a;\nuse crate::a::f as ff;\nfn main() { ff(); }\n",
+        Some(&s),
+    );
+    assert!(after.entities.contains_key(&use_id), "use line reminted");
+    assert_eq!(after.entities[&use_id].name, "use crate::a::f as ff;");
+    let added_use = after
+        .entities
+        .iter()
+        .filter(|(_, r)| r.kind == Kind::Opaque)
+        .count();
+    assert_eq!(added_use, 1);
+}
+
+#[test]
+fn rename_of_an_imported_fn_does_not_remint_the_use() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let mut files = BTreeMap::new();
+    files.insert(
+        RelPath::new("src/a.rs").unwrap(),
+        b"pub fn f() {}\n".to_vec(),
+    );
+    files.insert(
+        RelPath::new("src/lib.rs").unwrap(),
+        b"mod a;\nuse crate::a::f;\nfn main() { f(); }\n".to_vec(),
+    );
+    let s = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let use_id = s
+        .entities
+        .iter()
+        .find(|(_, r)| r.kind == Kind::Opaque && r.name.contains("crate::a::f"))
+        .map(|(id, _)| *id)
+        .expect("use line");
+    let f = lookup_name(&s, "f").unwrap();
+    let renamed = rename(&s, f, "f2").unwrap();
+    let rendered = render(&renamed, &store, &langs, false).unwrap();
+    let again = snapshot_files(
+        &store,
+        &langs,
+        &rendered.files,
+        Some(&renamed),
+        ChangeId::new(),
+    )
+    .unwrap();
+    assert!(
+        again.entities.contains_key(&use_id),
+        "use line reminted after rename"
+    );
+    assert!(
+        again.entities[&use_id].name.contains("f2"),
+        "{}",
+        again.entities[&use_id].name
+    );
 }
