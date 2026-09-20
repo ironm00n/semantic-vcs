@@ -1081,9 +1081,12 @@ fn op_log_line(op: &OpOut) -> Line<'static> {
     } else {
         Style::default()
     };
+    // A named checkout's op says so; the default checkout's says nothing.
+    let from = op.workspace.as_deref().map(|w| format!("  [{w}]")).unwrap_or_default();
     Line::from(vec![
         Span::styled(format!("#{:<3} ", op.ix.0), Style::default().fg(Color::DarkGray)),
         Span::styled(text, style),
+        Span::styled(from, Style::default().fg(Color::DarkGray)),
     ])
 }
 
@@ -1321,6 +1324,7 @@ mod tests {
             group: None,
             root_after: SnapshotId::of(&()),
             subject: Some(subject.into()),
+            workspace: None,
         };
         let rename = OpOut {
             op: Op::Rename { id: EntityId::new(), new: "read_file".into() },
@@ -1543,6 +1547,7 @@ mod tests {
             group: None,
             root_after: SnapshotId::of(&()),
             subject: Some("load".into()),
+            workspace: None,
         }];
         app.pick_story_entity();
         let i = app.tree_state.selected().unwrap();

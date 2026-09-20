@@ -38,6 +38,9 @@ pub struct OpOut {
     pub root_after: SnapshotId,
     /// The entity's name *before* the op (renames need it; the current snapshot has the new one).
     pub subject: Option<String>,
+    /// The checkout that made it (absent = the default one).
+    #[serde(default)]
+    pub workspace: Option<String>,
 }
 
 /// How one op or rewrite touched one entity. `Edited.observed` is the op log's verdict
@@ -96,7 +99,8 @@ impl MutationOut {
     }
 }
 
-fn op_out(store: &dyn svc_core::Store, ix: OpIx, e: &OpLogEntry) -> OpOut {
+fn op_out(repo: &Repo, ix: OpIx, e: &OpLogEntry) -> OpOut {
+    let store = repo.store();
     // Name as of just before the op (so a rename shows its old name); for ops that create
     // the entity (add-def, extract) fall back to the name just after. Stored on the entry
     // so the line stays readable after the entity is later deleted or the op undone.
@@ -119,6 +123,7 @@ fn op_out(store: &dyn svc_core::Store, ix: OpIx, e: &OpLogEntry) -> OpOut {
         group: e.group,
         root_after: e.after.root,
         op: e.op.clone(),
+        workspace: repo.redb().op_workspace(ix).ok().flatten().filter(|w| !w.is_empty()),
     }
 }
 
@@ -268,7 +273,7 @@ pub fn op_log(repo: &Repo) -> Result<Vec<OpOut>> {
         .store()
         .ops(OpIx(0), true)?
         .iter()
-        .map(|(ix, e)| op_out(repo.store(), *ix, e))
+        .map(|(ix, e)| op_out(repo, *ix, e))
         .collect())
 }
 
@@ -291,7 +296,7 @@ pub fn log(repo: &Repo, change: Option<ChangeId>) -> Result<Vec<OpOut>> {
         .filter(|(_, e)| on_change(e))
         // The change's birth is not one of its events.
         .filter(|(_, e)| !matches!(e.op, Op::New { .. } | Op::Branch { .. }))
-        .map(|(ix, e)| op_out(repo.store(), *ix, e))
+        .map(|(ix, e)| op_out(repo, *ix, e))
         .collect())
 }
 
@@ -558,7 +563,7 @@ fn changeset_out(repo: &Repo, cs: svc_core::ChangeSet, open: bool) -> Result<Cha
         .ops(OpIx(0), true)?
         .iter()
         .filter(|(_, e)| e.group == Some(cs.id))
-        .map(|(ix, e)| op_out(repo.store(), *ix, e))
+        .map(|(ix, e)| op_out(repo, *ix, e))
         .collect();
     Ok(ChangeSetOut {
         id: cs.id,

@@ -8,8 +8,9 @@ landing order, from git's trees; `demo/dogfood.sh --tui` opens on it.
 
 ## Recording a landing (the author, before `jj describe`)
 
-1. Work in a checkout whose tree was clean at a `main` commit when you ran `svc init`
-   (that commit is the bundle's base; `jj log -r @- -T commit_id.short()` at init time).
+1. Work in a checkout whose tree was clean at a `main` commit when you ran `svc init`.
+   That commit is the bundle's base: write it down *then* —
+   `base=100 1 100jj log -r 569 --no-graph -T "commit_id.short(8)")` — main moves while you work.
 2. Make the change with svc verbs; `svc status` absorbs hand edits to opaque files.
 3. `svc history export --since 1 --out demo/history/NNNN-<base git sha>-<change>.json`
    (NNNN = the next number; until the CLI arm lands:

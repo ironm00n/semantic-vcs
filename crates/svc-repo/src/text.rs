@@ -174,6 +174,7 @@ fn op_verb(snap: &Snapshot, o: &Op) -> String {
             group: None,
             root_after: snap.id(),
             subject: None,
+            workspace: None,
         },
     )
     .trim_start_matches(|c: char| c == '#' || c.is_ascii_digit() || c == ' ')
