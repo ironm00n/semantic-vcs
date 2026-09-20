@@ -11,8 +11,8 @@ use svc_core::{EntityId, Intent, Op, OpIx, RelPath, Snapshot, SnapshotId};
 use svc_repo::{
     Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_status,
     changesets, checkout, conflicts as list_conflicts, describe, edit, evolog, heads, log,
-    merge as merge_repo, new, op_log, op_restore, parse_entity_id, replay, resolve as resolve_conflict,
-    resolve_entity, status, undo, untracked_mentions, workspace,
+    merge as merge_repo, new, op_log, op_restore, replay, resolve as resolve_conflict,
+    resolve_entity, resolve_entity_in, status, undo, untracked_mentions, workspace,
 };
 
 mod agent;
@@ -560,7 +560,7 @@ fn show_def(repo: &Repo, query: &str, at: Option<&str>) -> Result<Value, String>
         Some(spec) => resolve_snapshot(repo, spec)?,
         None => repo.current().map_err(|e| e.to_string())?,
     };
-    let id = resolve_entity_in(&snap, query)?;
+    let id = resolve_entity_in(&snap, query).map_err(|e| e.to_string())?;
     let canonical = show(repo.store(), &snap, id).map_err(|e| e.to_string())?;
     let entity = snap.entities.get(&id).cloned().ok_or_else(|| format!("missing {query}"))?;
     let bytes = repo.store().get_bytes_blob(entity.bytes).map_err(|e| e.to_string())?;
@@ -624,50 +624,6 @@ fn resolve_snapshot(repo: &Repo, spec: &str) -> Result<Snapshot, String> {
         .head(change)
         .map_err(|e| e.to_string())?;
     repo.store().get_snapshot(id).map_err(|e| e.to_string())
-}
-
-/// Like `resolve_entity`, but against a chosen snapshot (historical `--at`).
-fn resolve_entity_in(snap: &Snapshot, arg: &str) -> Result<EntityId, String> {
-    if let Some(id) = parse_entity_id(arg) {
-        return snap
-            .entities
-            .contains_key(&id)
-            .then_some(id)
-            .ok_or_else(|| format!("entity {arg:?} is not in that snapshot"));
-    }
-    let spec_hits: Vec<EntityId> = snap
-        .entities
-        .keys()
-        .copied()
-        .filter(|id| id.matches_spec(arg))
-        .collect();
-    let (parent, name) = match arg.rsplit_once("::") {
-        Some((p, n)) => (Some(p), n),
-        None => (None, arg),
-    };
-    let mut hits: Vec<EntityId> = snap
-        .entities
-        .iter()
-        .filter(|(_, r)| r.name == name)
-        .filter(|(_, r)| match parent {
-            None => true,
-            Some(p) => r
-                .parent
-                .and_then(|pid| snap.entities.get(&pid))
-                .is_some_and(|pr| pr.name == p),
-        })
-        .map(|(id, _)| *id)
-        .collect();
-    hits.sort();
-    match hits.len() {
-        1 => Ok(hits[0]),
-        0 if spec_hits.len() == 1 => Ok(spec_hits[0]),
-        0 => Err(format!("entity {arg:?} is not in that snapshot")),
-        _ => Err(format!(
-            "{arg:?} names {} entities; qualify it as Parent::{name} or pass the id",
-            hits.len()
-        )),
-    }
 }
 
 fn diff(repo: &Repo, a: &str, b: &str) -> Result<Value, String> {

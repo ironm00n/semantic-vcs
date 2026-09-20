@@ -1,0 +1,6 @@
+# svc reads this, not .gitignore: a bare name matches that file or directory anywhere;
+# a path with / matches from the root. No globs. Keep in step with .gitignore.
+result
+.direnv
+.artifacts
+.codex-finalizer
