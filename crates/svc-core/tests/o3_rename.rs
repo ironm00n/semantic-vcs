@@ -3194,3 +3194,126 @@ fn rename_follows_brace_body_mod_declared_inside_a_macro() {
         "call through a brace-body macro mod must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_struct_inside_a_brace_body_macro_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"m! { pub mod fs { pub struct Parse; } }\nmod caller;\n".to_vec(),
+    );
+    files.insert(
+        caller.clone(),
+        b"use crate::fs::Parse;\npub fn f(_: Parse) {}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "Parse")
+        .map(|(id, _)| *id)
+        .expect("Parse");
+    let next = rename(&store, &snap, id, "ParseFile").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("use crate::fs::ParseFile;"),
+        "struct in a brace-body macro mod must walk: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_const_inside_a_brace_body_macro_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"m! { pub mod fs { pub const PARSE: u8 = 1; } }\nmod caller;\n".to_vec(),
+    );
+    files.insert(
+        caller.clone(),
+        b"use crate::fs::PARSE;\npub fn f() { let _ = PARSE; }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "PARSE")
+        .map(|(id, _)| *id)
+        .expect("PARSE");
+    let next = rename(&store, &snap, id, "PARSE_FILE").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("use crate::fs::PARSE_FILE;"),
+        "const in a brace-body macro mod must walk: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_type_alias_inside_a_brace_body_macro_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"m! { pub mod fs { pub type Parse = u8; } }\nmod caller;\n".to_vec(),
+    );
+    files.insert(
+        caller.clone(),
+        b"use crate::fs::Parse;\npub fn f(_: Parse) {}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "Parse")
+        .map(|(id, _)| *id)
+        .expect("Parse");
+    let next = rename(&store, &snap, id, "ParseFile").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("use crate::fs::ParseFile;"),
+        "type alias in a brace-body macro mod must walk: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_type_alias_use_from_a_real_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let fs = RelPath::new("src/fs.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib, b"mod fs;\nmod caller;\n".to_vec());
+    files.insert(fs.clone(), b"pub type Parse = u8;\n".to_vec());
+    files.insert(
+        caller.clone(),
+        b"use crate::fs::Parse;\npub fn f(_: Parse) {}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "Parse" && r.file == fs)
+        .map(|(id, _)| *id)
+        .expect("Parse");
+    let next = rename(&store, &snap, id, "ParseFile").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("use crate::fs::ParseFile;"),
+        "use of a real type alias must follow: {text}"
+    );
+}

@@ -387,34 +387,26 @@ fn collect_refs<'a>(
             } else if env.alias_spellings.contains(&name) && in_scoped_path(node) {
                 refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(id) = if let Some(segs) = crate_path_segs(node, src, lang) {
-                env.lookup_crate_path(&segs, ns).or_else(|| {
-                    if under_use_tree(node) {
-                        env.lookup_module(&name, ns)
-                    } else {
-                        None
-                    }
-                })
+                lookup_use_aware(env, node, ns, &name, |ns| env.lookup_crate_path(&segs, ns))
             } else if let Some((depth, segs)) = super_path_parts(node, src, lang) {
-                env.lookup_super_path(depth, &segs, ns).or_else(|| {
-                    if under_use_tree(node) {
-                        env.lookup_module(&name, ns)
-                    } else {
-                        None
-                    }
+                lookup_use_aware(env, node, ns, &name, |ns| {
+                    env.lookup_super_path(depth, &segs, ns)
                 })
             } else if let Some(segs) = self_path_segs(node, src, lang) {
-                env.lookup_self_path(&segs, ns).or_else(|| {
-                    if under_use_tree(node) {
-                        env.lookup_module(&name, ns)
+                lookup_use_aware(env, node, ns, &name, |ns| env.lookup_self_path(&segs, ns))
+            } else if let Some(segs) = aliased_mod_segs(node, src, lang) {
+                lookup_use_aware(env, node, ns, &name, |ns| {
+                    env.lookup_aliased_mod_path(&segs, ns)
+                })
+                .or_else(|| env.lookup(&name, ns))
+            } else {
+                env.lookup(&name, ns).or_else(|| {
+                    if under_use_tree(node) && ns != Namespace::Type {
+                        env.lookup(&name, Namespace::Type)
                     } else {
                         None
                     }
                 })
-            } else if let Some(segs) = aliased_mod_segs(node, src, lang) {
-                env.lookup_aliased_mod_path(&segs, ns)
-                    .or_else(|| env.lookup(&name, ns))
-            } else {
-                env.lookup(&name, ns)
             } {
                 refs.push((r, IdentRef::Entity(id)));
             } else if let Some(ident) = const_generic_arg_ref(
@@ -1062,6 +1054,39 @@ fn under_use_tree(mut node: tree_sitter::Node<'_>) -> bool {
         node = parent;
     }
     false
+}
+
+/// Identifiers in a `use` tree are Value nodes. Type-only names (type aliases,
+/// traits, unions) still have to bind, so a miss retries Type and then the
+/// unique last-segment module map.
+fn lookup_use_aware(
+    env: &Env,
+    node: tree_sitter::Node<'_>,
+    ns: Namespace,
+    name: &str,
+    path: impl Fn(Namespace) -> Option<EntityId>,
+) -> Option<EntityId> {
+    path(ns)
+        .or_else(|| {
+            if under_use_tree(node) && ns != Namespace::Type {
+                path(Namespace::Type)
+            } else {
+                None
+            }
+        })
+        .or_else(|| {
+            if under_use_tree(node) {
+                env.lookup_module(name, ns).or_else(|| {
+                    if ns != Namespace::Type {
+                        env.lookup_module(name, Namespace::Type)
+                    } else {
+                        None
+                    }
+                })
+            } else {
+                None
+            }
+        })
 }
 
 /// `axum::response` is not our `fn response` in another file. If the leftmost

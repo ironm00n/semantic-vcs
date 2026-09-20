@@ -283,7 +283,8 @@ fn collect<'a>(
 /// Mod so `src/fs/` attaches. The same soup inside `mod outer { … }` must mint
 /// a child of that module so `src/outer/fs.rs` attaches. Brace-body
 /// `pub mod fs { pub fn parse() {} }` has no file; mint the Mod and its `fn`
-/// children so `crate::fs::parse` walks. Token trees under a
+/// children so `crate::fs::parse` walks. `struct`/`const`/`type` and the other
+/// named items in that soup are minted the same way. Token trees under a
 /// `macro_definition` stay matcher/body, not declarations.
 fn collect_macro_mod_decls<'a>(
     node: tree_sitter::Node<'a>,
@@ -354,23 +355,31 @@ fn collect_macro_mod_decls<'a>(
             continue;
         }
         let mut f = i;
-        while f < kids.len() && is_macro_fn_prefix(kids[f]) {
+        while f < kids.len() && is_macro_item_prefix(kids[f]) {
             f += 1;
         }
-        if f + 1 < kids.len() && kids[f].kind() == "fn" && kids[f + 1].kind() == "identifier" {
-            let name_node = kids[f + 1];
-            let name = node_text(src, name_node);
-            emit(
-                name_node,
+        let mut q = f;
+        while q < kids.len() && is_macro_fn_qualifier(kids[q]) {
+            q += 1;
+        }
+        if q + 1 < kids.len() && kids[q].kind() == "fn" && kids[q + 1].kind() == "identifier" {
+            emit_macro_named(
+                kids[q + 1],
                 src,
                 lang,
                 parent_idx,
                 Kind::Fn,
-                name,
-                Some(byte_range(name_node)),
                 raw,
                 nodes,
             );
+            i = q + 2;
+            continue;
+        }
+        if f + 1 < kids.len()
+            && kids[f + 1].kind() == "identifier"
+            && let Some(kind) = macro_named_item_kind(kids[f].kind())
+        {
+            emit_macro_named(kids[f + 1], src, lang, parent_idx, kind, raw, nodes);
             i = f + 2;
             continue;
         }
@@ -378,19 +387,54 @@ fn collect_macro_mod_decls<'a>(
     }
 }
 
-fn is_macro_fn_prefix(node: tree_sitter::Node<'_>) -> bool {
+fn is_macro_item_prefix(node: tree_sitter::Node<'_>) -> bool {
     matches!(
         node.kind(),
-        "attribute_item"
-            | "pub"
-            | "visibility_modifier"
-            | "async"
-            | "const"
-            | "unsafe"
-            | "extern"
-            | "string_literal"
-            | "raw_string_literal"
+        "attribute_item" | "pub" | "visibility_modifier"
     )
+}
+
+fn is_macro_fn_qualifier(node: tree_sitter::Node<'_>) -> bool {
+    matches!(
+        node.kind(),
+        "async" | "const" | "unsafe" | "extern" | "string_literal" | "raw_string_literal"
+    )
+}
+
+fn macro_named_item_kind(kw: &str) -> Option<Kind> {
+    Some(match kw {
+        "struct" => Kind::Struct,
+        "enum" => Kind::Enum,
+        "union" => Kind::Union,
+        "trait" => Kind::Trait,
+        "type" => Kind::TypeAlias,
+        "const" => Kind::Const,
+        "static" => Kind::Static,
+        _ => return None,
+    })
+}
+
+fn emit_macro_named<'a>(
+    name_node: tree_sitter::Node<'a>,
+    src: &[u8],
+    lang: &dyn Lang,
+    parent_idx: Option<usize>,
+    kind: Kind,
+    raw: &mut Vec<RawEntity>,
+    nodes: &mut Vec<tree_sitter::Node<'a>>,
+) {
+    let name = node_text(src, name_node);
+    emit(
+        name_node,
+        src,
+        lang,
+        parent_idx,
+        kind,
+        name,
+        Some(byte_range(name_node)),
+        raw,
+        nodes,
+    );
 }
 
 fn body_first_byte(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<u32> {
