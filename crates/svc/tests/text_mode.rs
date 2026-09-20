@@ -64,6 +64,10 @@ fn init_list_show_and_workspace_add_are_sentences() {
     assert!(shown.contains("fn parse"), "{shown}");
     assert!(!is_pretty_json(&shown), "{shown}");
 
+    let found = text(dir.path(), &["search", "parse"]);
+    assert!(found.contains("parse"), "{found}");
+    assert!(!is_pretty_json(&found), "{found}");
+
     let dest = tempfile::tempdir().expect("workspace dest");
     let added = text(
         dir.path(),

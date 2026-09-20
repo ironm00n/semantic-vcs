@@ -336,6 +336,85 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
                 format!("workspace {} is current", v["name"].as_str().unwrap_or("default"))
             }));
         }
+        Command::Edit { change } => {
+            return Some(edit(&repo, change).map(|_| format!("now editing {change}")).map_err(|e| e.to_string()));
+        }
+        Command::Checkout { snapshot } => {
+            return Some((|| {
+                let id = snapshot.parse::<SnapshotId>().map_err(|e| e.to_string())?;
+                checkout(&repo, id).map_err(|e| e.to_string())?;
+                Ok(format!("checked out {snapshot}"))
+            })());
+        }
+        Command::Render => {
+            return Some(run_with(cli, &repo).map(|_| "rendered working copy".into()));
+        }
+        Command::Resolve { conflict, take } => {
+            return Some(run_with(cli, &repo).map(|_| format!("took {take} on conflict {conflict}")));
+        }
+        Command::Op(OpCommand::Restore { index }) => {
+            return Some(run_with(cli, &repo).and_then(|_| {
+                let snap = repo.current().map_err(|e| e.to_string())?;
+                let entries = op_log(&repo).map_err(|e| e.to_string())?;
+                Ok(entries.first().map(|e| text::op(&snap, e)).unwrap_or_else(|| format!("restored op {index}")))
+            }));
+        }
+        Command::Diff { a, b } => {
+            return Some((|| {
+                let left = resolve_snapshot(&repo, a)?;
+                let right = resolve_snapshot(&repo, b)?;
+                let deltas = diff_snapshots(&left, &right);
+                if deltas.is_empty() {
+                    Ok("no differences".into())
+                } else {
+                    Ok(deltas.iter().map(|d| text::delta(&right, d)).collect::<Vec<_>>().join("\n"))
+                }
+            })());
+        }
+        Command::Changeset(ChangeSetCommand::Begin { name, .. }) => {
+            return Some(run_with(cli, &repo).map(|_| format!("changeset {name} open")));
+        }
+        Command::Changeset(ChangeSetCommand::End) => {
+            return Some(run_with(cli, &repo).map(|v| {
+                if v.is_null() {
+                    "no open changeset".into()
+                } else {
+                    format!("closed changeset {}", v.as_str().unwrap_or("?"))
+                }
+            }));
+        }
+        Command::Changeset(ChangeSetCommand::Status) => {
+            return Some(run_with(cli, &repo).map(|v| {
+                if v.is_null() {
+                    "no open changeset".into()
+                } else {
+                    format!(
+                        "open changeset {} ({} ops)",
+                        v["name"].as_str().unwrap_or("?"),
+                        v["ops"].as_array().map(|a| a.len()).unwrap_or(0)
+                    )
+                }
+            }));
+        }
+        Command::Changeset(ChangeSetCommand::List) => {
+            return Some(
+                changesets(&repo)
+                    .map(|rows| {
+                        if rows.is_empty() {
+                            "no changesets".into()
+                        } else {
+                            rows.iter()
+                                .map(|c| {
+                                    let mark = if c.open { "*" } else { " " };
+                                    format!("{mark} {} ({:?}, {} ops)", c.name, c.intent, c.ops.len())
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        }
+                    })
+                    .map_err(|e| e.to_string()),
+            );
+        }
         _ => return None,
     };
     Some(out.map_err(|e| e.to_string()))
