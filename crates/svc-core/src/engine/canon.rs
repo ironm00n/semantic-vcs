@@ -366,8 +366,10 @@ fn collect_refs<'a>(
                         && !blocked_by_barrier(node, b, ns, src, lang, root_id)
                 })
                 .max_by_key(|b| (b.scope.start, b.range.start));
-            if let Some(binder) =
-                local.filter(|_| !is_rust_nonlocal_ident(node, lang) && !is_struct_field_key(node))
+            if is_struct_field_key(node) || is_dot_field(node) {
+                refs.push((r, IdentRef::Free(name.into())));
+            } else if let Some(binder) =
+                local.filter(|_| !is_rust_nonlocal_ident(node, lang))
             {
                 refs.push((r, IdentRef::Local(binder.slot, ns)));
             } else if is_foreign_scoped_ref(node, src, lang, env) {
@@ -790,6 +792,22 @@ fn is_struct_field_key(node: tree_sitter::Node<'_>) -> bool {
         f.id() == node.id()
             || (f.start_byte() <= node.start_byte() && node.end_byte() <= f.end_byte())
     })
+}
+
+/// `.src` is a field or method name, including inside `vec![self.src.len()]`
+/// where the path is a flat `token_tree`. A same-named local must not win.
+fn is_dot_field(node: tree_sitter::Node<'_>) -> bool {
+    let mut prev = node.prev_sibling();
+    while let Some(n) = prev {
+        if n.kind() == "." {
+            return true;
+        }
+        if n.is_named() {
+            return false;
+        }
+        prev = n.prev_sibling();
+    }
+    false
 }
 
 fn is_rust_nonlocal_ident(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {

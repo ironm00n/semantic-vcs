@@ -130,6 +130,31 @@ fn js_break_label_is_not_the_same_named_var() {
     assert_eq!(value, 0, "{labels:?}");
 }
 
+#[test]
+fn self_field_is_not_the_shadowing_local() {
+    let src = concat!(
+        "struct Bytes { src: Vec<u8> }\n",
+        "impl Bytes {\n",
+        "    fn reindent(&self) {\n",
+        "        let mut src = Vec::with_capacity(self.src.len());\n",
+        "        let _ = vec![self.src.len()];\n",
+        "        src.push(1);\n",
+        "    }\n",
+        "}\n",
+    );
+    let refs = rust_named_refs(src, "function_item", "reindent");
+    let srcs: Vec<_> = refs.iter().filter(|(n, _)| n == "src").cloned().collect();
+    let locals: Vec<_> = srcs
+        .iter()
+        .filter(|(_, ident)| matches!(ident, IdentRef::Local(_, Namespace::Value)))
+        .collect();
+    assert_eq!(
+        locals.len(),
+        1,
+        "self.src (and vec![self.src]) must not be the let: {srcs:?}"
+    );
+}
+
 fn rust_named_refs(src: &str, kind: &str, name: &str) -> Vec<(String, IdentRef)> {
     let lang = RustLang;
     let tree = parse(src.as_bytes(), &lang).unwrap();
