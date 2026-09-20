@@ -358,3 +358,40 @@ fn rename_of_impl_trait_associated_type_rewrites_trait_path() {
     assert!(!text.contains("S::Item"), "{text}");
     assert!(!text.contains("Tr::Item"), "{text}");
 }
+
+#[test]
+fn rename_of_impl_trait_associated_type_rewrites_ufcs() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"trait Tr {\n    type Item;\n}\nstruct S;\nimpl Tr for S {\n    type Item = u8;\n    fn f() -> <S as Tr>::Item { 1 }\n}\nfn outside() -> <S as Tr>::Item { 1 }\nfn free() -> Item { 1 }\n"
+            .to_vec(),
+    );
+    let s = snap(&store, &files, None);
+    let (impl_s, _) = impl_named(&s, "impl<Tr for S>");
+    let item = s
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "Item" && r.parent == Some(impl_s))
+        .map(|(id, _)| *id)
+        .expect("impl associated type");
+    let next = rename(&store, &s, item, "Elem").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("type Elem = u8"), "{text}");
+    assert!(
+        text.contains("fn f() -> <S as Tr>::Elem"),
+        "UFCS inside the impl follows: {text}"
+    );
+    assert!(
+        text.contains("fn outside() -> <S as Tr>::Item"),
+        "UFCS outside the impl stays type-relative: {text}"
+    );
+    assert!(
+        text.contains("type Item;") && text.contains("fn free() -> Item"),
+        "trait decl and file-level Item must stay: {text}"
+    );
+}

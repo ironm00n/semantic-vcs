@@ -890,6 +890,12 @@ fn scoped_qualifier(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node
             "generic_type" => {
                 node = node.child_by_field_name("type")?;
             }
+            "bracketed_type" => {
+                node = node.named_child(0)?;
+            }
+            "qualified_type" => {
+                node = node.child_by_field_name("type")?;
+            }
             _ => return Some(node),
         }
     }
@@ -951,10 +957,23 @@ fn scoped_path_root(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node
     if !saw_scoped {
         return None;
     }
-    while matches!(node.kind(), "scoped_identifier" | "scoped_type_identifier") {
-        node = node.child_by_field_name("path")?;
+    loop {
+        match node.kind() {
+            "scoped_identifier" | "scoped_type_identifier" => {
+                node = node.child_by_field_name("path")?;
+            }
+            "bracketed_type" => {
+                node = node.named_child(0)?;
+            }
+            "qualified_type" => {
+                node = node.child_by_field_name("type")?;
+            }
+            "generic_type" => {
+                node = node.child_by_field_name("type")?;
+            }
+            _ => return Some(node),
+        }
     }
-    Some(node)
 }
 
 fn node_is_wildcard(node: tree_sitter::Node<'_>) -> bool {
