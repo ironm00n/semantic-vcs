@@ -1034,3 +1034,57 @@ fn shorthand_field_init_roundtrips_when_names_match() {
     );
     assert!(!text.contains("S { item: item"), "{text}");
 }
+
+#[test]
+fn rename_of_const_rewrites_const_block_not_the_shadowing_local() {
+    // Locals do not enter a `const { }` (SPEC / rustc E0435). The `k` in the
+    // const block is the file-level const, even when a local `k` shadows it
+    // in the function body.
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"const k: u8 = 1;\nfn f() { let k = 2u8; const { let _ = k; } let _ = k; }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let c = named_in_file(&snap, "k", &path);
+    let next = rename(&store, &snap, c, "key").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("const key: u8 = 1"), "{text}");
+    assert!(
+        text.contains("const { let _ = key; }"),
+        "const block must see the file const: {text}"
+    );
+    assert!(text.contains("let k = 2u8"), "local must stay: {text}");
+    assert!(
+        text.contains("let _ = k;"),
+        "use of the local must stay: {text}"
+    );
+}
+
+#[test]
+fn rename_of_fn_does_not_rewrite_struct_pattern_field() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn item() {}\nstruct S { item: u8 }\nfn f(s: S) { let S { item: x } = s; item(); }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let f = named_in_file(&snap, "item", &path);
+    let next = rename(&store, &snap, f, "item2").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("fn item2()"), "{text}");
+    assert!(text.contains("item2()"), "{text}");
+    assert!(
+        text.contains("let S { item: x }"),
+        "pattern field name must stay: {text}"
+    );
+}

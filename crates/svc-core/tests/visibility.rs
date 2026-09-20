@@ -570,3 +570,34 @@ fn mod_tests_fn_is_not_in_the_file_env() {
         "the mod itself stays in the file map"
     );
 }
+
+#[test]
+fn rust_const_block_does_not_see_outer_locals() {
+    let src = "fn f() { let k = 1u8; const { let _ = k; } let _ = k; }\n";
+    let refs = rust_item_refs(src);
+    let ks: Vec<_> = refs
+        .iter()
+        .filter(|(n, _)| n == "k")
+        .map(|(_, ident)| ident)
+        .collect();
+    assert_eq!(ks.len(), 2, "const-block k and the later use: {refs:?}");
+    assert!(
+        matches!(ks[0], IdentRef::Free(_)),
+        "const block must not capture the local: {refs:?}"
+    );
+    assert!(
+        matches!(ks[1], IdentRef::Local(_, Namespace::Value)),
+        "the later use is the local: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_const_block_sees_const_generics() {
+    let src = "fn f<const N: usize>() { const { let _ = N; } }\n";
+    let refs = rust_item_refs(src);
+    assert!(
+        refs.iter()
+            .any(|(n, ident)| n == "N" && matches!(ident, IdentRef::Local(_, Namespace::Value))),
+        "const generic N stays visible in a const block: {refs:?}"
+    );
+}

@@ -305,21 +305,21 @@ fn name_use_sites(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Ve
             .get_bytes_blob(rec.bytes)?
             .chunks()
             .iter()
-            .filter(|c| {
-                matches!(
-                    c,
-                    Chunk::Name(e) if *e == id
-                ) || matches!(
-                    c,
-                    Chunk::ShorthandName { id: e, .. } if *e == id
-                )
-            })
+            .filter(|c| chunk_names(c, id))
             .count();
         for _ in 0..n {
             sites.push(*oid);
         }
     }
     Ok(sites)
+}
+
+fn chunk_names(chunk: &Chunk, want: EntityId) -> bool {
+    match chunk {
+        Chunk::Name(e) => *e == want,
+        Chunk::ShorthandName { id, .. } => *id == want,
+        _ => false,
+    }
 }
 
 fn inlined_call_text(
@@ -899,11 +899,7 @@ pub fn referrers(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Vec
                 .get_bytes_blob(rec.bytes)?
                 .chunks()
                 .iter()
-                .any(|c| match c {
-                    Chunk::Name(e) => *e == id,
-                    Chunk::ShorthandName { id: e, .. } => *e == id,
-                    _ => false,
-                }))
+                .any(|c| chunk_names(c, id)))
         };
         if in_content || in_bytes()? {
             out.push(*oid);

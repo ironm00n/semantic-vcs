@@ -347,6 +347,39 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
             visibility: Visibility::Sub(&["body"]),
             locator: Locator::Itself,
         }],
+        "const_block" => vec![Role::Scope {
+            opens: &[
+                Namespace::Type,
+                Namespace::Value,
+                Namespace::Macro,
+                Namespace::Label,
+            ],
+            barriers: &[
+                Barrier {
+                    ns: Namespace::Value,
+                    class: BinderClass::Local,
+                    when: When::Always,
+                },
+                Barrier {
+                    ns: Namespace::Label,
+                    class: BinderClass::Label,
+                    when: When::Always,
+                },
+                Barrier {
+                    ns: Namespace::Lifetime,
+                    class: BinderClass::Generic,
+                    when: When::Always,
+                },
+            ],
+        }],
+        "async_block" => vec![Role::Scope {
+            opens: &[Namespace::Value],
+            barriers: &[Barrier {
+                ns: Namespace::Label,
+                class: BinderClass::Label,
+                when: When::Always,
+            }],
+        }],
         _ => vec![],
     }
 }

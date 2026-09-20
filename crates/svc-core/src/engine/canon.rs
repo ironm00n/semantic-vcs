@@ -4,7 +4,7 @@ use super::extract::{byte_range, is_extracted_item};
 use crate::content::{Content, IdentRef, Namespace, Token};
 use crate::error::Result;
 use crate::ids::{ByteRange, EntityId, Slot};
-use crate::lang::{Env, Lang, Locator, Resolution, Role, When};
+use crate::lang::{BinderClass, Env, Lang, Locator, Resolution, Role, When};
 
 pub fn canonicalize(
     item: tree_sitter::Node<'_>,
@@ -231,6 +231,7 @@ struct BinderInfo {
     scope: ByteRange,
     slot: Slot,
     namespace: Namespace,
+    class: BinderClass,
     name: String,
 }
 
@@ -284,6 +285,7 @@ fn collect_binders<'a>(
                         scope,
                         slot,
                         namespace,
+                        class: binder_class(node),
                         name,
                     });
                 }
@@ -603,9 +605,9 @@ fn blocked_by_barrier(
     while let Some(parent) = current {
         for role in lang.roles(parent, None, src, &crate::lang::Env::default()) {
             if let Role::Scope { barriers, .. } = role {
-                let blocks = barriers
-                    .iter()
-                    .any(|b| b.ns == ns && b.when == When::Always);
+                let blocks = barriers.iter().any(|b| {
+                    b.ns == ns && b.when == When::Always && b.class == binder.class
+                });
                 if blocks {
                     let scope = byte_range(parent);
                     let inside = scope.start <= binder.range.start && binder.range.end <= scope.end;
@@ -692,6 +694,7 @@ fn add_generic_binders(
                             scope,
                             slot,
                             namespace,
+                            class: BinderClass::Generic,
                             name: String::from_utf8_lossy(&src[r.start as usize..r.end as usize])
                                 .into_owned(),
                         });
@@ -752,7 +755,12 @@ fn is_pattern_constructor(
     }
     // Unit variants / consts (`None`, `AfterStmt`) are identifier patterns.
     // Bindings in this crate are snake_case; PascalCase is the constructor.
-    if node.kind() == "identifier" {
+    // A const-generic `N` is an identifier but not a pattern.
+    if node.kind() == "identifier"
+        && !node
+            .parent()
+            .is_some_and(|p| p.kind() == "const_parameter")
+    {
         let name = &src[node.start_byte()..node.end_byte()];
         if name.first().is_some_and(|b| b.is_ascii_uppercase()) {
             return true;
@@ -787,13 +795,22 @@ fn is_struct_field_key(node: tree_sitter::Node<'_>) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
-    if parent.kind() != "field_initializer" {
-        return false;
+    match parent.kind() {
+        "field_initializer" => parent.child_by_field_name("field").is_some_and(|f| {
+            f.id() == node.id()
+                || (f.start_byte() <= node.start_byte() && node.end_byte() <= f.end_byte())
+        }),
+        // `S { id: x }`: `id` names the field (SPEC §9, no namespace), not a
+        // local or `fn id`. Shorthand `S { id }` is a binder, not a key.
+        "field_pattern" => {
+            node.kind() != "shorthand_field_identifier"
+                && parent.child_by_field_name("name").is_some_and(|n| {
+                    n.id() == node.id()
+                        || (n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte())
+                })
+        }
+        _ => false,
     }
-    parent.child_by_field_name("field").is_some_and(|f| {
-        f.id() == node.id()
-            || (f.start_byte() <= node.start_byte() && node.end_byte() <= f.end_byte())
-    })
 }
 
 /// `It<Item = T>`: the left `Item` is an associated-type binding name, not a
@@ -1012,6 +1029,14 @@ fn skip_nested_item(node: tree_sitter::Node<'_>, lang: &dyn Lang, root_id: usize
 
 fn is_opaque_node(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
     lang.opaque_nodes().iter().any(|k| *k == node.kind())
+}
+
+fn binder_class(node: tree_sitter::Node<'_>) -> BinderClass {
+    match node.kind() {
+        "type_parameter" | "lifetime_parameter" | "const_parameter" => BinderClass::Generic,
+        "label" | "statement_identifier" => BinderClass::Label,
+        _ => BinderClass::Local,
+    }
 }
 
 /// Method name of `self.foo()`, `Self::foo()`, `S::foo()` inside `impl S`, or JS
