@@ -40,9 +40,13 @@ landed=0; cut_short=0; mid_render=0
 for ((t = 1; t <= TRIALS; t++)); do
   next="read_1_t$t"
   # The publish sits in the first part of a rename (absorb, compute, one transaction);
-  # the render is the rest. Kills spread over the first two thirds land on both sides.
-  at_ms=$(( (RANDOM % (full_ms > 30 ? full_ms * 2 / 3 : 20)) + 10 ))
-  rc=$( (timeout -s KILL "0.$(printf '%03d' "$at_ms")" "$SVC" rename --entity "$name" --new-name "$next" --json >/dev/null 2>&1; echo $?) 2>/dev/null )
+  # the render is the rest. The first trial is killed at once (cut short for sure), the
+  # last is not killed at all (landed for sure), the rest at random over the first two
+  # thirds, which is where the publish falls.
+  if [ "$t" -eq 1 ]; then at_ms=5
+  elif [ "$t" -eq "$TRIALS" ]; then at_ms=$((full_ms * 3 + 1000))
+  else at_ms=$(( (RANDOM % (full_ms > 30 ? full_ms * 2 / 3 : 20)) + 10 )); fi
+  rc=$( (timeout -s KILL "$((at_ms / 1000)).$(printf '%03d' "$((at_ms % 1000))")" "$SVC" rename --entity "$name" --new-name "$next" --json >/dev/null 2>&1; echo $?) 2>/dev/null )
   ok=1
   status="$(svcj status 2>/dev/null)" || ok=0
   [ "$(echo "$status" | jq '.semantic + .layout')" = 0 ] || ok=0
@@ -59,7 +63,7 @@ for ((t = 1; t <= TRIALS; t++)); do
   [ "$ok" = 1 ] || { echo "     trial $t: killed at ${at_ms} ms (rc $rc), op log +$delta, status: $status"; fail=$((fail + 1)); }
 done
 check "C1 every trial: status exits 0 and is clean, op log +0 or +1, tree matches ($landed landed — $mid_render of them killed mid-render — $cut_short cut short, of $TRIALS)" 'test "$fail" -eq 0'
-check "C2 the kills hit both sides of the publish (needs both; rerun if the machine was too fast or too slow)" 'test "$landed" -ge 1 && test "$cut_short" -ge 1'
+check "C2 both sides of the publish were hit" 'test "$landed" -ge 1 && test "$cut_short" -ge 1'
 check "C3 the store is whole afterwards: replay is clean" 'svcj replay | jq -e ".diverged_at == null"'
 echo
 if [ "$fail" -eq 0 ]; then echo "0 failures"; else echo "$fail failure(s); crash scratch kept at $WORK"; fi
