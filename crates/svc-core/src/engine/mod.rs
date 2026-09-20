@@ -125,13 +125,19 @@ fn is_inherent_raw(raw: &[RawEntity], i: usize) -> bool {
         .is_some_and(|p| is_inherent_member(raw[i].kind, raw[p].kind))
 }
 
-/// A function body (and JS function/method body) can host nested items. Those
-/// names are in [`Env::nested_items`] while that body is resolved, not the
-/// file/crate maps.
+/// A function body (and JS function/method body) can host nested items.
+/// So can a `mod`: `#[cfg(test)] mod tests { fn parse() {} }` must not occupy
+/// the file/crate maps (M3). Those names are in [`Env::nested_items`] while
+/// that body — or a sibling in the same mod — is resolved.
 fn hosts_block_items(kind: Kind) -> bool {
     matches!(
         kind,
-        Kind::Fn | Kind::JsFunction | Kind::JsMethod | Kind::JsGetter | Kind::JsSetter
+        Kind::Fn
+            | Kind::Mod
+            | Kind::JsFunction
+            | Kind::JsMethod
+            | Kind::JsGetter
+            | Kind::JsSetter
     )
 }
 

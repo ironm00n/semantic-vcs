@@ -546,3 +546,27 @@ fn nested_fn_is_not_in_the_file_env() {
         res.refs
     );
 }
+
+#[test]
+fn mod_tests_fn_is_not_in_the_file_env() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"#[cfg(test)]\nmod tests {\n    fn g() {}\n    fn t() { g(); }\n}\nfn h() { g(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let mut env = env_from_snapshot(&snap);
+    env.current_file = Some(path);
+    assert!(
+        env.lookup("g", Namespace::Value).is_none(),
+        "mod tests g must not occupy the file map: {:?}",
+        env.lookup("g", Namespace::Value)
+    );
+    assert!(
+        env.lookup("tests", Namespace::Value).is_some(),
+        "the mod itself stays in the file map"
+    );
+}

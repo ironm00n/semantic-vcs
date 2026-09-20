@@ -823,6 +823,65 @@ fn nested_fn_is_not_a_crate_name_collision() {
 }
 
 #[test]
+fn mod_tests_fn_is_not_a_crate_name_collision() {
+    // M3: `#[cfg(test)] mod tests { fn parse() {} }` must not make a unique
+    // crate-level `parse` look ambiguous to a third file.
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let tests_file = RelPath::new("crates/svc/src/a.rs").unwrap();
+    let def = RelPath::new("crates/svc/src/b.rs").unwrap();
+    let use_file = RelPath::new("crates/svc/src/c.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        tests_file.clone(),
+        b"#[cfg(test)]\nmod tests {\n    fn parse() {}\n    fn t() { parse(); }\n}\n".to_vec(),
+    );
+    files.insert(def.clone(), b"fn parse() {}\n".to_vec());
+    files.insert(use_file.clone(), b"fn go() { parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = named_in_file(&snap, "parse", &def);
+    let next = rename(&snap, id, "parse_b").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let c_txt = String::from_utf8(rendered.files[&use_file].clone()).unwrap();
+    let a_txt = String::from_utf8(rendered.files[&tests_file].clone()).unwrap();
+    assert!(c_txt.contains("parse_b();"), "{c_txt}");
+    assert!(
+        a_txt.contains("fn parse()") && a_txt.contains("parse();"),
+        "mod tests parse stays: {a_txt}"
+    );
+    assert!(!a_txt.contains("parse_b"), "{a_txt}");
+}
+
+#[test]
+fn rename_of_a_mod_tests_fn_rewrites_the_sibling_not_a_file_level_call() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn parse() {}\n#[cfg(test)]\nmod tests {\n    fn parse() {}\n    fn t() { parse(); }\n}\nfn go() { parse(); }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let nested = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.parent.is_some())
+        .map(|(id, _)| *id)
+        .expect("mod tests parse");
+    let next = rename(&snap, nested, "parse_t").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("fn parse_t()"), "{text}");
+    assert!(text.contains("fn t() { parse_t(); }"), "{text}");
+    assert!(
+        text.contains("fn parse() {}") && text.contains("fn go() { parse(); }"),
+        "file-level parse must stay: {text}"
+    );
+}
+
+#[test]
 fn type_path_open_is_not_the_free_fn() {
     // Adding a file-level `fn open` must not rebind `RedbStore::open()` in
     // another file. `crate::open()` still follows the unique crate fn.
