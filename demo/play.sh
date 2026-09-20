@@ -29,6 +29,9 @@ svc playground: $WORK   (a copy of demo/config; \`svc init\` already run)
   svc log / svc op log / svc heads / svc blame --entity load / svc evolog <change>
   svc undo                                     one step, whole changeset
   svc tui                                      review UI: j/k, tab, enter, a/r, p, u, q
+                                               (the store is shared: `svc rename …` from a second terminal here shows in the tree within a second)
+  svc workspace add w2 $WORK-w2 ; (cd $WORK-w2 && svc new && svc rename --entity log --new-name log_line)
+                                               a second checkout on the same store, its own change; `svc workspace list`; `svc merge <its change>`
   svc tui --agent "$TASK"
                                                line 9 runs inside the UI (scripted agent; set
                                                DEEPSEEK_API_KEY=\$(cat ~/.deepseek.key)
