@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use svc_core::content::{Chunk, Token};
 use svc_core::engine::{
-    add_def, delete, extract_hoist, lookup_name, move_def, render, rust_langs, snapshot_files,
+    add_def, delete, edit_def, extract_hoist, lookup_name, move_def, render, rust_langs, snapshot_files,
 };
 use svc_core::ids::{ChangeId, EntityId, RelPath};
 use svc_core::store::{MemStore, Store};
@@ -208,4 +208,59 @@ fn add_def_of_an_impl_keeps_its_methods() {
         .map(|(i, _)| *i)
         .unwrap();
     assert_eq!(*extra.0, extra2, "nested ids must be derived from the AddDef id");
+}
+
+fn impl_s(snap: &Snapshot) -> EntityId {
+    *snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.kind == Kind::Impl && r.name.contains('S'))
+        .unwrap_or_else(|| panic!("impl S missing: {:?}", snap.entities.values().map(|r| &r.name).collect::<Vec<_>>()))
+        .0
+}
+
+#[test]
+fn edit_def_of_an_impl_keeps_existing_methods() {
+    let (store, langs, snap) = fixture();
+    let imp = impl_s(&snap);
+    let method = lookup_name(&snap, "method").unwrap();
+    let src = b"impl S {\n    fn method() {}\n    fn extra() {}\n}\n";
+    let (next, _) = edit_def(&store, &langs, &snap, imp, src).unwrap();
+    assert_eq!(
+        lookup_name(&next, "method").unwrap(),
+        method,
+        "edit-def must not re-identify a method that stayed"
+    );
+    let extra = next
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "extra")
+        .unwrap_or_else(|| panic!("method extra missing after edit-def"));
+    assert_eq!(extra.1.parent, Some(imp));
+    assert_holes(&store, &next);
+    let rendered = rendered(&store, &next);
+    assert!(rendered.contains("fn extra"), "{rendered}");
+    assert!(rendered.contains("fn method"), "{rendered}");
+    let (again, _) = edit_def(&store, &langs, &snap, imp, src).unwrap();
+    let extra2 = again
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "extra")
+        .map(|(i, _)| *i)
+        .unwrap();
+    assert_eq!(*extra.0, extra2, "new nested ids must be derived from the edited entity");
+}
+
+#[test]
+fn edit_def_of_an_impl_drops_removed_methods() {
+    let (store, langs, snap) = fixture();
+    let imp = impl_s(&snap);
+    let (next, _) = edit_def(&store, &langs, &snap, imp, b"impl S {\n}\n").unwrap();
+    assert!(
+        next.entities.values().all(|r| r.name != "method"),
+        "removed method must leave the snapshot"
+    );
+    assert_holes(&store, &next);
+    let rendered = rendered(&store, &next);
+    assert!(!rendered.contains("fn method"), "{rendered}");
 }

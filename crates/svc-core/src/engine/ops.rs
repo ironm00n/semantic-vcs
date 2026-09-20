@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{Bytes, Chunk, Content, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
-use crate::entity::EntityRecord;
+use crate::entity::{EntityRecord, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{ByteRange, ChangeId, EntityId, RelPath, resolve_spec};
 use crate::lang::{Lang, Langs};
@@ -547,7 +547,12 @@ pub fn edit_def(
         .for_path(&rec.file)
         .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
     let definition = item_text(store, snap, id, definition)?;
-    let new_rec = ingest_one_item("edit-def", store, snap, &rec.file, lang, &definition)?;
+    let (root_old, part) = ingest_item_tree("edit-def", store, snap, &rec.file, lang, &definition)?;
+    let mapped = remap_tree(store, part.entities, root_old, id, Some(snap))?;
+    let new_rec = mapped
+        .get(&id)
+        .cloned()
+        .ok_or_else(|| Error::Other("edit-def lost the root item".into()))?;
     if new_rec.name != rec.name {
         return Err(Error::Other(format!(
             "edit-def cannot rename {} to {}; use svc rename",
@@ -563,9 +568,21 @@ pub fn edit_def(
     let new_content = new_rec.content;
     let new_bytes = new_rec.bytes;
     let mut next = snap.clone();
+    for cid in subtree(snap, id) {
+        if cid != id {
+            next.entities.remove(&cid);
+        }
+    }
     if let Some(dest) = next.entities.get_mut(&id) {
         dest.content = new_content;
         dest.bytes = new_bytes;
+    }
+    for (cid, mut child) in mapped {
+        if cid == id {
+            continue;
+        }
+        child.file = rec.file.clone();
+        next.insert(cid, child)?;
     }
     let old_c = store.get_content(rec.content)?;
     let new_c = store.get_content(new_content)?;
@@ -644,7 +661,7 @@ pub fn add_def_at(
         .ok_or_else(|| Error::NoLanguage(file.clone()))?;
     let definition = add_def_text(parent, definition);
     let (root_old, part) = ingest_item_tree("add-def", store, snap, &file, lang, &definition)?;
-    let mapped = remap_tree(store, part.entities, root_old, id)?;
+    let mapped = remap_tree(store, part.entities, root_old, id, None)?;
     let mut next = snap.clone();
     next.ensure_file(file.clone());
     let mut root = mapped.get(&id).cloned().ok_or_else(|| Error::Other("add-def lost the root item".into()))?;
@@ -1132,9 +1149,11 @@ fn remap_tree(
     tree: BTreeMap<EntityId, EntityRecord>,
     root_old: EntityId,
     root_new: EntityId,
+    prev: Option<&Snapshot>,
 ) -> Result<BTreeMap<EntityId, EntityRecord>> {
     let mut id_map = BTreeMap::new();
     id_map.insert(root_old, root_new);
+    let mut taken = BTreeSet::from([root_new]);
     let mut queue = vec![root_old];
     while let Some(old) = queue.pop() {
         let parent_new = id_map[&old];
@@ -1145,7 +1164,20 @@ fn remap_tree(
             .collect();
         kids.sort_by_key(|(_, r)| r.ordinal);
         for (old_id, rec) in kids {
-            id_map.insert(old_id, derived_id(parent_new, &rec));
+            let new_id = match prev {
+                Some(prev) => {
+                    let key = SigKey::new(Some(parent_new), &rec.file, rec.kind, rec.name.clone());
+                    prev.entities
+                        .iter()
+                        .find_map(|(pid, r)| {
+                            (!taken.contains(pid) && r.sig_key() == key).then_some(*pid)
+                        })
+                        .unwrap_or_else(|| derived_id(parent_new, &rec))
+                }
+                None => derived_id(parent_new, &rec),
+            };
+            taken.insert(new_id);
+            id_map.insert(old_id, new_id);
             queue.push(old_id);
         }
     }
