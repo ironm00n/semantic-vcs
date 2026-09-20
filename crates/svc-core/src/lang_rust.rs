@@ -391,7 +391,7 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
                 when: When::Always,
             }],
         }],
-        "function_type" | "higher_ranked_trait_bound" => vec![Role::Scope {
+        "function_type" | "higher_ranked_trait_bound" | "abstract_type" => vec![Role::Scope {
             opens: &[Namespace::Lifetime],
             barriers: &[],
         }],

@@ -724,3 +724,33 @@ fn rust_hrtb_trait_bound_lifetime_is_a_slot() {
         "for<'a> Trait must bind 'a in the bound: {refs:?}"
     );
 }
+
+#[test]
+fn rust_impl_for_lifetime_is_a_slot() {
+    let src = "fn f() { let _: impl for<'a> Fn(&'a u8); }\n";
+    let refs = rust_item_refs(src);
+    assert!(
+        refs.iter()
+            .any(|(n, ident)| n == "'a" && matches!(ident, IdentRef::Local(_, Namespace::Lifetime))),
+        "impl for<'a> Trait must bind 'a: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_impl_for_lifetime_does_not_leak() {
+    let src = "fn f() { let _: impl for<'a> Fn(&'a u8); let _: &'a u8; }\n";
+    let refs = rust_item_refs(src);
+    let lifetimes: Vec<_> = refs.iter().filter(|(n, _)| n == "'a").cloned().collect();
+    assert!(
+        lifetimes
+            .iter()
+            .any(|(_, ident)| matches!(ident, IdentRef::Local(_, Namespace::Lifetime))),
+        "impl-for use is the binder: {refs:?}"
+    );
+    assert!(
+        lifetimes
+            .iter()
+            .any(|(_, ident)| matches!(ident, IdentRef::Free(_))),
+        "a later type must not see impl-for 'a: {refs:?}"
+    );
+}
