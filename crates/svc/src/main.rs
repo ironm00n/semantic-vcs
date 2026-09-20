@@ -867,7 +867,7 @@ fn rename_cmd(repo: &Repo, args: &RenameArgs) -> Result<Value, String> {
     let old = repo.current().ok().and_then(|s| s.entities.get(&id).map(|r| r.name.clone()));
     let op = Op::Rename { id, new: args.new_name.clone() };
     let m = repo
-        .mutate(op, None, |repo, cur| repo.amend(cur, rename(cur, id, &args.new_name)?))
+        .mutate(op, None, |repo, cur| repo.amend(cur, rename(repo.store(), cur, id, &args.new_name)?))
         .map_err(|e| e.to_string())?;
     // Mentions of the old name svc did not resolve (method calls on typed receivers,
     // strings, comments) are left as they were; say how many rather than hide it.

@@ -102,7 +102,7 @@ impl Replay<'_> {
         let cur = self.current()?;
         match &e.op {
             Op::Rename { id, new } => {
-                self.amend(&cur, rename(&cur, *id, new)?)?;
+                self.amend(&cur, rename(&self.store, &cur, *id, new)?)?;
             }
             Op::Move { id, parent, ordinal } => {
                 self.amend(&cur, move_def(&self.store, self.langs, &cur, *id, *parent, *ordinal)?)?;

@@ -530,7 +530,7 @@ fn js_scripted_agent_stand_in() {
 
     // Op 1: rename `read` → `read_file`.
     let read_id = lookup_name(&snap, "read").unwrap();
-    let snap = rename(&snap, read_id, "read_file").unwrap();
+    let snap = rename(&store, &snap, read_id, "read_file").unwrap();
     assert!(lookup_name(&snap, "read").is_err());
     let read_file_id = lookup_name(&snap, "read_file").unwrap();
     assert_eq!(read_file_id, read_id);
@@ -730,7 +730,7 @@ fn js_trap_private_names_are_not_lexical_refs() {
     files.insert(RelPath::new("src/main.js").unwrap(), src.as_bytes().to_vec());
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let p_id = lookup_name(&snap, "p").unwrap();
-    let snap = rename(&snap, p_id, "q").unwrap();
+    let snap = rename(&store, &snap, p_id, "q").unwrap();
     let rendered = render(&snap, &store, &langs, false).unwrap();
     let text: String = rendered
         .files
@@ -780,7 +780,7 @@ fn js_rename_follows_named_import_across_files() {
     );
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let foo_id = lookup_name(&snap, "foo").unwrap();
-    let snap = rename(&snap, foo_id, "foo2").unwrap();
+    let snap = rename(&store, &snap, foo_id, "foo2").unwrap();
     let rendered = render(&snap, &store, &langs, false).unwrap();
     let text = |name: &str| {
         String::from_utf8(
@@ -812,7 +812,7 @@ fn js_rename_follows_named_import_across_files() {
         .find(|(_, r)| r.name == "foo" && r.file == RelPath::new("src/a.js").unwrap())
         .map(|(id, _)| *id)
         .expect("a.js foo entity");
-    let snap2 = rename(&snap2, a_foo, "foo2").unwrap();
+    let snap2 = rename(&store, &snap2, a_foo, "foo2").unwrap();
     let rendered2 = render(&snap2, &store, &langs, false).unwrap();
     let b2 = String::from_utf8(
         rendered2.files[&RelPath::new("src/b.js").unwrap()].clone(),

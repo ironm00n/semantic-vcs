@@ -23,7 +23,7 @@ fn demo_crate(into: &Path) {
 
 fn rename_to(repo: &Repo, from: &str, to: &str) {
     let id = svc_repo::resolve_entity(repo, from).unwrap();
-    repo.mutate(Op::Rename { id, new: to.into() }, None, |repo, cur| repo.amend(cur, rename(cur, id, to)?))
+    repo.mutate(Op::Rename { id, new: to.into() }, None, |repo, cur| repo.amend(cur, rename(repo.store(), cur, id, to)?))
         .unwrap();
 }
 

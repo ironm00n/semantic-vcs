@@ -23,7 +23,7 @@ fn entity(repo: &Repo, name: &str) -> EntityId {
 
 fn rename_op(repo: &Repo, id: EntityId, new: &str) {
     repo.mutate(Op::Rename { id, new: new.into() }, None, |repo, cur| {
-        repo.amend(cur, rename(cur, id, new)?)
+        repo.amend(cur, rename(repo.store(), cur, id, new)?)
     })
     .unwrap();
 }

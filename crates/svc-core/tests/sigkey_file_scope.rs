@@ -102,7 +102,7 @@ fn rename_may_reuse_a_name_taken_in_another_file() {
     let s = snapshot_files(&store, &langs, &two_files(), None, ChangeId::new()).unwrap();
     let only_a = lookup_name(&s, "only_a").unwrap();
     assert!(
-        rename(&s, only_a, "only_b").is_ok(),
+        rename(&store, &s, only_a, "only_b").is_ok(),
         "only_b lives in b.rs; a.rs is free to use it"
     );
     let only_b = lookup_name(&s, "only_b").unwrap();
@@ -112,7 +112,7 @@ fn rename_may_reuse_a_name_taken_in_another_file() {
         .find(|(_, r)| r.name == "hex32" && r.file.as_str() == "src/b.rs")
         .map(|(id, _)| *id)
         .unwrap();
-    let err = rename(&s, only_b, "hex32").unwrap_err().to_string();
+    let err = rename(&store, &s, only_b, "hex32").unwrap_err().to_string();
     assert!(
         err.contains("already exists") && err.contains(&hex_in_b.short()),
         "{err}"

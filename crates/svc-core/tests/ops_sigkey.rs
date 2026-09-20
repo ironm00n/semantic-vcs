@@ -20,19 +20,19 @@ fn fixture(src: &str) -> (MemStore, svc_core::Langs, svc_core::Snapshot) {
 
 #[test]
 fn rename_onto_an_existing_sibling_is_refused() {
-    let (_, _, snap) = fixture("fn a() {}\nfn b() {}\n");
+    let (store, _, snap) = fixture("fn a() {}\nfn b() {}\n");
     let a = lookup_name(&snap, "a").unwrap();
-    let err = rename(&snap, a, "b").unwrap_err().to_string();
+    let err = rename(&store, &snap, a, "b").unwrap_err().to_string();
     assert!(err.contains("already exists"), "{err}");
-    assert!(rename(&snap, a, "c").is_ok());
+    assert!(rename(&store, &snap, a, "c").is_ok());
 }
 
 #[test]
 fn rename_to_a_name_used_under_another_parent_is_fine() {
-    let (_, _, snap) = fixture("struct S;\nimpl S { fn new() -> S { S } }\nfn make() -> S { S }\n");
+    let (store, _, snap) = fixture("struct S;\nimpl S { fn new() -> S { S } }\nfn make() -> S { S }\n");
     let make = lookup_name(&snap, "make").unwrap();
     assert!(
-        rename(&snap, make, "new").is_ok(),
+        rename(&store, &snap, make, "new").is_ok(),
         "different parent, no clash"
     );
 }

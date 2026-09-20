@@ -3,7 +3,7 @@
 //! under that class instead of becoming file roots.
 use std::collections::BTreeMap;
 
-use svc_core::engine::{extract, render, snapshot_files};
+use svc_core::engine::{extract, lookup_name, rename, render, snapshot_files};
 use svc_core::ids::{ChangeId, RelPath};
 use svc_core::lang::Langs;
 use svc_core::store::MemStore;
@@ -110,4 +110,41 @@ fn anonymous_default_id_is_stable_under_edits_above_it() {
         rendered.files.get(&path).map(|b| b.as_slice()),
         Some(after_src.as_bytes())
     );
+}
+
+#[test]
+fn rename_refuses_an_anonymous_default_export() {
+    let src = "export default function () { return 1; }\n";
+    let store = MemStore::new();
+    let langs = Langs::new(vec![Box::new(JsLang)]);
+    let path = RelPath::new("src/mod.js").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "default" && r.kind == Kind::JsFunction)
+        .map(|(id, _)| *id)
+        .expect("anonymous default");
+    let err = rename(&store, &snap, id, "dflt2").unwrap_err().to_string();
+    assert!(err.contains("no name spelling"), "{err}");
+    assert_eq!(snap.entities[&id].name, "default");
+}
+
+#[test]
+fn rename_rewrites_a_named_default_export() {
+    let src = "export default function foo() { return 1; }\n";
+    let store = MemStore::new();
+    let langs = Langs::new(vec![Box::new(JsLang)]);
+    let path = RelPath::new("src/mod.js").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path.clone(), src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "foo").unwrap();
+    let next = rename(&store, &snap, id, "bar").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("function bar()"), "{text}");
+    assert!(!text.contains("function foo()"), "{text}");
 }

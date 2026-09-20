@@ -302,7 +302,7 @@ impl Import<'_> {
             Op::Rename { id, new } => {
                 let id = self.entity(&cur, b, *id)?;
                 let op = Op::Rename { id, new: new.clone() };
-                let next = self.rewrite(b, &cur, |cur| rename(cur, id, new))?;
+                let next = self.rewrite(b, &cur, |cur| rename(repo.store(), cur, id, new))?;
                 repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, next))?;
             }
             Op::Move { id, parent, ordinal } => {

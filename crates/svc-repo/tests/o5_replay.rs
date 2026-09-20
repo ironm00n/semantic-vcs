@@ -16,7 +16,7 @@ fn fresh() -> (tempfile::TempDir, Repo) {
 
 fn rename_op(repo: &Repo, name: &str, new: &str) {
     let id = svc_repo::resolve_entity(repo, name).unwrap();
-    repo.mutate(Op::Rename { id, new: new.into() }, None, |repo, cur| repo.amend(cur, rename(cur, id, new)?))
+    repo.mutate(Op::Rename { id, new: new.into() }, None, |repo, cur| repo.amend(cur, rename(repo.store(), cur, id, new)?))
         .unwrap();
 }
 

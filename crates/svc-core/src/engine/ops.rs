@@ -42,7 +42,19 @@ pub fn lookup(snap: &Snapshot, spec: &str) -> Result<EntityId> {
 }
 
 /// Attribute-only: referrers keep `Chunk::Name` holes. No rehash.
-pub fn rename(snap: &Snapshot, id: EntityId, new: &str) -> Result<Snapshot> {
+pub fn rename(store: &dyn Store, snap: &Snapshot, id: EntityId, new: &str) -> Result<Snapshot> {
+    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+    let has_decl = store
+        .get_bytes_blob(rec.bytes)?
+        .chunks()
+        .iter()
+        .any(|c| matches!(c, Chunk::Name(e) if *e == EntityId::SELF));
+    if !has_decl {
+        return Err(Error::Other(format!(
+            "rename cannot rewrite {}; the declaration has no name spelling",
+            rec.name
+        )));
+    }
     let mut next = snap.clone();
     next.rename(id, new)?;
     Ok(next)

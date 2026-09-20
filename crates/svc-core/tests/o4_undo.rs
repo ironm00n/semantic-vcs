@@ -79,7 +79,7 @@ fn o4_undo_rename_restores_snapshot_hash() {
 
     let parse = lookup_name(&snap, "parse").unwrap();
     let before = view(&store);
-    let next = rename(&snap, parse, "parse_config").unwrap();
+    let next = rename(&store, &snap, parse, "parse_config").unwrap();
     commit(&store, &next);
     record(
         &store,
@@ -116,7 +116,7 @@ fn o4_changeset_undo_restores_the_group_not_one_op() {
     let load = lookup_name(&snap, "load").unwrap();
 
     let before1 = view(&store);
-    let s1 = rename(&snap, parse, "parse_config").unwrap();
+    let s1 = rename(&store, &snap, parse, "parse_config").unwrap();
     commit(&store, &s1);
     record(
         &store,
@@ -130,7 +130,7 @@ fn o4_changeset_undo_restores_the_group_not_one_op() {
     );
 
     let before2 = view(&store);
-    let s2 = rename(&s1, load, "load_cfg").unwrap();
+    let s2 = rename(&store, &s1, load, "load_cfg").unwrap();
     commit(&store, &s2);
     record(
         &store,

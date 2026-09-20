@@ -23,7 +23,7 @@ fn o3_rename_does_not_touch_other_hashes() {
     let load_before = snap.entities[&load_id].clone();
     let parse_before = snap.entities[&parse_id].clone();
 
-    let next = rename(&snap, parse_id, "parse_config").unwrap();
+    let next = rename(&store, &snap, parse_id, "parse_config").unwrap();
     let load_after = &next.entities[&load_id];
     let parse_after = &next.entities[&parse_id];
 
@@ -235,7 +235,7 @@ impl S {
         content.tokens
     );
 
-    let next = rename(&snap, method, "read_file").unwrap();
+    let next = rename(&store, &snap, method, "read_file").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files.values().next().unwrap().clone()).unwrap();
     assert!(text.contains("fn read_file"), "{text}");
@@ -291,7 +291,7 @@ impl Other {
         content.tokens
     );
 
-    let next = rename(&snap, method, "create").unwrap();
+    let next = rename(&store, &snap, method, "create").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files.values().next().unwrap().clone()).unwrap();
     assert!(text.contains("fn create() -> S"), "{text}");
@@ -325,7 +325,7 @@ impl S {
         .map(|(id, _)| *id)
         .expect("impl");
     let method = named_child(&snap, "read", Some(impl_id));
-    let next = rename(&snap, method, "read_file").unwrap();
+    let next = rename(&store, &snap, method, "read_file").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files.values().next().unwrap().clone()).unwrap();
     assert!(text.contains("fn read_file"), "{text}");
@@ -415,7 +415,7 @@ impl<T> Wrap<T> {
         "Wrap::make must be the impl method, got {:?}",
         content.tokens
     );
-    let next = rename(&snap, method, "create").unwrap();
+    let next = rename(&store, &snap, method, "create").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files.values().next().unwrap().clone()).unwrap();
     assert!(text.contains("Wrap::create()"), "{text}");
@@ -469,7 +469,7 @@ impl S {
         "self.read() must be the method, got {entity_hits:?}"
     );
 
-    let renamed_free = rename(&snap, free, "fetch").unwrap();
+    let renamed_free = rename(&store, &snap, free, "fetch").unwrap();
     let text = String::from_utf8(
         render(&renamed_free, &store, &langs, false)
             .unwrap()
@@ -485,7 +485,7 @@ impl S {
     assert!(text.contains("        self.read();"), "{text}");
     assert!(text.contains("    fn read(&self)"), "{text}");
 
-    let renamed_method = rename(&snap, method, "pull").unwrap();
+    let renamed_method = rename(&store, &snap, method, "pull").unwrap();
     let text = String::from_utf8(
         render(&renamed_method, &store, &langs, false)
             .unwrap()
@@ -527,7 +527,7 @@ fn rename_same_named_fn_does_not_rewrite_the_other_crate() {
     );
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let repo_id = named_in_file(&snap, "hex32", &repo);
-    let next = rename(&snap, repo_id, "hex_of_id").unwrap();
+    let next = rename(&store, &snap, repo_id, "hex_of_id").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let core_txt = String::from_utf8(rendered.files[&core].clone()).unwrap();
     let repo_txt = String::from_utf8(rendered.files[&repo].clone()).unwrap();
@@ -555,7 +555,7 @@ fn rename_does_not_rewrite_a_foreign_use_path() {
     );
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let id = named_in_file(&snap, "response", &http);
-    let next = rename(&snap, id, "http_response").unwrap();
+    let next = rename(&store, &snap, id, "http_response").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let lib_txt = String::from_utf8(rendered.files[&lib].clone()).unwrap();
     let http_txt = String::from_utf8(rendered.files[&http].clone()).unwrap();
@@ -585,9 +585,9 @@ fn rename_follows_bare_use_and_use_as() {
     let f = named_in_file(&snap, "f", &a);
     let g = named_in_file(&snap, "g", &a);
     let h = named_in_file(&snap, "h", &a);
-    let after_f = rename(&snap, f, "f2").unwrap();
-    let after_g = rename(&after_f, g, "g2").unwrap();
-    let next = rename(&after_g, h, "h2").unwrap();
+    let after_f = rename(&store, &snap, f, "f2").unwrap();
+    let after_g = rename(&store, &after_f, g, "g2").unwrap();
+    let next = rename(&store, &after_g, h, "h2").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
     assert!(text.contains("use crate::a::f2;"), "{text}");
@@ -612,7 +612,7 @@ fn rename_follows_super_path_use() {
     );
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let id = named_in_file(&snap, "lang_for_ext", &diff_impl);
-    let next = rename(&snap, id, "lang_of_extension").unwrap();
+    let next = rename(&store, &snap, id, "lang_of_extension").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files[&ops].clone()).unwrap();
     assert!(
@@ -639,7 +639,7 @@ fn rename_same_named_fn_in_the_same_crate_rewrites_only_that_file() {
     );
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let id = named_in_file(&snap, "resolve", &engine);
-    let next = rename(&snap, id, "resolve_renamed").unwrap();
+    let next = rename(&store, &snap, id, "resolve_renamed").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let engine_txt = String::from_utf8(rendered.files[&engine].clone()).unwrap();
     let merge_txt = String::from_utf8(rendered.files[&merge].clone()).unwrap();
@@ -662,7 +662,7 @@ fn unique_crate_name_rewrites_a_sibling_file() {
     files.insert(b.clone(), b"fn go() { helper(); }\n".to_vec());
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let id = named_in_file(&snap, "helper", &a);
-    let next = rename(&snap, id, "helper_renamed").unwrap();
+    let next = rename(&store, &snap, id, "helper_renamed").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let b_txt = String::from_utf8(rendered.files[&b].clone()).unwrap();
     assert!(b_txt.contains("helper_renamed();"), "{b_txt}");
@@ -681,7 +681,7 @@ fn ambiguous_crate_name_is_free_in_a_third_file() {
     files.insert(c.clone(), b"fn go() { parse(); }\n".to_vec());
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let id = named_in_file(&snap, "parse", &b);
-    let next = rename(&snap, id, "parse_b").unwrap();
+    let next = rename(&store, &snap, id, "parse_b").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let c_txt = String::from_utf8(rendered.files[&c].clone()).unwrap();
     assert!(c_txt.contains("parse();"), "{c_txt}");
@@ -735,7 +735,7 @@ fn rename_of_a_nested_fn_rewrites_the_parent_call_not_a_sibling() {
         .find(|(_, r)| r.name == "g" && r.parent.is_some())
         .map(|(id, _)| *id)
         .expect("nested g");
-    let next = rename(&snap, nested, "helper").unwrap();
+    let next = rename(&store, &snap, nested, "helper").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
     assert!(text.contains("fn helper()"), "{text}");
@@ -774,7 +774,7 @@ fn nested_fn_shadows_a_file_level_fn_inside_the_parent() {
         .find(|(_, r)| r.name == "g" && r.parent.is_none())
         .map(|(id, _)| *id)
         .expect("file g");
-    let next = rename(&snap, nested, "helper").unwrap();
+    let next = rename(&store, &snap, nested, "helper").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
     assert!(text.contains("fn helper()"), "{text}");
@@ -784,7 +784,7 @@ fn nested_fn_shadows_a_file_level_fn_inside_the_parent() {
         text.contains("fn h() { g(); }"),
         "file-level call must stay: {text}"
     );
-    let next_file = rename(&snap, file_g, "g_file").unwrap();
+    let next_file = rename(&store, &snap, file_g, "g_file").unwrap();
     let rendered = render(&next_file, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
     assert!(text.contains("fn g_file() {}"), "{text}");
@@ -811,7 +811,7 @@ fn nested_fn_is_not_a_crate_name_collision() {
     files.insert(use_file.clone(), b"fn go() { parse(); }\n".to_vec());
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let id = named_in_file(&snap, "parse", &def);
-    let next = rename(&snap, id, "parse_b").unwrap();
+    let next = rename(&store, &snap, id, "parse_b").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let c_txt = String::from_utf8(rendered.files[&use_file].clone()).unwrap();
     let a_txt = String::from_utf8(rendered.files[&nested_file].clone()).unwrap();
@@ -840,7 +840,7 @@ fn mod_tests_fn_is_not_a_crate_name_collision() {
     files.insert(use_file.clone(), b"fn go() { parse(); }\n".to_vec());
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let id = named_in_file(&snap, "parse", &def);
-    let next = rename(&snap, id, "parse_b").unwrap();
+    let next = rename(&store, &snap, id, "parse_b").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let c_txt = String::from_utf8(rendered.files[&use_file].clone()).unwrap();
     let a_txt = String::from_utf8(rendered.files[&tests_file].clone()).unwrap();
@@ -870,7 +870,7 @@ fn rename_of_a_mod_tests_fn_rewrites_the_sibling_not_a_file_level_call() {
         .find(|(_, r)| r.name == "parse" && r.parent.is_some())
         .map(|(id, _)| *id)
         .expect("mod tests parse");
-    let next = rename(&snap, nested, "parse_t").unwrap();
+    let next = rename(&store, &snap, nested, "parse_t").unwrap();
     let rendered = render(&next, &store, &langs, false).unwrap();
     let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
     assert!(text.contains("fn parse_t()"), "{text}");
@@ -926,7 +926,7 @@ fn type_path_open_is_not_the_free_fn() {
         "crate::open still binds, got {:?}",
         via_c.tokens
     );
-    let renamed = rename(&after, open_id, "open_store").unwrap();
+    let renamed = rename(&store, &after, open_id, "open_store").unwrap();
     let rendered = render(&renamed, &store, &langs, false).unwrap();
     let store_txt = String::from_utf8(rendered.files[&store_rs].clone()).unwrap();
     let sync_txt = String::from_utf8(rendered.files[&sync_rs].clone()).unwrap();

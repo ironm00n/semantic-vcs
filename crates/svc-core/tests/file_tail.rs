@@ -31,7 +31,7 @@ fn rename_rewrites_kindless_for_of_in_the_file_tail() {
         "the loop is tail, not a second entity"
     );
     let id = lookup_name(&snap, "h").unwrap();
-    let next = rename(&snap, id, "q").unwrap();
+    let next = rename(&store, &snap, id, "q").unwrap();
     let text = rendered(&store, &langs, &next, &path);
     assert_eq!(text, "let q = 0;\nfor (q of list) {\n  log(q);\n}\n");
 }
@@ -41,7 +41,7 @@ fn rename_rewrites_kindless_for_between_two_declarators() {
     let src = "let h = 0;\nfor (h of list) {\n  log(h);\n}\nlet z = 1;\n";
     let (store, langs, path, snap) = js_snap(src);
     let id = lookup_name(&snap, "h").unwrap();
-    let next = rename(&snap, id, "q").unwrap();
+    let next = rename(&store, &snap, id, "q").unwrap();
     let text = rendered(&store, &langs, &next, &path);
     assert_eq!(
         text,
@@ -54,7 +54,7 @@ fn rename_does_not_rewrite_c_style_for_let_shadow() {
     let src = "let i = 99;\nfor (let i = 0; i < 1; i++) {\n  log(i);\n}\nlog(i);\n";
     let (store, langs, path, snap) = js_snap(src);
     let id = lookup_name(&snap, "i").unwrap();
-    let next = rename(&snap, id, "q").unwrap();
+    let next = rename(&store, &snap, id, "q").unwrap();
     let text = rendered(&store, &langs, &next, &path);
     assert_eq!(
         text,

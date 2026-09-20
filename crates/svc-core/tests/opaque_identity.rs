@@ -134,7 +134,7 @@ fn rename_of_an_imported_fn_does_not_remint_the_use() {
         .map(|(id, _)| *id)
         .expect("use line");
     let f = lookup_name(&s, "f").unwrap();
-    let renamed = rename(&s, f, "f2").unwrap();
+    let renamed = rename(&store, &s, f, "f2").unwrap();
     let rendered = render(&renamed, &store, &langs, false).unwrap();
     let again = snapshot_files(
         &store,
