@@ -1330,21 +1330,21 @@ fn glob_names(
             return crate_root_glob(env);
         }
         let m = env.lookup_crate_path(&prefix[1..], Namespace::Type)?;
-        return env.mod_items.get(&m).cloned();
+        return glob_mod(env, m);
     }
     if prefix[0] == "self" {
         if prefix.len() == 1 {
             return env
                 .self_mod
-                .and_then(|m| env.mod_items.get(&m).cloned())
+                .and_then(|m| glob_mod(env, m))
                 .or_else(|| {
                     env.current_file
                         .as_ref()
-                        .and_then(|f| env.by_file.get(f).cloned())
+                        .and_then(|f| merge_file_glob(env, f))
                 });
         }
         let m = env.lookup_self_path(&prefix[1..], Namespace::Type)?;
-        return env.mod_items.get(&m).cloned();
+        return glob_mod(env, m);
     }
     if prefix[0] == "super" {
         let depth = prefix.iter().take_while(|s| s.as_str() == "super").count();
@@ -1353,9 +1353,27 @@ fn glob_names(
             return super_glob_at(env, depth);
         }
         let m = env.lookup_super_path(depth, rest, Namespace::Type)?;
-        return env.mod_items.get(&m).cloned();
+        return glob_mod(env, m);
     }
-    None
+    let m = env
+        .lookup_self_path(prefix, Namespace::Type)
+        .or_else(|| env.lookup_crate_path(prefix, Namespace::Type))?;
+    glob_mod(env, m)
+}
+
+fn glob_mod(
+    env: &Env,
+    m: EntityId,
+) -> Option<HashMap<(String, Namespace), EntityId>> {
+    let mut map = env.mod_items.get(&m).cloned().unwrap_or_default();
+    if let Some(re) = env.mod_reexports.get(&m) {
+        map.extend(re.clone());
+    }
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
 }
 
 fn crate_root_glob(env: &Env) -> Option<HashMap<(String, Namespace), EntityId>> {

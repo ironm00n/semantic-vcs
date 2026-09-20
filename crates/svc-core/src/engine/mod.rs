@@ -254,6 +254,30 @@ fn file_module_paths(parent_file: &RelPath, name: &str) -> Vec<RelPath> {
         .collect()
 }
 
+fn resolve_path_attr(parent_file: &RelPath, attr: &str) -> Option<RelPath> {
+    let attr = attr.trim().trim_start_matches("./");
+    if attr.is_empty() {
+        return None;
+    }
+    let path = parent_file.as_str();
+    let dir = match path.rfind('/') {
+        Some(i) => &path[..i],
+        None => "",
+    };
+    let joined = if dir.is_empty() {
+        attr.to_string()
+    } else {
+        format!("{dir}/{attr}")
+    };
+    RelPath::new(joined).ok()
+}
+
+fn same_dir(a: &RelPath, b: &RelPath) -> bool {
+    let da = a.as_str().rfind('/').map(|i| &a.as_str()[..i]).unwrap_or("");
+    let db = b.as_str().rfind('/').map(|i| &b.as_str()[..i]).unwrap_or("");
+    da == db
+}
+
 fn link_file_modules(
     env: &mut Env,
     files: &[(&RelPath, &[RawEntity], &[EntityId])],
@@ -264,7 +288,16 @@ fn link_file_modules(
             if ent.kind != Kind::Mod || !ent.children.is_empty() {
                 continue;
             }
-            for cand in file_module_paths(path, &ent.name) {
+            let cands = if let Some(p) = ent
+                .path_attr
+                .as_deref()
+                .and_then(|a| resolve_path_attr(path, a))
+            {
+                vec![p]
+            } else {
+                file_module_paths(path, &ent.name)
+            };
+            for cand in cands {
                 file_of_mod.insert(cand, ids[i]);
                 env.mod_decl_file.insert(ids[i], (*path).clone());
             }
@@ -299,6 +332,37 @@ fn link_file_modules_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
         }
         for cand in file_module_paths(&rec.file, &rec.name) {
             file_of_mod.insert(cand, *id);
+            env.mod_decl_file.insert(*id, rec.file.clone());
+        }
+    }
+    let present: HashSet<_> = snapshot.files.keys().cloned().collect();
+    let claimed: HashSet<_> = file_of_mod
+        .keys()
+        .filter(|p| present.contains(*p))
+        .cloned()
+        .collect();
+    for (id, rec) in &snapshot.entities {
+        if rec.kind != Kind::Mod {
+            continue;
+        }
+        if snapshot.entities.values().any(|c| c.parent == Some(*id)) {
+            continue;
+        }
+        let std = file_module_paths(&rec.file, &rec.name);
+        if std.iter().any(|p| present.contains(p)) {
+            continue;
+        }
+        let leftovers: Vec<_> = present
+            .iter()
+            .filter(|f| {
+                *f != &rec.file
+                    && !claimed.contains(*f)
+                    && same_dir(f, &rec.file)
+            })
+            .cloned()
+            .collect();
+        if leftovers.len() == 1 {
+            file_of_mod.insert(leftovers[0].clone(), *id);
             env.mod_decl_file.insert(*id, rec.file.clone());
         }
     }

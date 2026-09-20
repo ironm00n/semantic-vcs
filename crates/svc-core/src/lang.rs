@@ -573,6 +573,8 @@ pub struct RawEntity {
     pub bytes_range: ByteRange,
     pub parent_idx: Option<usize>,
     pub children: Vec<usize>,
+    /// `#[path = "bar.rs"]` on `mod foo;` — the file that is this module.
+    pub path_attr: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]

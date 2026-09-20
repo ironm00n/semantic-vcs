@@ -68,6 +68,40 @@ fn node_text(src: &[u8], node: tree_sitter::Node<'_>) -> String {
     String::from_utf8_lossy(&src[node.start_byte()..node.end_byte()]).into_owned()
 }
 
+fn path_attr_of(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
+    let mut prev = node.prev_named_sibling();
+    while let Some(p) = prev {
+        if p.kind() != "attribute_item" {
+            break;
+        }
+        if let Some(s) = path_eq_literal(&node_text(src, p)) {
+            return Some(s);
+        }
+        prev = p.prev_named_sibling();
+    }
+    let mut c = node.walk();
+    for ch in node.named_children(&mut c) {
+        if ch.kind() == "attribute_item" {
+            if let Some(s) = path_eq_literal(&node_text(src, ch)) {
+                return Some(s);
+            }
+        }
+    }
+    None
+}
+
+fn path_eq_literal(attr: &str) -> Option<String> {
+    let rest = attr.trim().strip_prefix("#[")?.strip_suffix(']')?.trim();
+    let rest = rest.strip_prefix("path")?.trim();
+    let rest = rest.strip_prefix('=')?.trim();
+    let inner = rest.strip_prefix('"')?.strip_suffix('"')?;
+    if inner.is_empty() {
+        None
+    } else {
+        Some(inner.to_string())
+    }
+}
+
 fn emit<'a>(
     node: tree_sitter::Node<'a>,
     src: &[u8],
@@ -91,8 +125,14 @@ fn emit<'a>(
         bytes_range: byte_range(node),
         parent_idx,
         children: Vec::new(),
+        path_attr: None,
     });
     nodes.push(node);
+    if kind == Kind::Mod {
+        if let Some(p) = path_attr_of(node, src) {
+            raw[idx].path_attr = Some(p);
+        }
+    }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
         collect(child, src, lang, Some(idx), raw, nodes);
