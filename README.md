@@ -135,11 +135,13 @@ SVC_BIN="$PWD/target/debug/svc" OPENROUTER_API_KEY="…" \
     --profile acp --patch harness/overlay.yml
 ```
 
-`svc tui` is the review UI (entity tree, canonical stream, op history,
-review queue). `svc tui --agent "<task>"` runs that task inside it; the
-run is one changeset, so `svc undo` reverts it in one step. Without a
-model key, `demo/play.sh --agent` hosts a scripted ACP agent against the
-real binary. Any ACP-on-stdio agent works the same way.
+`svc tui` is the review UI (entity tree, highlighted source, canonical
+stream, op history, review queue): `/` filters the tree, an expanded
+edit-def shows its before→after diff, and the panes follow what any other
+process publishes to the store. `svc tui --agent "<task>"` runs that task
+inside it; the run is one changeset, so `svc undo` reverts it in one step.
+Without a model key, `demo/play.sh --agent` hosts a scripted ACP agent
+against the real binary. Any ACP-on-stdio agent works the same way.
 
 Live A/B (stock dsh vs overlay) is `demo/ab.sh`. Without a credential it
 checks identical starting trees and exits 0 with SKIP.
