@@ -3845,3 +3845,133 @@ fn edit_def_follows_two_path_file_modules() {
         "edit-def must attach #[path] b.rs: {text}"
     );
 }
+
+#[test]
+fn rename_follows_include_inside_a_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let body = RelPath::new("src/foo_body.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod foo {\n    include!(\"foo_body.rs\");\n}\nfn f() { crate::foo::parse(); }\n".to_vec(),
+    );
+    files.insert(body, b"pub fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::foo::parse_file()"),
+        "include! inside a mod must attach that file's items: {text}"
+    );
+}
+
+#[test]
+fn rename_does_not_attach_include_inside_a_function() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let body = RelPath::new("src/foo_body.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod foo {\n    fn g() { include!(\"foo_body.rs\"); }\n}\nfn f() { crate::foo::parse(); }\n".to_vec(),
+    );
+    files.insert(body, b"pub fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::foo::parse()"),
+        "include! inside a function must not attach to the mod: {text}"
+    );
+    assert!(
+        !text.contains("parse_file()"),
+        "include! in a fn must leave crate::foo::parse Free: {text}"
+    );
+}
+
+#[test]
+fn edit_def_follows_include_inside_a_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let body = RelPath::new("src/foo_body.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod foo {\n    include!(\"foo_body.rs\");\n}\nfn f() {}\n".to_vec(),
+    );
+    files.insert(body, b"pub fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let f = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "f")
+        .map(|(id, _)| *id)
+        .expect("f");
+    let (next, _) = edit_def(
+        &store,
+        &langs,
+        &snap,
+        f,
+        b"fn f() { crate::foo::parse(); }\n",
+    )
+    .unwrap();
+    let next = rename(&store, &next, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::foo::parse_file()"),
+        "edit-def must attach include! file items: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_include_inside_a_soup_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let body = RelPath::new("src/foo_body.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"macro_rules! m { ($($t:tt)*) => {}; }\nm! {\n    pub mod foo {\n        include!(\"foo_body.rs\");\n    }\n}\nfn f() { crate::foo::parse(); }\n".to_vec(),
+    );
+    files.insert(body, b"pub fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::foo::parse_file()"),
+        "include! inside a soup mod must attach: {text}"
+    );
+}

@@ -76,6 +76,7 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
 pub(crate) fn env_from_snapshot_store(snapshot: &Snapshot, store: &dyn Store) -> Env {
     let mut env = env_from_snapshot(snapshot);
     fill_path_file_modules_from_snapshot(&mut env, snapshot, store);
+    fill_include_file_modules_from_snapshot(&mut env, snapshot, store);
     fill_macro_exports_from_snapshot(&mut env, snapshot, store);
     env
 }
@@ -119,6 +120,58 @@ fn fill_path_file_modules_from_snapshot(env: &mut Env, snapshot: &Snapshot, stor
                 continue;
             }
             env.insert_mod_child(*id, &crec.name, crec.kind, *cid);
+        }
+    }
+}
+
+fn attach_included_file(
+    env: &mut Env,
+    snapshot: &Snapshot,
+    mod_id: EntityId,
+    decl: &RelPath,
+    cand: RelPath,
+) {
+    if env
+        .file_of_mod
+        .get(&cand)
+        .is_some_and(|existing| *existing != mod_id)
+    {
+        return;
+    }
+    env.file_of_mod.insert(cand.clone(), mod_id);
+    env.mod_decl_file.insert(mod_id, decl.clone());
+    for (cid, crec) in &snapshot.entities {
+        if crec.file != cand {
+            continue;
+        }
+        if crec.parent.is_some() || is_inherent_rec(snapshot, crec) {
+            continue;
+        }
+        env.insert_mod_child(mod_id, &crec.name, crec.kind, *cid);
+    }
+}
+
+/// `mod foo { include!("x.rs"); }` — postcard cannot persist the include path.
+fn fill_include_file_modules_from_snapshot(
+    env: &mut Env,
+    snapshot: &Snapshot,
+    store: &dyn Store,
+) {
+    for (id, rec) in &snapshot.entities {
+        if rec.kind != Kind::Mod {
+            continue;
+        }
+        let Some(src) = rec_src(store, rec) else {
+            continue;
+        };
+        for inc in extract::bytes_include_paths(&src) {
+            let Some(cand) = resolve_path_attr(&rec.file, &inc) else {
+                continue;
+            };
+            if !snapshot.files.contains_key(&cand) {
+                continue;
+            }
+            attach_included_file(env, snapshot, *id, &rec.file, cand);
         }
     }
 }
@@ -548,18 +601,28 @@ fn link_file_modules(
     let mut file_of_mod: HashMap<RelPath, EntityId> = HashMap::new();
     for (path, raw, ids) in files {
         for (i, ent) in raw.iter().enumerate() {
-            if ent.kind != Kind::Mod || !ent.children.is_empty() {
+            if ent.kind != Kind::Mod {
                 continue;
             }
-            let cands = if let Some(p) = ent
+            let mut cands = Vec::new();
+            if let Some(p) = ent
                 .path_attr
                 .as_deref()
                 .and_then(|a| resolve_path_attr(path, a))
             {
-                vec![p]
-            } else {
-                file_module_paths(path, &enclosing_inline_mods_raw(raw, i), &ent.name)
-            };
+                cands.push(p);
+            } else if ent.children.is_empty() && ent.include_paths.is_empty() {
+                cands.extend(file_module_paths(
+                    path,
+                    &enclosing_inline_mods_raw(raw, i),
+                    &ent.name,
+                ));
+            }
+            for inc in &ent.include_paths {
+                if let Some(p) = resolve_path_attr(path, inc) {
+                    cands.push(p);
+                }
+            }
             for cand in cands {
                 file_of_mod.insert(cand, ids[i]);
                 env.mod_decl_file.insert(ids[i], (*path).clone());

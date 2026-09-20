@@ -645,6 +645,8 @@ pub struct RawEntity {
     /// `#[macro_use(parse, other)]` — only these names. `None` with `macro_use`
     /// means every macro in the module.
     pub macro_use_only: Option<Vec<String>>,
+    /// `include!("foo.rs")` paths inside this `mod`, relative to the declaring file.
+    pub include_paths: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default)]

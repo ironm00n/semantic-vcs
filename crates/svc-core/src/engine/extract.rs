@@ -155,6 +155,144 @@ fn path_eq_literal(attr: &str) -> Option<String> {
     parse_path_lit(rest)
 }
 
+fn include_paths_of(node: tree_sitter::Node<'_>, src: &[u8]) -> Vec<String> {
+    let mut out = Vec::new();
+    collect_include_paths(node, src, &mut out, true);
+    out
+}
+
+fn collect_include_paths(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    out: &mut Vec<String>,
+    top: bool,
+) {
+    if !top
+        && matches!(
+            node.kind(),
+            "mod_item"
+                | "function_item"
+                | "function_signature_item"
+                | "impl_item"
+                | "trait_item"
+                | "macro_definition"
+        )
+    {
+        return;
+    }
+    if node.kind() == "macro_invocation" {
+        if is_include_macro(node, src) {
+            if let Some(p) = include_arg_path(node, src) {
+                out.push(p);
+            }
+        }
+        return;
+    }
+    let mut c = node.walk();
+    for ch in node.named_children(&mut c) {
+        collect_include_paths(ch, src, out, false);
+    }
+}
+
+fn is_include_macro(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    if let Some(m) = node.child_by_field_name("macro") {
+        return node_text(src, m) == "include";
+    }
+    let mut c = node.walk();
+    node.named_children(&mut c)
+        .any(|ch| ch.kind() == "identifier" && node_text(src, ch) == "include")
+}
+
+fn include_arg_path(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
+    let mut c = node.walk();
+    for ch in node.named_children(&mut c) {
+        if ch.kind() == "token_tree" {
+            return string_lit_in(ch, src);
+        }
+    }
+    None
+}
+
+fn string_lit_in(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
+    if matches!(node.kind(), "string_literal" | "raw_string_literal") {
+        return parse_path_lit(&node_text(src, node));
+    }
+    let mut c = node.walk();
+    for ch in node.named_children(&mut c) {
+        if let Some(p) = string_lit_in(ch, src) {
+            return Some(p);
+        }
+    }
+    None
+}
+
+fn include_paths_from_soup_tree(node: tree_sitter::Node<'_>, src: &[u8]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut c = node.walk();
+    let kids: Vec<_> = node.children(&mut c).collect();
+    let mut i = 0;
+    while i < kids.len() {
+        if i + 2 < kids.len()
+            && kids[i].kind() == "identifier"
+            && node_text(src, kids[i]) == "include"
+            && kids[i + 1].kind() == "!"
+            && kids[i + 2].kind() == "token_tree"
+        {
+            if let Some(p) = string_lit_in(kids[i + 2], src) {
+                out.push(p);
+            }
+            i += 3;
+            continue;
+        }
+        if i + 2 < kids.len()
+            && kids[i].kind() == "mod"
+            && kids[i + 1].kind() == "identifier"
+            && kids[i + 2].kind() == "token_tree"
+        {
+            i += 3;
+            continue;
+        }
+        i += 1;
+    }
+    out
+}
+
+pub(crate) fn bytes_include_paths(src: &str) -> Vec<String> {
+    let b = src.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i + 8 <= b.len() {
+        if &b[i..i + 8] == b"include!"
+            && (i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_'))
+        {
+            i += 8;
+            while i < b.len() && b[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            if i < b.len() && matches!(b[i], b'(' | b'[' | b'{') {
+                let close = match b[i] {
+                    b'(' => b')',
+                    b'[' => b']',
+                    _ => b'}',
+                };
+                i += 1;
+                let start = i;
+                while i < b.len() && b[i] != close {
+                    i += 1;
+                }
+                if let Ok(inner) = std::str::from_utf8(&b[start..i]) {
+                    if let Some(p) = parse_path_lit(inner.trim()) {
+                        out.push(p);
+                    }
+                }
+            }
+            continue;
+        }
+        i += 1;
+    }
+    out
+}
+
 fn attr_body_is(inner: &str, name: &str) -> bool {
     let inner = inner.trim();
     if inner == name || inner.starts_with(&format!("{name}(")) {
@@ -436,6 +574,7 @@ fn emit<'a>(
         macro_export: false,
         macro_use: false,
         macro_use_only: None,
+        include_paths: Vec::new(),
     });
     nodes.push(node);
     if kind == Kind::Mod {
@@ -446,6 +585,7 @@ fn emit<'a>(
             raw[idx].macro_use = true;
             raw[idx].macro_use_only = only;
         }
+        raw[idx].include_paths = include_paths_of(node, src);
     }
     if kind == Kind::Macro {
         raw[idx].macro_export = has_macro_export(node, src);
@@ -629,6 +769,7 @@ fn collect_macro_mod_decls<'a>(
             mark_macro_use(raw, preceding_macro_use_spec(&kids, j, src));
             let mod_idx = raw.len() - 1;
             collect_macro_mod_decls(kids[j + 2], src, lang, Some(mod_idx), raw, nodes);
+            raw[mod_idx].include_paths = include_paths_from_soup_tree(kids[j + 2], src);
             i = j + 3;
             continue;
         }
