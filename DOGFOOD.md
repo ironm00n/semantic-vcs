@@ -56,5 +56,5 @@ the checkout must hold no git-ignored files (svc tracks them; the base tree then
 - Names resolve same file → same crate → repo; two file-level items with one name in one
   crate still alias. Check `svc show-def --json | jq .canonical` for the `#name⟨id⟩`.
 - svc reads `.svcignore`, not `.gitignore`: a `result` link or demo scratch dir gets tracked.
-- Relocating an item to the front of a file renders it glued to the old first item.
-- A merge where one side deletes a definition and the other edits a caller of it is clean.
+- Two bundles may share a number; `replay.sh` orders them by the base commit, not the name.
+- `svc log` renders every op it lists: ~10 s on this store; `svc status`/`diff` are sub-second.

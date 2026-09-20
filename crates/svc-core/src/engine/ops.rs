@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{Bytes, Chunk, Content, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
-use crate::entity::{EntityRecord, SigKey};
+use crate::entity::{EntityRecord, Kind, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{ByteRange, EntityId, RelPath, resolve_spec};
 use crate::lang::{Lang, Langs};
@@ -249,15 +249,28 @@ pub fn delete(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapsh
 }
 
 pub fn inline(store: &dyn Store, langs: &Langs, snap: &Snapshot, id: EntityId) -> Result<Snapshot> {
-    snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-    let sites = name_use_sites(snap, store, id)?;
-    if sites.len() != 1 {
+    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+    // A `use` line that imports the callee names it too; it is not a call site, and
+    // after the splice it would import something that no longer exists.
+    let (imports, calls): (Vec<EntityId>, Vec<EntityId>) = name_use_sites(snap, store, id)?
+        .into_iter()
+        .partition(|s| snap.entities[s].kind == Kind::Opaque);
+    if let Some(import) = imports.first() {
+        let i = &snap.entities[import];
         return Err(Error::Other(format!(
-            "inline requires a single use; found {}",
-            sites.len()
+            "inline refused: `{}` is imported by `{}` in {}; drop it from that import first",
+            rec.name,
+            i.name.lines().next().unwrap_or(&i.name),
+            i.file
         )));
     }
-    let referrer = sites[0];
+    if calls.len() != 1 {
+        return Err(Error::Other(format!(
+            "inline requires a single use; found {}",
+            calls.len()
+        )));
+    }
+    let referrer = calls[0];
     if subtree(snap, referrer).contains(&id) {
         return Err(Error::Other(
             "inline cannot target an item still nested in the call site; extract first".into(),

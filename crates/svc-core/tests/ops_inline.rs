@@ -87,3 +87,22 @@ fn inline_of_a_nested_item_into_its_parent_is_refused() {
         .to_string();
     assert!(err.contains("extract first"), "{err}");
 }
+
+#[test]
+fn inline_refuses_while_a_use_line_imports_the_callee() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let mut files = BTreeMap::new();
+    files.insert(
+        RelPath::new("src/a.rs").unwrap(),
+        b"pub fn helper(x: u32) -> u32 { x + 1 }\n".to_vec(),
+    );
+    files.insert(
+        RelPath::new("src/lib.rs").unwrap(),
+        b"mod a;\nuse crate::a::{helper};\nfn caller() -> u32 { helper(1) }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let helper = lookup_name(&snap, "helper").unwrap();
+    let err = inline(&store, &langs, &snap, helper).unwrap_err().to_string();
+    assert!(err.contains("imported by `use crate::a::{helper};` in src/lib.rs"), "{err}");
+}
