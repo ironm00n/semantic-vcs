@@ -601,3 +601,31 @@ fn rust_const_block_sees_const_generics() {
         "const generic N stays visible in a const block: {refs:?}"
     );
 }
+
+#[test]
+fn rust_for_label_is_not_visible_in_the_iterator() {
+    let src = "fn f() { 'a: for _ in { break 'a; [] } { break 'a; } }\n";
+    let refs = rust_item_refs(src);
+    let labels: Vec<_> = refs.iter().filter(|(n, _)| n == "'a").cloned().collect();
+    assert_eq!(labels.len(), 2, "{refs:?}");
+    assert!(
+        matches!(labels[0].1, IdentRef::Free(_)),
+        "iterator must not see the for-label: {refs:?}"
+    );
+    assert!(
+        matches!(labels[1].1, IdentRef::Local(_, Namespace::Label)),
+        "body break is the for-label: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_const_generic_arg_does_not_see_outer_local() {
+    let src = "fn f() { let n = 1usize; let _ = [0u8; n]; }\n";
+    let refs = rust_item_refs(src);
+    let ns: Vec<_> = refs.iter().filter(|(n, _)| n == "n").cloned().collect();
+    assert_eq!(ns.len(), 1, "{refs:?}");
+    assert!(
+        matches!(ns[0].1, IdentRef::Free(_)),
+        "array length is a const arg, not the local: {refs:?}"
+    );
+}

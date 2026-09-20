@@ -370,9 +370,10 @@ fn collect_refs<'a>(
                 .max_by_key(|b| (b.scope.start, b.range.start));
             if is_struct_field_key(node) || is_dot_field(node) || is_type_binding_name(node) {
                 refs.push((r, IdentRef::Free(name.into())));
-            } else if let Some(binder) =
-                local.filter(|_| !is_rust_nonlocal_ident(node, lang))
-            {
+            } else if let Some(binder) = local.filter(|_| !is_rust_nonlocal_ident(node, lang)).filter(|b| {
+                !in_const_argument(node)
+                    || !matches!(b.class, BinderClass::Local | BinderClass::Label)
+            }) {
                 refs.push((r, IdentRef::Local(binder.slot, ns)));
             } else if is_foreign_scoped_ref(node, src, lang, env)
                 || is_type_qualified_ref(node, src, lang, env)
@@ -502,6 +503,16 @@ fn binder_extent(
             (scope.start, scope)
         }
         crate::lang::Visibility::Whole => {
+            if node.kind() == "label" {
+                if let Some(parent) = node.parent() {
+                    if parent.kind() == "for_expression" {
+                        if let Some(body) = parent.child_by_field_name("body") {
+                            let scope = byte_range(body);
+                            return (scope.start, scope);
+                        }
+                    }
+                }
+            }
             let scope = enclosing_scope(node, src, lang, root_id);
             (scope.start, scope)
         }
@@ -1037,6 +1048,28 @@ fn binder_class(node: tree_sitter::Node<'_>) -> BinderClass {
         "label" | "statement_identifier" => BinderClass::Label,
         _ => BinderClass::Local,
     }
+}
+
+/// Array lengths and const generic `{ n }` / `const { n }` cannot capture
+/// ordinary locals or labels (SPEC; rustc E0435).
+fn in_const_argument(node: tree_sitter::Node<'_>) -> bool {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if matches!(parent.kind(), "array_type" | "array_expression") {
+            if parent.child_by_field_name("length").is_some_and(|n| {
+                n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte()
+            }) {
+                return true;
+            }
+        }
+        if parent.kind() == "type_arguments"
+            && matches!(current.kind(), "block" | "const_block")
+        {
+            return true;
+        }
+        current = parent;
+    }
+    false
 }
 
 /// Method name of `self.foo()`, `Self::foo()`, `S::foo()` inside `impl S`, or JS

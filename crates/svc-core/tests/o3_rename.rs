@@ -1088,3 +1088,28 @@ fn rename_of_fn_does_not_rewrite_struct_pattern_field() {
         "pattern field name must stay: {text}"
     );
 }
+
+#[test]
+fn rename_of_const_rewrites_array_length_not_the_shadowing_local() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"const n: usize = 1;\nfn f() { let n = 2usize; let _ = [0u8; n]; let _ = n; }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let c = named_in_file(&snap, "n", &path);
+    let next = rename(&store, &snap, c, "nlen").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("const nlen: usize = 1"), "{text}");
+    assert!(
+        text.contains("[0u8; nlen]"),
+        "array length must see the file const: {text}"
+    );
+    assert!(text.contains("let n = 2usize"), "{text}");
+    assert!(text.contains("let _ = n;"), "{text}");
+}
