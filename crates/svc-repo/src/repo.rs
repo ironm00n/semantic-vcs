@@ -352,9 +352,25 @@ impl Repo {
     }
 
     /// True when rendering the current snapshot reproduces the tracked files byte for byte.
+    /// Does the tree on disk equal the current snapshot rendered? Every verb asks this first,
+    /// so it hashes the tracked files against the snapshot's rendered hashes; a snapshot
+    /// nobody has rendered yet is rendered once here and its hashes kept.
     pub fn working_copy_clean(&self) -> Result<bool> {
-        let rendered = render(&self.current()?, &self.store, &self.langs, false)?;
-        Ok(rendered.files == self.tracked_files()?)
+        let cur = self.current()?;
+        let want = match self.store.rendered_hashes(cur.id())? {
+            Some(h) => h,
+            None => {
+                let rendered = render(&cur, &self.store, &self.langs, false)?;
+                let h = file_hashes(&rendered.files);
+                self.store.set_rendered_hashes(cur.id(), &h)?;
+                h
+            }
+        };
+        let disk = self.tracked_files()?;
+        Ok(disk.len() == want.len()
+            && disk
+                .iter()
+                .all(|(p, b)| want.get(p) == Some(blake3::hash(b).as_bytes())))
     }
 
     /// Reconcile hand edits into the current change: re-snapshot
@@ -555,6 +571,10 @@ impl Repo {
         }
         Ok(rendered.files)
     }
+}
+
+fn file_hashes(files: &BTreeMap<RelPath, Vec<u8>>) -> BTreeMap<RelPath, [u8; 32]> {
+    files.iter().map(|(p, b)| (p.clone(), *blake3::hash(b).as_bytes())).collect()
 }
 
 fn is_ignored(rel: &str, patterns: &[String]) -> bool {

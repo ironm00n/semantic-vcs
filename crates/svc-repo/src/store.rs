@@ -6,6 +6,7 @@
 //! `render_pending`, `open_changeset` — live in `META` for the default checkout and in a
 //! [`WorkspaceRow`] for a named one. Which set a `RedbStore` reads is fixed at open time.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use redb::{
@@ -14,8 +15,8 @@ use redb::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use svc_core::{
-    ChangeId, ChangeSet, ChangeSetId, Error, OpIx, OpLogEntry, OpenChangeSet, Result, Snapshot,
-    SnapshotId, Store, View,
+    ChangeId, ChangeSet, ChangeSetId, Error, OpIx, OpLogEntry, OpenChangeSet, RelPath, Result,
+    Snapshot, SnapshotId, Store, View,
 };
 use uuid::Uuid;
 
@@ -33,6 +34,11 @@ const WORKSPACES: TableDefinition<&str, &[u8]> = TableDefinition::new("workspace
 /// Which checkout appended each op (`OpIx → name`; the default checkout writes `""`).
 /// `OpLogEntry` is a frozen `svc-core` shape, so attribution lives beside it, not in it.
 const OP_WORKSPACE: TableDefinition<u64, &str> = TableDefinition::new("op_workspace");
+/// `SnapshotId → {path → blake3 of the rendered file}`, filled the first time a snapshot is
+/// rendered. Rendering is a pure function of the snapshot and the content-addressed objects,
+/// so a row never goes stale; it lets `working_copy_clean` hash the tree instead of
+/// re-rendering every entity on every verb.
+const RENDERED: TableDefinition<&[u8; 32], &[u8]> = TableDefinition::new("rendered");
 
 const META_ROOT: &str = "root";
 const META_OPEN_CHANGESET: &str = "open_changeset";
@@ -104,6 +110,7 @@ impl RedbStore {
             txn.open_table(META).map_err(Error::backend)?;
             txn.open_table(WORKSPACES).map_err(Error::backend)?;
             txn.open_table(OP_WORKSPACE).map_err(Error::backend)?;
+            txn.open_table(RENDERED).map_err(Error::backend)?;
             Ok(())
         })?;
         Ok(store)
@@ -122,6 +129,29 @@ impl RedbStore {
             .get(ix.0)
             .map_err(Error::backend)?
             .map(|g| g.value().to_string()))
+    }
+
+    /// Per-file hashes of `id` rendered, if some verb has rendered it before.
+    pub fn rendered_hashes(&self, id: SnapshotId) -> Result<Option<BTreeMap<RelPath, [u8; 32]>>> {
+        let txn = self.read()?;
+        let table = match txn.open_table(RENDERED) {
+            Ok(t) => t,
+            Err(TableError::TableDoesNotExist(_)) => return Ok(None),
+            Err(e) => return Err(Error::backend(e)),
+        };
+        match table.get(&id.0).map_err(Error::backend)? {
+            Some(g) => Ok(Some(decode(g.value())?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn set_rendered_hashes(&self, id: SnapshotId, hashes: &BTreeMap<RelPath, [u8; 32]>) -> Result<()> {
+        let bytes = encode(hashes)?;
+        self.write(|txn| {
+            let mut table = txn.open_table(RENDERED).map_err(Error::backend)?;
+            table.insert(&id.0, bytes.as_slice()).map_err(Error::backend)?;
+            Ok(())
+        })
     }
 
     /// `ops(since, rev)` restricted to what this handle's checkout appended (unattributed
