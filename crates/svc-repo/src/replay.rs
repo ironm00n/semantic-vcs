@@ -156,6 +156,10 @@ impl Replay<'_> {
                 self.commit(&snap)?;
             }
             Op::Undo => self.restore(&e.after)?,
+            Op::Resolve { conflict, take } => {
+                let (next, _) = crate::merge::resolved_snapshot(&self.store, &cur, *conflict as usize, *take)?;
+                self.amend(&cur, next)?;
+            }
             Op::Absorb => {
                 self.import(e.after.root)?;
             }

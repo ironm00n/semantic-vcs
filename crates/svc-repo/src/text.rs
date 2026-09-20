@@ -72,6 +72,7 @@ pub fn op(snap: &Snapshot, e: &OpOut) -> String {
         Op::Describe { msg } => format!("described: {msg:?}"),
         Op::Branch { name } => format!("branch {name}"),
         Op::Absorb => "absorbed hand edits".into(),
+        Op::Resolve { conflict, take } => format!("resolved conflict {conflict}: took {take:?}"),
     };
     format!("#{:<3} {body}{verdict}", e.ix.0)
 }

@@ -14,7 +14,7 @@ pub mod workspace;
 
 pub use history::*;
 pub use replay::{ReplayReport, replay};
-pub use merge::{ConflictOut, MergeOut, Take, conflicts, lca, merge, merged_snapshot, resolve};
+pub use merge::{ConflictOut, MergeOut, Take, conflicts, lca, merge, merged_snapshot, resolve, resolved_snapshot};
 pub use repo::{Mutation, Repo};
 pub use store::RedbStore;
 pub use workspace::{WorkspaceOut, WorkspacePointer};

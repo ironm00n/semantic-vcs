@@ -187,6 +187,7 @@ pub fn describe_op(op: &Op) -> String {
         Op::Describe { msg } => format!("described: {msg}"),
         Op::Branch { name } => format!("branch {name}"),
         Op::Absorb => "absorbed hand edits".into(),
+        Op::Resolve { conflict, take } => format!("resolved conflict {conflict}: took {take:?}"),
     }
 }
 

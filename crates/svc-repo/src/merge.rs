@@ -36,12 +36,7 @@ pub struct ConflictOut {
     pub conflict: Conflict,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Take {
-    A,
-    B,
-    Base,
-}
+pub use svc_core::Take;
 
 pub fn lca(store: &dyn Store, a: SnapshotId, b: SnapshotId) -> Result<Option<SnapshotId>> {
     let mut seen_a = BTreeSet::new();
@@ -194,8 +189,9 @@ pub fn conflicts(repo: &Repo) -> Result<Vec<ConflictOut>> {
 
 /// `svc resolve <n> --take a|b|base`: choose one side of an attribute, content, delete/edit or
 /// add/add conflict. Binding conflicts have no side to take and are rejected here.
-pub fn resolve(repo: &Repo, n: usize, take: Take) -> Result<MergeOut> {
-    let cur = repo.current()?;
+/// The snapshot `cur` becomes when conflict `n` is resolved by taking `take`. Pure over the
+/// store, so `resolve` and replay produce the same snapshot from the same op.
+pub fn resolved_snapshot(store: &dyn Store, cur: &Snapshot, n: usize, take: Take) -> Result<(Snapshot, SnapshotId)> {
     let conflict = cur
         .conflicts
         .get(n)
@@ -205,7 +201,6 @@ pub fn resolve(repo: &Repo, n: usize, take: Take) -> Result<MergeOut> {
         return Err(Error::Other("current snapshot is not a merge".into()));
     };
     let (a_id, b_id) = (*a_id, *b_id);
-    let store = repo.store();
     let side_a = store.get_snapshot(a_id)?;
     let side_b = store.get_snapshot(b_id)?;
     let base_id = lca(store, a_id, b_id)?
@@ -267,9 +262,16 @@ pub fn resolve(repo: &Repo, n: usize, take: Take) -> Result<MergeOut> {
         }
     }
     next.conflicts.remove(n);
+    Ok((next, base_id))
+}
+
+pub fn resolve(repo: &Repo, n: usize, take: Take) -> Result<MergeOut> {
+    let cur = repo.current()?;
+    let (next, base_id) = resolved_snapshot(repo.store(), &cur, n, take)?;
     let m = repo.mutate(
-        Op::Describe {
-            msg: cur.message.clone(),
+        Op::Resolve {
+            conflict: n as u32,
+            take,
         },
         None,
         |repo, cur| repo.amend(cur, next),

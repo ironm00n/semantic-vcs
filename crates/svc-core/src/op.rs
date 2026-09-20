@@ -75,6 +75,20 @@ pub enum Op {
     },
     /// Working-copy reconciliation. Snapshot is `after.root` on the log entry so O5 can replay.
     Absorb,
+    /// Resolution of conflict `conflict` (an index into the merge snapshot's list) by
+    /// taking one side. Recorded as itself so replay reproduces the resolved snapshot.
+    Resolve {
+        conflict: u32,
+        take: Take,
+    },
+}
+
+/// Which side a conflict resolution keeps: the merge's first parent, its second, or the base.
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum Take {
+    A,
+    B,
+    Base,
 }
 
 impl Op {
