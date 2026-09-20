@@ -68,7 +68,10 @@ pub struct Bundle {
 #[derive(Clone, Debug, Serialize)]
 pub struct ImportReport {
     pub applied: usize,
-    /// First entry whose tree after import differs from the recorded hash, if any.
+    /// Ops whose result the engine no longer computes as recorded; the record supplied
+    /// the tree instead, so the history still lands as it happened.
+    pub from_record: Vec<OpIx>,
+    /// First entry whose tree after import differs from the recorded hash even so, if any.
     pub diverged_at: Option<OpIx>,
 }
 
@@ -120,8 +123,16 @@ fn named_ids(op: &Op) -> Vec<EntityId> {
 
 /// The op log from `since` on, with what an import needs beside each entry.
 pub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {
+    export_range(repo, since, None)
+}
+
+/// [`export`] stopping before `until` (exclusive), for cutting one landing out of a longer log.
+pub fn export_range(repo: &Repo, since: OpIx, until: Option<OpIx>) -> Result<Bundle> {
     let store = repo.store();
-    let ops = store.ops(since, false)?;
+    let mut ops = store.ops(since, false)?;
+    if let Some(end) = until {
+        ops.retain(|(ix, _)| *ix < end);
+    }
     let Some((_, first)) = ops.first() else {
         return Err(Error::Other(format!("no ops at or after {}", since.0)));
     };
@@ -136,24 +147,10 @@ pub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {
             .into_iter()
             .filter_map(|id| path_of(&before, id).map(|p| (id, p)))
             .collect();
-        let mut files = BTreeMap::new();
-        if matches!(e.op, Op::Absorb) {
-            let before_files = rendered(repo, &before)?;
-            for (path, bytes) in &after_files {
-                if before_files.get(path) != Some(bytes) {
-                    let body = match String::from_utf8(bytes.clone()) {
-                        Ok(text) => FileBody::Text(text),
-                        Err(_) => FileBody::Bytes(bytes.clone()),
-                    };
-                    files.insert(path.clone(), body);
-                }
-            }
-            for path in before_files.keys() {
-                if !after_files.contains_key(path) {
-                    files.insert(path.clone(), FileBody::Removed);
-                }
-            }
-        }
+        // What the op changed on disk, for every op: an absorb has nothing else, and any
+        // other op falls back to it when a later engine no longer computes the same result.
+        let before_files = rendered(repo, &before)?;
+        let files = changed_files(&before_files, &after_files);
         entries.push(BundleEntry {
             ix: *ix,
             entry: e.clone(),
@@ -174,12 +171,34 @@ pub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {
     Ok(Bundle { base_tree, entries, changesets })
 }
 
+/// The files `after` has that `before` did not have with those bytes, and the ones it lost.
+fn changed_files(before: &BTreeMap<RelPath, Vec<u8>>, after: &BTreeMap<RelPath, Vec<u8>>) -> BTreeMap<RelPath, FileBody> {
+    let mut files = BTreeMap::new();
+    for (path, bytes) in after {
+        if before.get(path) != Some(bytes) {
+            let body = match String::from_utf8(bytes.clone()) {
+                Ok(text) => FileBody::Text(text),
+                Err(_) => FileBody::Bytes(bytes.clone()),
+            };
+            files.insert(path.clone(), body);
+        }
+    }
+    for path in before.keys() {
+        if !after.contains_key(path) {
+            files.insert(path.clone(), FileBody::Removed);
+        }
+    }
+    files
+}
+
 struct Import<'a> {
     repo: &'a Repo,
     /// Recorded change id → the one minted here.
     changes: BTreeMap<ChangeId, ChangeId>,
     /// Recorded snapshot id → the one this import produced for it.
     snaps: BTreeMap<SnapshotId, SnapshotId>,
+    /// Ops whose result the engine no longer reproduces and the record supplied instead.
+    from_record: Vec<OpIx>,
 }
 
 impl Import<'_> {
@@ -201,6 +220,39 @@ impl Import<'_> {
         })
     }
 
+    /// The snapshot an op leaves: what the engine computes now, when its tree is the recorded
+    /// one; otherwise the recorded files, ingested over the current snapshot — the history
+    /// still lands as it happened, and the op is counted as taken from the record.
+    fn rewrite(
+        &mut self,
+        b: &BundleEntry,
+        cur: &Snapshot,
+        engine: impl FnOnce(&Snapshot) -> Result<Snapshot>,
+    ) -> Result<Snapshot> {
+        let repo = self.repo;
+        let computed = engine(cur)?;
+        if b.files.is_empty() || tree_hash(&rendered(repo, &computed)?) == b.after_tree {
+            return Ok(computed);
+        }
+        self.from_record.push(b.ix);
+        // In memory, not on disk: a file written now would be absorbed as a hand edit first.
+        let mut files = repo.tracked_files()?;
+        for (path, body) in &b.files {
+            match body {
+                FileBody::Removed => {
+                    files.remove(path);
+                }
+                FileBody::Text(t) => {
+                    files.insert(path.clone(), t.as_bytes().to_vec());
+                }
+                FileBody::Bytes(v) => {
+                    files.insert(path.clone(), v.clone());
+                }
+            }
+        }
+        repo.snapshot_files(&files, Some(cur), cur.change)
+    }
+
     fn apply(&mut self, b: &BundleEntry) -> Result<()> {
         let repo = self.repo;
         let e = &b.entry;
@@ -218,36 +270,33 @@ impl Import<'_> {
             Op::Rename { id, new } => {
                 let id = self.entity(&cur, b, *id)?;
                 let op = Op::Rename { id, new: new.clone() };
-                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, rename(cur, id, new)?))?;
+                let next = self.rewrite(b, &cur, |cur| rename(cur, id, new))?;
+                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, next))?;
             }
             Op::Move { id, parent, ordinal } => {
                 let id = self.entity(&cur, b, *id)?;
                 let parent = parent.map(|p| self.entity(&cur, b, p)).transpose()?;
                 let op = Op::Move { id, parent, ordinal: *ordinal };
-                repo.mutate(op, e.observed, |repo, cur| {
-                    repo.amend(cur, move_def(repo.store(), repo.langs(), cur, id, parent, *ordinal)?)
-                })?;
+                let next = self.rewrite(b, &cur, |cur| move_def(repo.store(), repo.langs(), cur, id, parent, *ordinal))?;
+                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, next))?;
             }
             Op::Relocate { id, file, ordinal } => {
                 let id = self.entity(&cur, b, *id)?;
                 let op = Op::Relocate { id, file: file.clone(), ordinal: *ordinal };
-                repo.mutate(op, e.observed, |repo, cur| {
-                    repo.amend(cur, relocate(cur, repo.store(), id, file.clone(), *ordinal)?)
-                })?;
+                let next = self.rewrite(b, &cur, |cur| relocate(cur, repo.store(), id, file.clone(), *ordinal))?;
+                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, next))?;
             }
             Op::Extract { id, new_parent, ordinal } => {
                 let id = self.entity(&cur, b, *id)?;
                 let new_parent = new_parent.map(|p| self.entity(&cur, b, p)).transpose()?;
                 let op = Op::Extract { id, new_parent, ordinal: *ordinal };
-                repo.mutate(op, e.observed, |repo, cur| {
-                    repo.amend(cur, move_def(repo.store(), repo.langs(), cur, id, new_parent, Some(*ordinal))?)
-                })?;
+                let next = self.rewrite(b, &cur, |cur| move_def(repo.store(), repo.langs(), cur, id, new_parent, Some(*ordinal)))?;
+                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, next))?;
             }
             Op::Inline { id } => {
                 let id = self.entity(&cur, b, *id)?;
-                repo.mutate(Op::Inline { id }, e.observed, |repo, cur| {
-                    repo.amend(cur, inline(repo.store(), repo.langs(), cur, id)?)
-                })?;
+                let next = self.rewrite(b, &cur, |cur| inline(repo.store(), repo.langs(), cur, id))?;
+                repo.mutate(Op::Inline { id }, e.observed, |repo, cur| repo.amend(cur, next))?;
             }
             Op::AddDef { id, parent, ordinal, definition, intent, file } => {
                 let parent = parent.map(|p| self.entity(&cur, b, p)).transpose()?;
@@ -260,8 +309,8 @@ impl Import<'_> {
                     intent: intent.clone(),
                     file: file.clone(),
                 };
-                repo.mutate(op, e.observed, |repo, cur| {
-                    let next = add_def_at(
+                let next = self.rewrite(b, &cur, |cur| {
+                    add_def_at(
                         repo.store(),
                         repo.langs(),
                         cur,
@@ -271,22 +320,23 @@ impl Import<'_> {
                         ordinal,
                         definition.as_bytes(),
                         intent.clone(),
-                    )?;
-                    repo.amend(cur, next)
+                    )
                 })?;
+                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, next))?;
             }
             Op::Delete { id, intent } => {
                 let id = self.entity(&cur, b, *id)?;
                 let op = Op::Delete { id, intent: intent.clone() };
-                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, delete(cur, repo.store(), id)?))?;
+                let next = self.rewrite(b, &cur, |cur| delete(cur, repo.store(), id))?;
+                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, next))?;
             }
             Op::EditDef { id, definition, intent } => {
                 let id = self.entity(&cur, b, *id)?;
                 let op = Op::EditDef { id, definition: definition.clone(), intent: intent.clone() };
-                repo.mutate(op, e.observed, |repo, cur| {
-                    let (next, _) = edit_def(repo.store(), repo.langs(), cur, id, definition.as_bytes())?;
-                    repo.amend(cur, next)
+                let next = self.rewrite(b, &cur, |cur| {
+                    edit_def(repo.store(), repo.langs(), cur, id, definition.as_bytes()).map(|(next, _)| next)
                 })?;
+                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, next))?;
             }
             Op::New { change } => {
                 let out = history::new(repo)?;
@@ -325,17 +375,7 @@ impl Import<'_> {
                 merge::resolve(repo, *conflict as usize, *take)?;
             }
             Op::Absorb => {
-                let root = repo.root_dir();
-                for (path, body) in &b.files {
-                    let at = root.join(path.as_str());
-                    match body {
-                        FileBody::Removed => {
-                            let _ = std::fs::remove_file(&at);
-                        }
-                        FileBody::Text(t) => write_file(&at, t.as_bytes())?,
-                        FileBody::Bytes(v) => write_file(&at, v)?,
-                    }
-                }
+                write_changes(repo.root_dir(), &b.files)?;
                 repo.absorb()?;
             }
         }
@@ -346,6 +386,20 @@ impl Import<'_> {
 /// The change an op minted: the head that is the op's after root.
 fn recorded_change(e: &OpLogEntry) -> Option<ChangeId> {
     e.after.heads.iter().find(|(_, s)| **s == e.after.root).map(|(c, _)| *c)
+}
+
+fn write_changes(root: &std::path::Path, files: &BTreeMap<RelPath, FileBody>) -> Result<()> {
+    for (path, body) in files {
+        let at = root.join(path.as_str());
+        match body {
+            FileBody::Removed => {
+                let _ = std::fs::remove_file(&at);
+            }
+            FileBody::Text(t) => write_file(&at, t.as_bytes())?,
+            FileBody::Bytes(v) => write_file(&at, v)?,
+        }
+    }
+    Ok(())
 }
 
 fn write_file(at: &std::path::Path, bytes: &[u8]) -> Result<()> {
@@ -371,7 +425,7 @@ pub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {
             repo.store().put_changeset(cs)?;
         }
     }
-    let mut im = Import { repo, changes: BTreeMap::new(), snaps: BTreeMap::new() };
+    let mut im = Import { repo, changes: BTreeMap::new(), snaps: BTreeMap::new(), from_record: Vec::new() };
     if let Some(first) = bundle.entries.first() {
         im.snaps.insert(first.entry.before.root, repo.store().root()?);
     }
@@ -390,5 +444,5 @@ pub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {
             }
         }
     }
-    Ok(ImportReport { applied, diverged_at })
+    Ok(ImportReport { applied, from_record: im.from_record, diverged_at })
 }

@@ -443,7 +443,7 @@ impl Repo {
     }
 
     /// Bytes-in → snapshot-out. Delegates to `svc_core::engine::snapshot_files`.
-    fn snapshot_files(
+    pub(crate) fn snapshot_files(
         &self,
         files: &BTreeMap<RelPath, Vec<u8>>,
         prev: Option<&Snapshot>,

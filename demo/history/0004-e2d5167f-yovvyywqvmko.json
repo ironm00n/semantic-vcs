@@ -2,27 +2,45 @@
   "base_tree": "5e79c1636713d3a3d8d87101243996e0e580dbeba228bfdff7e4b9e7f446a4e5",
   "entries": [
     {
-      "ix": 1,
+      "ix": 48,
       "entry": {
         "op": {
           "New": {
-            "change": "01a0bcfe-9703-70ca-95e9-235a96cfe93c"
+            "change": "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f"
           }
         },
         "observed": null,
         "at": 1789877196840,
         "group": null,
         "before": {
-          "root": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
+          "root": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
           "heads": {
-            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315"
           }
         },
         "after": {
-          "root": "8eb8c7b991c7ef24475ca80cbb6100f58fffda1ae928b48744eeb64a8fc30fa0",
+          "root": "93093a1626ccecb6b1ec03b083308cdcf2f8b9cb7182876e237bc0075ac0b40f",
           "heads": {
-            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
-            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "8eb8c7b991c7ef24475ca80cbb6100f58fffda1ae928b48744eeb64a8fc30fa0"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "93093a1626ccecb6b1ec03b083308cdcf2f8b9cb7182876e237bc0075ac0b40f"
           }
         }
       },
@@ -32,11 +50,11 @@
       "workspace": null
     },
     {
-      "ix": 2,
+      "ix": 49,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bcfe-5403-7516-94bf-8b60f25030b9",
+            "id": "01a0bd1b-f1fd-70eb-b6b9-4e8ce77cd2fe",
             "definition": "\n\n/// One event line: `renamed parse → parse_config`, `edit-def validate (declared refactor,\n/// observed binding-changing) ✗`.\npub fn op(snap: &Snapshot, e: &OpOut) -> String {\n    let verdict = match (e.declared.as_ref(), e.observed) {\n        (Some(d), Some(o)) => format!(\n            \" (declared {}, observed {}) {}\",\n            intent(d),\n            class(Some(o)),\n            if e.flagged { \"✗ flagged\" } else { \"✓\" }\n        ),\n        (Some(d), None) => format!(\" (declared {}, unchecked)\", intent(d)),\n        (None, Some(o)) => format!(\" (observed {})\", class(Some(o))),\n        (None, None) => String::new(),\n    };\n    // Prefer the name recorded with the op; the current snapshot may no longer hold it.\n    let subj = |id: EntityId| match &e.subject {\n        Some(n) => format!(\"{n}⟨{}⟩\", id.short()),\n        None => entity_ref(snap, id),\n    };\n    let body = match &e.op {\n        Op::Rename { id, new } => match &e.subject {\n            Some(old) => format!(\"renamed {old} → {new}\"),\n            None => format!(\"renamed {} → {new}\", name_before(snap, *id, new)),\n        },\n        Op::Move { id, parent, .. } => format!(\n            \"moved {} → {}\",\n            subj(*id),\n            parent.map(|p| entity_ref(snap, p)).unwrap_or_else(|| \"top level\".into())\n        ),\n        Op::Relocate { id, file, ordinal } => format!(\"relocated {} → {file}#{ordinal}\", subj(*id)),\n        Op::Extract { id, .. } => format!(\"extracted {}\", subj(*id)),\n        Op::Inline { id } => format!(\"inlined {}\", subj(*id)),\n        Op::AddDef { id, .. } => format!(\"add-def {}\", subj(*id)),\n        Op::Delete { id, .. } => format!(\"deleted {}\", subj(*id)),\n        Op::EditDef { id, .. } => format!(\"edit-def {}\", subj(*id)),\n        Op::Merge { other } => format!(\"merged change {}\", other.short()),\n        Op::Undo => \"undo\".into(),\n        Op::New { change } => format!(\"new change {}\", change.short()),\n        Op::Describe { msg } => format!(\"described: {msg:?}\"),\n        Op::Branch { name } => format!(\"branch {name}\"),\n        Op::Absorb => \"absorbed hand edits\".into(),\n        Op::Resolve { conflict, take } => format!(\"resolved conflict {conflict}: took {take:?}\"),\n    };\n    // An op a named checkout made says so; the default checkout's says nothing.\n    let from = e.workspace.as_deref().map(|w| format!(\"  [{w}]\")).unwrap_or_default();\n    format!(\"#{:<3} {body}{verdict}{from}\", e.ix.0)\n}",
             "intent": "Refactor"
           }
@@ -45,22 +63,40 @@
         "at": 1789877197693,
         "group": null,
         "before": {
-          "root": "8eb8c7b991c7ef24475ca80cbb6100f58fffda1ae928b48744eeb64a8fc30fa0",
+          "root": "93093a1626ccecb6b1ec03b083308cdcf2f8b9cb7182876e237bc0075ac0b40f",
           "heads": {
-            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
-            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "8eb8c7b991c7ef24475ca80cbb6100f58fffda1ae928b48744eeb64a8fc30fa0"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "93093a1626ccecb6b1ec03b083308cdcf2f8b9cb7182876e237bc0075ac0b40f"
           }
         },
         "after": {
-          "root": "075b90e6a2dcfe1bd0b24c5a0a5670dfaaa677f321d6d6c0e426b6611e63a061",
+          "root": "fade4e7f5f9433ec92c237cadeb7e730fba1e9aa995ba253cef4338993665b17",
           "heads": {
-            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
-            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "075b90e6a2dcfe1bd0b24c5a0a5670dfaaa677f321d6d6c0e426b6611e63a061"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "fade4e7f5f9433ec92c237cadeb7e730fba1e9aa995ba253cef4338993665b17"
           }
         }
       },
       "refs": {
-        "01a0bcfe-5403-7516-94bf-8b60f25030b9": {
+        "01a0bd1b-f1fd-70eb-b6b9-4e8ce77cd2fe": {
           "file": "crates/svc-repo/src/text.rs",
           "chain": [
             [
@@ -70,29 +106,51 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-repo/src/text.rs": {
+          "Text": "//! Human-readable renderings of the verb outputs (`--json` is the machine form;\n//! without it the expo reads sentences). Entity references print as `name⟨short⟩`, never\n//! a bare UUID.\n\nuse svc_core::{Conflict, EntityId, IdentRef, Intent, ObservedClass, Op, Snapshot};\n\nuse crate::history::{BlameEntry, ChangeOut, EvologEntry, OpOut, StatusOut, Touch};\nuse crate::merge::{ConflictOut, MergeOut};\n\npub fn entity_ref(snap: &Snapshot, id: EntityId) -> String {\n    match snap.entities.get(&id) {\n        Some(r) => format!(\"{}⟨{}⟩\", r.name, id.short()),\n        None => format!(\"?⟨{}⟩\", id.short()),\n    }\n}\n\npub fn intent(i: &Intent) -> String {\n    match i {\n        Intent::Other(s) => s.clone(),\n        other => format!(\"{other:?}\").to_lowercase(),\n    }\n}\n\npub fn class(c: Option<ObservedClass>) -> &'static str {\n    match c {\n        Some(ObservedClass::Alpha) => \"alpha\",\n        Some(ObservedClass::DocsOnly) => \"docs-only\",\n        Some(ObservedClass::BindingPreserving) => \"binding-preserving\",\n        Some(ObservedClass::BindingChanging) => \"binding-changing\",\n        None => \"unclassified\",\n    }\n}\n\n/// One event line: `renamed parse → parse_config`, `edit-def validate (declared refactor,\n/// observed binding-changing) ✗`.\npub fn op(snap: &Snapshot, e: &OpOut) -> String {\n    let verdict = match (e.declared.as_ref(), e.observed) {\n        (Some(d), Some(o)) => format!(\n            \" (declared {}, observed {}) {}\",\n            intent(d),\n            class(Some(o)),\n            if e.flagged { \"✗ flagged\" } else { \"✓\" }\n        ),\n        (Some(d), None) => format!(\" (declared {}, unchecked)\", intent(d)),\n        (None, Some(o)) => format!(\" (observed {})\", class(Some(o))),\n        (None, None) => String::new(),\n    };\n    // Prefer the name recorded with the op; the current snapshot may no longer hold it.\n    let subj = |id: EntityId| match &e.subject {\n        Some(n) => format!(\"{n}⟨{}⟩\", id.short()),\n        None => entity_ref(snap, id),\n    };\n    let body = match &e.op {\n        Op::Rename { id, new } => match &e.subject {\n            Some(old) => format!(\"renamed {old} → {new}\"),\n            None => format!(\"renamed {} → {new}\", name_before(snap, *id, new)),\n        },\n        Op::Move { id, parent, .. } => format!(\n            \"moved {} → {}\",\n            subj(*id),\n            parent.map(|p| entity_ref(snap, p)).unwrap_or_else(|| \"top level\".into())\n        ),\n        Op::Relocate { id, file, ordinal } => format!(\"relocated {} → {file}#{ordinal}\", subj(*id)),\n        Op::Extract { id, .. } => format!(\"extracted {}\", subj(*id)),\n        Op::Inline { id } => format!(\"inlined {}\", subj(*id)),\n        Op::AddDef { id, .. } => format!(\"add-def {}\", subj(*id)),\n        Op::Delete { id, .. } => format!(\"deleted {}\", subj(*id)),\n        Op::EditDef { id, .. } => format!(\"edit-def {}\", subj(*id)),\n        Op::Merge { other } => format!(\"merged change {}\", other.short()),\n        Op::Undo => \"undo\".into(),\n        Op::New { change } => format!(\"new change {}\", change.short()),\n        Op::Describe { msg } => format!(\"described: {msg:?}\"),\n        Op::Branch { name } => format!(\"branch {name}\"),\n        Op::Absorb => \"absorbed hand edits\".into(),\n        Op::Resolve { conflict, take } => format!(\"resolved conflict {conflict}: took {take:?}\"),\n    };\n    // An op a named checkout made says so; the default checkout's says nothing.\n    let from = e.workspace.as_deref().map(|w| format!(\"  [{w}]\")).unwrap_or_default();\n    format!(\"#{:<3} {body}{verdict}{from}\", e.ix.0)\n}\n\nfn name_before(snap: &Snapshot, id: EntityId, new: &str) -> String {\n    // The snapshot is the current one, so the entity already carries `new`; show the id\n    // so the line still identifies it if it has been renamed again since.\n    match snap.entities.get(&id) {\n        Some(r) if r.name != new => format!(\"{}⟨{}⟩\", r.name, id.short()),\n        _ => format!(\"⟨{}⟩\", id.short()),\n    }\n}\n\npub fn log(snap: &Snapshot, entries: &[OpOut]) -> String {\n    if entries.is_empty() {\n        return \"no events\".into();\n    }\n    entries.iter().map(|e| op(snap, e)).collect::<Vec<_>>().join(\"\\n\")\n}\n\npub fn heads(heads: &[ChangeOut]) -> String {\n    heads\n        .iter()\n        .map(|h| {\n            format!(\n                \"{} {} {}{}\",\n                if h.current { \"@\" } else { \" \" },\n                h.short,\n                if h.branches.is_empty() { String::new() } else { format!(\"[{}] \", h.branches.join(\", \")) },\n                if h.message.is_empty() { \"(no description)\".to_string() } else { h.message.clone() }\n            )\n        })\n        .collect::<Vec<_>>()\n        .join(\"\\n\")\n}\n\npub fn touch(t: &Touch) -> String {\n    match t {\n        Touch::Added => \"added\".into(),\n        Touch::Removed => \"removed\".into(),\n        Touch::Renamed { from, to } => format!(\"renamed {from} → {to}\"),\n        Touch::Moved { .. } => \"moved\".into(),\n        Touch::Relocated { from, to } => format!(\"relocated {}#{} → {}#{}\", from.0, from.1, to.0, to.1),\n        Touch::Edited { observed } => format!(\"edited ({})\", class(*observed)),\n    }\n}\n\npub fn evolog(entries: &[EvologEntry]) -> String {\n    entries\n        .iter()\n        .enumerate()\n        .map(|(i, e)| {\n            let head = format!(\n                \"v{} {} {} ({} entities)\",\n                entries.len() - i,\n                e.snapshot.short(),\n                if e.message.is_empty() { \"(no description)\".to_string() } else { e.message.clone() },\n                e.entities\n            );\n            let deltas: Vec<String> = e\n                .deltas\n                .iter()\n                .map(|d| format!(\"    {} {}\", d.name, touch(&d.touch)))\n                .collect();\n            if deltas.is_empty() {\n                head\n            } else {\n                format!(\"{head}\\n{}\", deltas.join(\"\\n\"))\n            }\n        })\n        .collect::<Vec<_>>()\n        .join(\"\\n\")\n}\n\npub fn blame(snap: &Snapshot, entries: &[BlameEntry]) -> String {\n    entries\n        .iter()\n        .map(|b| {\n            let what = match &b.op {\n                Op::Rename { .. } | Op::New { .. } | Op::Absorb => String::new(),\n                other => format!(\" — {}\", op_verb(snap, other)),\n            };\n            format!(\"#{:<3} change {} {}{}\", b.ix.0, b.change.short(), touch(&b.touch), what)\n        })\n        .collect::<Vec<_>>()\n        .join(\"\\n\")\n}\n\nfn op_verb(snap: &Snapshot, o: &Op) -> String {\n    op(\n        snap,\n        &OpOut {\n            ix: svc_core::OpIx(0),\n            op: o.clone(),\n            declared: o.intent().cloned(),\n            observed: None,\n            flagged: false,\n            at: 0,\n            group: None,\n            root_after: snap.id(),\n            subject: None,\n            workspace: None,\n        },\n    )\n    .trim_start_matches(|c: char| c == '#' || c.is_ascii_digit() || c == ' ')\n    .to_string()\n}\n\npub fn status(snap: &Snapshot, s: &StatusOut) -> String {\n    let mut lines = vec![match s.conflicts {\n        0 => s.summary.clone(),\n        1 => format!(\"{}; 1 conflict — svc conflicts\", s.summary),\n        n => format!(\"{}; {n} conflicts — svc conflicts\", s.summary),\n    }];\n    for d in &s.deltas {\n        lines.push(format!(\"    {}\", delta(snap, d)));\n    }\n    lines.join(\"\\n\")\n}\n\npub fn delta(snap: &Snapshot, d: &svc_core::Delta) -> String {\n    use svc_core::Delta;\n    // Alpha edits are the layout-only line of demo line 2: bytes differ, content does not.\n    match d {\n        Delta::Added(id) => format!(\"added {}\", entity_ref(snap, *id)),\n        Delta::Removed { id, name } => format!(\"removed {name}⟨{}⟩\", id.short()),\n        Delta::Renamed { from, to, .. } => format!(\"renamed {from} → {to}\"),\n        Delta::Moved { id, .. } => format!(\"moved {}\", entity_ref(snap, *id)),\n        Delta::Relocated { id, from, to } => format!(\"relocated {} {}#{} → {}#{}\", entity_ref(snap, *id), from.0, from.1, to.0, to.1),\n        Delta::Edited(id, ObservedClass::Alpha) => format!(\"{} edited: alpha (local renamed; content hash unchanged)\", entity_ref(snap, *id)),\n        Delta::Edited(id, c) => format!(\"{} edited: {}\", entity_ref(snap, *id), class(Some(*c))),\n        Delta::FileAdded(p) => format!(\"added file {p}\"),\n        Delta::FileRemoved(p) => format!(\"removed file {p}\"),\n        Delta::FileTail { path, whitespace_only: true } => format!(\"{path}: whitespace outside entities changed\"),\n        Delta::FileTail { path, .. } => format!(\"{path}: bytes outside entities changed\"),\n    }\n}\n\nfn ident(snap: &Snapshot, r: &IdentRef) -> String {\n    match r {\n        IdentRef::Local(slot, _) => format!(\"local ${}\", slot.0),\n        IdentRef::Entity(id) if *id == EntityId::SELF => \"itself\".into(),\n        IdentRef::Entity(id) => entity_ref(snap, *id),\n        IdentRef::Free(n) => format!(\"free `{n}`\"),\n    }\n}\n\npub fn conflict(snap: &Snapshot, c: &ConflictOut) -> String {\n    let body = match &c.conflict {\n        Conflict::Binding { name, at, was, was_at, now, now_at, .. } => format!(\n            \"binding conflict in {}: `{name}` at {}:{} meant {}{}, now means {}{}\",\n            c.name,\n            at.line,\n            at.col,\n            ident(snap, was),\n            was_at.map(|p| format!(\" (declared {}:{})\", p.line, p.col)).unwrap_or_default(),\n            ident(snap, now),\n            now_at.map(|p| format!(\" (declared {}:{})\", p.line, p.col)).unwrap_or_default(),\n        ),\n        Conflict::Attr { sides, .. } => {\n            let vals: Vec<String> = sides.adds().map(|v| format!(\"{v:?}\")).collect();\n            format!(\"attribute conflict on {}: {}\", c.name, vals.join(\" vs \"))\n        }\n        Conflict::Content { hunks, .. } => format!(\"content conflict on {} ({} hunk(s))\", c.name, hunks.len().max(1)),\n        Conflict::AddAdd { key, .. } => format!(\"add/add: both sides added `{}`\", key.name),\n        Conflict::DeleteEdit { deleted_by, edited_by, .. } => {\n            format!(\"delete/edit on {}: deleted by {deleted_by:?}, edited by {edited_by:?}\", c.name)\n        }\n    };\n    format!(\"[{}] {body}\", c.n)\n}\n\npub fn conflicts(snap: &Snapshot, cs: &[ConflictOut]) -> String {\n    if cs.is_empty() {\n        return \"no conflicts\".into();\n    }\n    cs.iter().map(|c| conflict(snap, c)).collect::<Vec<_>>().join(\"\\n\")\n}\n\npub fn merge(snap: &Snapshot, store: &dyn svc_core::Store, root: &std::path::Path, m: &MergeOut) -> String {\n    let mut lines = vec![format!(\n        \"merged into change {} (snapshot {}): {}\",\n        m.change.short(),\n        m.snapshot.short(),\n        if m.conflicts.is_empty() { \"clean\".to_string() } else { format!(\"{} conflict(s)\", m.conflicts.len()) }\n    )];\n    for (b, a) in &m.unified {\n        lines.push(format!(\"    unified {} into {}\", b.short(), a.short()));\n    }\n    for c in &m.conflicts {\n        lines.push(format!(\"    {}\", conflict_named(snap, store, root, c)));\n    }\n    lines.join(\"\\n\")\n}\n\n/// A binding conflict the way a reader needs it: the identifier, the use, and both binders,\n/// recovered from the rendered entity and its ident map — the record carries the slots\n/// (reliable) and positions (not yet), and the expo line is \"`raw` at line 8 meant the\n/// `let raw` at line 2, now means the `let raw` at line 3\".\npub fn conflict_named(snap: &Snapshot, store: &dyn svc_core::Store, root: &std::path::Path, c: &ConflictOut) -> String {\n    let Conflict::Binding { id, was, now, at, .. } = &c.conflict else {\n        return conflict(snap, c);\n    };\n    let Ok((src, Some(map))) = svc_core::engine::render_entity(snap, store, *id, true) else {\n        return conflict(snap, c);\n    };\n    let text = String::from_utf8_lossy(&src).into_owned();\n    // Positions as the reader sees them: file line numbers when the rendered entity is\n    // found verbatim in the working copy, else lines within the item (the rendered bytes\n    // carry the blank lines that precede it; do not count those).\n    let file = snap.entities.get(id).map(|r| r.file.clone());\n    let base = file\n        .as_ref()\n        .and_then(|f| std::fs::read_to_string(root.join(f.as_str())).ok())\n        .and_then(|whole| whole.find(text.trim_start_matches('\\n')).map(|i| whole[..i].matches('\\n').count()));\n    let leading = text.len() - text.trim_start_matches('\\n').len();\n    let where_ = |line: usize| match (&file, base) {\n        (Some(f), Some(b)) => format!(\"{}:{}\", f.as_str(), b + line - leading),\n        _ => format!(\"line {}\", line - leading),\n    };\n    let line_of = |off: usize| text[..off.min(text.len())].matches('\\n').count() + 1;\n    let occurrences = |r: &IdentRef| -> Vec<(usize, String)> {\n        let mut v: Vec<(usize, String)> = map\n            .iter()\n            .filter(|(_, ident)| ident == r)\n            .map(|(range, _)| (range.start as usize, text[range.start as usize..range.end as usize].to_string()))\n            .collect();\n        v.sort();\n        v\n    };\n    let (now_occ, was_occ) = (occurrences(now), occurrences(was));\n    let (Some((now_decl, name)), Some((was_decl, was_name))) = (now_occ.first(), was_occ.first()) else {\n        return conflict(snap, c);\n    };\n    let binder = |off: usize, name: &str| {\n        let line = line_of(off);\n        let start = text[..off].rfind('\\n').map_or(0, |i| i + 1);\n        if text[start..off].trim_start().starts_with(\"let \") {\n            format!(\"the `let {name}` at {}\", where_(line))\n        } else {\n            format!(\"`{name}` bound at {}\", where_(line))\n        }\n    };\n    // The use: the record's position when it lands on this identifier, else its last use.\n    let use_at = now_occ\n        .iter()\n        .find(|(off, _)| line_of(*off) == at.line as usize)\n        .or(now_occ.last())\n        .map(|(off, _)| line_of(*off))\n        .unwrap_or(at.line as usize);\n    format!(\n        \"[{}] binding conflict in {}: `{name}` at {} meant {}, now means {}{}\",\n        c.n,\n        c.name,\n        where_(use_at),\n        binder(*was_decl, was_name),\n        binder(*now_decl, name),\n        if was_name == name { \" (shadowed)\" } else { \"\" }\n    )\n}\n\npub fn conflicts_named(snap: &Snapshot, store: &dyn svc_core::Store, root: &std::path::Path, cs: &[ConflictOut]) -> String {\n    if cs.is_empty() {\n        return \"no conflicts\".into();\n    }\n    cs.iter().map(|c| conflict_named(snap, store, root, c)).collect::<Vec<_>>().join(\"\\n\")\n}\n"
+        }
+      },
       "after_tree": "6aa1e01254166696a147669767377214dd106759dd05f64a2d793ce528eccd29",
       "workspace": null
     },
     {
-      "ix": 3,
+      "ix": 50,
       "entry": {
         "op": "Absorb",
         "observed": null,
         "at": 1789877245624,
         "group": null,
         "before": {
-          "root": "075b90e6a2dcfe1bd0b24c5a0a5670dfaaa677f321d6d6c0e426b6611e63a061",
+          "root": "fade4e7f5f9433ec92c237cadeb7e730fba1e9aa995ba253cef4338993665b17",
           "heads": {
-            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
-            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "075b90e6a2dcfe1bd0b24c5a0a5670dfaaa677f321d6d6c0e426b6611e63a061"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "fade4e7f5f9433ec92c237cadeb7e730fba1e9aa995ba253cef4338993665b17"
           }
         },
         "after": {
-          "root": "4ed922220b873348fd6dbefbe3f32f416f85cea202489bc549f927b9ba14000d",
+          "root": "dab142c52c14ef5264bc83351aee10dfb73b21ca657efcebc3a59fa90b65c58e",
           "heads": {
-            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
-            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "4ed922220b873348fd6dbefbe3f32f416f85cea202489bc549f927b9ba14000d"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "dab142c52c14ef5264bc83351aee10dfb73b21ca657efcebc3a59fa90b65c58e"
           }
         }
       },
@@ -105,5 +163,6 @@
       "after_tree": "d6fc92b0c16a64c9e2cd87c31844e4a943d7cbc9b9d0cff5f4fbaca4c657c684",
       "workspace": null
     }
-  ]
+  ],
+  "changesets": []
 }

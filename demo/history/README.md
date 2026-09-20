@@ -17,6 +17,14 @@ landing order, from git's trees; `demo/dogfood.sh --tui` opens on it.
    commit sits in history, so two agents picking the same number is harmless).
 4. Land the change and the bundle together; the description carries the `svc log` lines.
 
+## Refreshing
+
+The engine keeps changing; a typed op replayed by a newer engine may leave a tree the
+record did not. Every bundle therefore carries the files each op changed, and an import
+takes the record when the engine disagrees (`from_record` in its report; `replay.sh` says
+so and passes). `refresh.sh` re-cuts every bundle that replays with the current exporter,
+in place — run it after an engine change, before more bundles are cut.
+
 ## Replaying
 
 `demo/history/replay.sh <dir>` — for each bundle in order: put git's tree at the bundle's

@@ -16,7 +16,8 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("export") => {
             let since = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(1);
-            let b = bundle::export(&repo, OpIx(since)).unwrap_or_else(|e| fail(&e.to_string()));
+            let until = args.get(3).and_then(|s| s.parse().ok()).map(OpIx);
+            let b = bundle::export_range(&repo, OpIx(since), until).unwrap_or_else(|e| fail(&e.to_string()));
             let text = serde_json::to_string_pretty(&b).expect("json");
             match args.get(2) {
                 Some(out) => {

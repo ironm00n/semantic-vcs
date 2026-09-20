@@ -2,22 +2,28 @@
   "base_tree": "7d0016a8e2ac3b0e620b26ffaeaab80b77872f149a35d8f6667afac35ee38137",
   "entries": [
     {
-      "ix": 1,
+      "ix": 9,
       "entry": {
         "op": "Absorb",
         "observed": null,
         "at": 1789874266002,
         "group": null,
         "before": {
-          "root": "c18763237d9d167384844546c145c5f76a79e9eb6d9f8c0fb53683b22ed4e117",
+          "root": "1cb79760faa48c114f31ec04cb33d319b7e79ccabd9714f7a3a3d20f71207af9",
           "heads": {
-            "01a0bcd1-cbde-7627-b1dd-72a783b53c23": "c18763237d9d167384844546c145c5f76a79e9eb6d9f8c0fb53683b22ed4e117"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "1cb79760faa48c114f31ec04cb33d319b7e79ccabd9714f7a3a3d20f71207af9"
           }
         },
         "after": {
-          "root": "ea3fd9d9338f972d18448ce3b910e1fd611fb453dd2d64e9cb8318cafc3f4485",
+          "root": "74949fdf8b93d00bdb33f4611e8eb776cf0ce95dcab2be0ba11a56d7e8d77df1",
           "heads": {
-            "01a0bcd1-cbde-7627-b1dd-72a783b53c23": "ea3fd9d9338f972d18448ce3b910e1fd611fb453dd2d64e9cb8318cafc3f4485"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "74949fdf8b93d00bdb33f4611e8eb776cf0ce95dcab2be0ba11a56d7e8d77df1"
           }
         }
       },
@@ -42,7 +48,9 @@
           "Text": "#!/usr/bin/env bash\n# Rebuild this repository's svc history into one store: for each bundle in demo/history,\n# in order, materialise git's tree at the bundle's base commit into the target directory\n# (other people's landings in between become one absorbed hand edit), then replay the\n# bundle. Exits non-zero at the first bundle that does not reproduce its recorded trees.\n#\n#   demo/history/replay.sh <dir> [path/to/svc]      # <dir> is created; .svc lands inside\nset -u\nHERE=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\nROOT=\"$(cd \"$HERE/../..\" && pwd)\"\nDIR=\"${1:?target directory}\"\nif [ -n \"${2:-}\" ]; then SVC=\"$(cd \"$(dirname \"$2\")\" && pwd)/$(basename \"$2\")\"; else SVC=\"$ROOT/target/debug/svc\"; fi\n[ -x \"$SVC\" ] || { echo \"no svc binary at $SVC (cargo build -p svc)\"; exit 2; }\ncommand -v jq >/dev/null || { echo \"jq is required\"; exit 2; }\n# A jj workspace has no .git of its own; the colocated repository does.\nGITDIR=\"$(cd \"$ROOT\" && (jj git root 2>/dev/null || echo \"$ROOT/.git\"))\"\n# The CLI arm when it exists, the library tool otherwise.\nif \"$SVC\" history --help >/dev/null 2>&1; then\n  import() { \"$SVC\" history import \"$1\" --json; }\nelse\n  TOOL=\"$ROOT/target/debug/examples/history\"\n  [ -x \"$TOOL\" ] || (cd \"$ROOT\" && cargo build -q -p svc-repo --example history) || exit 2\n  import() { \"$TOOL\" import \"$1\"; }\nfi\nmkdir -p \"$DIR\"\nDIR=\"$(cd \"$DIR\" && pwd)\"\ncd \"$DIR\"\nn=0\nfor bundle in \"$HERE\"/[0-9][0-9][0-9][0-9]-*.json; do\n  [ -e \"$bundle\" ] || { echo \"no bundles in $HERE\"; exit 2; }\n  name=\"$(basename \"$bundle\" .json)\"\n  base=\"$(echo \"$name\" | cut -d- -f2)\"\n  # git's tree at the base: replace every tracked file, drop the ones no longer there.\n  find . -mindepth 1 -maxdepth 1 ! -name .svc -exec rm -rf {} +\n  git --git-dir=\"$GITDIR\" archive \"$base\" | tar -x -C \"$DIR\" || { echo \"no git tree for $base\"; exit 2; }\n  if [ ! -d .svc ]; then\n    \"$SVC\" init --json >/dev/null || exit 2\n  else\n    \"$SVC\" status --json >/dev/null || exit 2    # everyone else's landings, absorbed\n  fi\n  report=\"$(import \"$bundle\")\" || { echo \"FAIL  $name: $report\"; exit 1; }\n  diverged=\"$(echo \"$report\" | jq -r '.diverged_at')\"\n  applied=\"$(echo \"$report\" | jq -r '.applied')\"\n  if [ \"$diverged\" != null ]; then echo \"FAIL  $name: diverged at op $diverged\"; exit 1; fi\n  echo \"PASS  $name: $applied ops replayed, every tree as recorded\"\n  n=$((n + 1))\ndone\necho \"$n bundle(s); $(\"$SVC\" op log --json | jq length) ops in $DIR/.svc\"\n"
         }
       },
-      "after_tree": "7b602a24017ec83ddee6cf03fa38cc5ca2dd7004aa58806f784f0d3b30f19c89"
+      "after_tree": "7b602a24017ec83ddee6cf03fa38cc5ca2dd7004aa58806f784f0d3b30f19c89",
+      "workspace": null
     }
-  ]
+  ],
+  "changesets": []
 }

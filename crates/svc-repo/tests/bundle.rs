@@ -120,3 +120,32 @@ fn import_refuses_a_tree_that_is_not_the_bundles_base() {
     let err = bundle::import(&other, &bundle).err().expect("refused");
     assert!(err.to_string().contains("not the bundle's base"), "{err}");
 }
+
+#[test]
+fn when_the_engine_no_longer_computes_the_recorded_tree_the_record_supplies_it() {
+    let a = tempfile::tempdir().unwrap();
+    demo_crate(a.path());
+    let repo = Repo::init(a.path(), Repo::default_langs()).unwrap();
+    rename_to(&repo, "parse", "parse_config");
+    edit(&repo, "normalize", "fn normalize(s: &str) -> String {\n    s.trim().to_lowercase()\n}");
+    let mut bundle = bundle::export(&repo, OpIx(1)).unwrap();
+    // Every typed op carries the files it changed, not only absorbs.
+    assert!(bundle.entries.iter().all(|b| !b.files.is_empty()), "files on every op");
+    // Stand in for an engine that has changed since: the edit's definition is tampered with,
+    // so what the engine computes no longer matches the recorded tree.
+    let edited = bundle.entries.iter().position(|b| matches!(b.entry.op, Op::EditDef { .. })).unwrap();
+    if let Op::EditDef { definition, .. } = &mut bundle.entries[edited].entry.op {
+        *definition = "fn normalize(s: &str) -> String {\n    s.to_string()\n}".into();
+    }
+    let ix = bundle.entries[edited].ix;
+
+    let b = tempfile::tempdir().unwrap();
+    demo_crate(b.path());
+    let fresh = Repo::init(b.path(), Repo::default_langs()).unwrap();
+    let report = bundle::import(&fresh, &bundle).unwrap();
+    assert_eq!(report.from_record, vec![ix], "that one op came from the record");
+    assert_eq!(report.diverged_at, None, "and the tree is the recorded one");
+    let text = std::fs::read_to_string(b.path().join("src/main.rs")).unwrap();
+    assert!(text.contains("to_lowercase") && !text.contains("s.to_string()"), "{text}");
+    assert_eq!(svc_repo::op_log(&fresh).unwrap().len(), 3, "still one op per recorded op");
+}

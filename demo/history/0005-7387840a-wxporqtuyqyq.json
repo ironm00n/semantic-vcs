@@ -2,27 +2,47 @@
   "base_tree": "e2deb687a93262235d62eb88d7627d79d2769057b7338aed72042f2db20e80f0",
   "entries": [
     {
-      "ix": 1,
+      "ix": 53,
       "entry": {
         "op": {
           "New": {
-            "change": "01a0bd06-e1c1-718b-830b-2bafbc7de5b4"
+            "change": "01a0bd1d-3ab6-7103-99be-fa344bb9498d"
           }
         },
         "observed": null,
         "at": 1789877740223,
         "group": null,
         "before": {
-          "root": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
+          "root": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f"
           }
         },
         "after": {
-          "root": "8d60084902e9a7283c7969189bf45b733b5a415e006e67ea07c6607136862f0e",
+          "root": "64104823036eb4bfecb77ac809ea85858c77c8a68a694cc09dea76f22d566258",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "8d60084902e9a7283c7969189bf45b733b5a415e006e67ea07c6607136862f0e"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "64104823036eb4bfecb77ac809ea85858c77c8a68a694cc09dea76f22d566258"
           }
         }
       },
@@ -32,11 +52,11 @@
       "workspace": null
     },
     {
-      "ix": 2,
+      "ix": 54,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd06-32d7-7282-8cdd-c8f97c6da4ed",
+            "id": "01a0bd1c-156c-7602-9c18-c2e37f3eac7d",
             "definition": "\n\n/// The raw log entry plus what the browser needs beside it: `ix`, the after-root's `change`,\n/// and for an op about one entity a `subject` with its names, kind, file, both sources and\n/// the touch — so a change page can show a rename or edit without opening the store.\nfn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry) -> Value {\n    let mut v = serde_json::to_value(e).unwrap_or(Value::Null);\n    let Value::Object(m) = &mut v else { return v };\n    m.insert(\"ix\".into(), json!(ix));\n    let after = store.get_snapshot(e.after.root).ok();\n    if let Some(after) = &after {\n        m.insert(\"change\".into(), json!(after.change));\n    }\n    if let Some(name) = e.group.and_then(|g| store.get_changeset(g).ok()).map(|cs| cs.name) {\n        m.insert(\"group_name\".into(), json!(name));\n    }\n    // Every entity the op touched and every opaque file it changed, so an absorb or a\n    // merge — the ops that carry other people's work — has names and paths too.\n    let before = store.get_snapshot(e.before.root).ok();\n    if let (Some(b), Some(a)) = (&before, &after) {\n        let touched = touches(b, a, e.observed);\n        if !touched.is_empty() {\n            m.insert(\"subjects\".into(), json!(touched));\n        }\n        let changed: Vec<&RelPath> = a\n            .files\n            .iter()\n            .filter(|(p, rec)| b.files.get(*p) != Some(rec))\n            .map(|(p, _)| p)\n            .chain(b.files.keys().filter(|p| !a.files.contains_key(*p)))\n            .collect();\n        if !changed.is_empty() {\n            m.insert(\"files\".into(), json!(changed));\n        }\n    }\n    if let (Some(id), Some(after)) = (op_entity(&e.op), &after) {\n        let prev = before.as_ref().and_then(|b| b.entities.get(&id));\n        let next = after.entities.get(&id);\n        let shown = next.or(prev);\n        // Absent rather than null: the browser's fields default when a key is missing.\n        let mut subject = serde_json::Map::new();\n        subject.insert(\"id\".into(), json!(id));\n        let mut put = |key: &str, value: Option<Value>| {\n            if let Some(v) = value {\n                subject.insert(key.into(), v);\n            }\n        };\n        put(\"before_name\", prev.map(|r| json!(r.name)));\n        put(\"after_name\", next.map(|r| json!(r.name)));\n        put(\"kind\", shown.map(|r| json!(r.kind)));\n        put(\"file\", shown.map(|r| json!(r.file)));\n        put(\"before_source\", before.as_ref().and_then(|b| source(store, b, id)).map(Value::String));\n        put(\"after_source\", source(store, after, id).map(Value::String));\n        put(\"touch\", touch(prev, next, e.observed).map(|t| json!(t)));\n        m.insert(\"subject\".into(), Value::Object(subject));\n    }\n    v\n}",
             "intent": "Feature"
           }
@@ -45,22 +65,42 @@
         "at": 1789877740851,
         "group": null,
         "before": {
-          "root": "8d60084902e9a7283c7969189bf45b733b5a415e006e67ea07c6607136862f0e",
+          "root": "64104823036eb4bfecb77ac809ea85858c77c8a68a694cc09dea76f22d566258",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "8d60084902e9a7283c7969189bf45b733b5a415e006e67ea07c6607136862f0e"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "64104823036eb4bfecb77ac809ea85858c77c8a68a694cc09dea76f22d566258"
           }
         },
         "after": {
-          "root": "e658b88991155b1d8085b68696d43f7e2f2c0d072508b018ce1a70e91cbcec6e",
+          "root": "fd2068f171f1b2d9ba312700f49dcb48c1e6af6f81465bbc4ed90be49e518579",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "e658b88991155b1d8085b68696d43f7e2f2c0d072508b018ce1a70e91cbcec6e"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "fd2068f171f1b2d9ba312700f49dcb48c1e6af6f81465bbc4ed90be49e518579"
           }
         }
       },
       "refs": {
-        "01a0bd06-32d7-7282-8cdd-c8f97c6da4ed": {
+        "01a0bd1c-156c-7602-9c18-c2e37f3eac7d": {
           "file": "crates/svc-repo/src/forge.rs",
           "chain": [
             [
@@ -70,16 +110,20 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-repo/src/forge.rs": {
+          "Text": "//! `svc forge export` (done-criterion 1): the catalog `crates/svc-forge` serves, produced\n//! from this store so the browser shows *this* repository rather than a fixture. The shape\n//! is `svc_forge::Catalog`'s serde form, written here as JSON so `svc-repo` needs no\n//! dependency on the web crate; operations, conflicts and review items are the `svc-core`\n//! types the forge deserialises. Heads and the root carry their entities; ancestors are\n//! listed bare so a long history on a large crate stays a small file. The forge reads the\n//! file, never the store, so it can never contend with a writer.\n\nuse std::collections::{BTreeSet, VecDeque};\nuse std::path::{Path, PathBuf};\n\nuse serde_json::{Value, json};\nuse svc_core::engine::render_entity;\nuse svc_core::{Conflict, EntityId, Error, Op, OpIx, OpLogEntry, ReviewItem, Result, Snapshot, SnapshotId, Store};\n\nuse crate::history::{op_entity, touch};\nuse crate::repo::Repo;\n\n/// How many ancestor snapshots to list beyond the heads and the root.\nconst ANCESTOR_LIMIT: usize = 200;\n\npub fn catalog(repo: &Repo) -> Result<Value> {\n    let store = repo.store();\n    let view = repo.view()?;\n    let mut full: BTreeSet<SnapshotId> = view.heads.values().copied().collect();\n    full.insert(view.root);\n\n    // Breadth-first over parents and predecessors from every head and the root.\n    let mut order: Vec<SnapshotId> = Vec::new();\n    let mut seen: BTreeSet<SnapshotId> = BTreeSet::new();\n    // Root first, then the other heads, then ancestors.\n    let mut queue: VecDeque<SnapshotId> = VecDeque::from([view.root]);\n    queue.extend(full.iter().copied().filter(|id| *id != view.root));\n    while let Some(id) = queue.pop_front() {\n        if !seen.insert(id) {\n            continue;\n        }\n        order.push(id);\n        if order.len() > full.len() + ANCESTOR_LIMIT {\n            break;\n        }\n        if let Ok(s) = store.get_snapshot(id) {\n            queue.extend(s.parents.iter().chain(s.predecessors.iter()).copied());\n        }\n    }\n\n    let mut snapshots = Vec::with_capacity(order.len());\n    for id in &order {\n        let s = store.get_snapshot(*id)?;\n        let entities: Vec<Value> = if full.contains(id) {\n            s.entities\n                .iter()\n                .map(|(eid, rec)| {\n                    let mut v = serde_json::to_value(rec).unwrap_or(Value::Null);\n                    if let Value::Object(m) = &mut v {\n                        m.insert(\"id\".into(), json!(eid));\n                        if let Some(text) = source(store, &s, *eid) {\n                            m.insert(\"source\".into(), Value::String(text));\n                        }\n                    }\n                    v\n                })\n                .collect()\n        } else {\n            Vec::new()\n        };\n        snapshots.push(json!({\n            \"id\": id,\n            \"change\": s.change,\n            \"message\": s.message,\n            \"parents\": s.parents,\n            \"entities\": entities,\n            \"conflicts\": s.conflicts,\n        }));\n    }\n\n    let ops = store.ops(OpIx(0), false)?;\n    let operations: Vec<Value> = ops.iter().map(|(ix, e)| operation(store, *ix, e)).collect();\n\n    // The review queue as the review rules define it: every edit-def, and every binding conflict\n    // in the current snapshot. (Changesets' own `queue` is not populated by any verb.)\n    let mut review: Vec<ReviewItem> = ops\n        .iter()\n        .filter_map(|(ix, e)| match &e.op {\n            Op::EditDef { intent, .. } => Some(ReviewItem::EditReview {\n                op: *ix,\n                declared: intent.clone(),\n                observed: e.observed,\n                ask_id: None,\n            }),\n            _ => None,\n        })\n        .collect();\n    let cur = repo.current()?;\n    review.extend(cur.conflicts.iter().filter(|c| matches!(c, Conflict::Binding { .. })).map(|c| ReviewItem::BindingConflict { conflict: c.clone() }));\n\n    let root = repo.root_dir();\n    let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| \"repo\".into());\n    let slug: String = name.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();\n    Ok(json!({\n        \"repositories\": [{\n            \"slug\": slug,\n            \"name\": name,\n            \"path\": root,\n            \"description\": format!(\"{} entities, {} operations, {} changes\", cur.entities.len(), ops.len(), view.heads.len()),\n            \"head\": view.root,\n            \"snapshots\": snapshots,\n            \"operations\": operations,\n            \"review_queue\": review,\n        }]\n    }))\n}\n\n/// The entity's rendered text, for the browser's entity and change pages.\nfn source(store: &dyn Store, snap: &Snapshot, id: EntityId) -> Option<String> {\n    render_entity(snap, store, id, false)\n        .ok()\n        .map(|(bytes, _)| String::from_utf8_lossy(&bytes).into_owned())\n}\n\n/// The raw log entry plus what the browser needs beside it: `ix`, the after-root's `change`,\n/// and for an op about one entity a `subject` with its names, kind, file, both sources and\n/// the touch — so a change page can show a rename or edit without opening the store.\nfn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry) -> Value {\n    let mut v = serde_json::to_value(e).unwrap_or(Value::Null);\n    let Value::Object(m) = &mut v else { return v };\n    m.insert(\"ix\".into(), json!(ix));\n    let after = store.get_snapshot(e.after.root).ok();\n    if let Some(after) = &after {\n        m.insert(\"change\".into(), json!(after.change));\n    }\n    if let Some(name) = e.group.and_then(|g| store.get_changeset(g).ok()).map(|cs| cs.name) {\n        m.insert(\"group_name\".into(), json!(name));\n    }\n    // Every entity the op touched and every opaque file it changed, so an absorb or a\n    // merge — the ops that carry other people's work — has names and paths too.\n    let before = store.get_snapshot(e.before.root).ok();\n    if let (Some(b), Some(a)) = (&before, &after) {\n        let touched = touches(b, a, e.observed);\n        if !touched.is_empty() {\n            m.insert(\"subjects\".into(), json!(touched));\n        }\n        let changed: Vec<&RelPath> = a\n            .files\n            .iter()\n            .filter(|(p, rec)| b.files.get(*p) != Some(rec))\n            .map(|(p, _)| p)\n            .chain(b.files.keys().filter(|p| !a.files.contains_key(*p)))\n            .collect();\n        if !changed.is_empty() {\n            m.insert(\"files\".into(), json!(changed));\n        }\n    }\n    if let (Some(id), Some(after)) = (op_entity(&e.op), &after) {\n        let prev = before.as_ref().and_then(|b| b.entities.get(&id));\n        let next = after.entities.get(&id);\n        let shown = next.or(prev);\n        // Absent rather than null: the browser's fields default when a key is missing.\n        let mut subject = serde_json::Map::new();\n        subject.insert(\"id\".into(), json!(id));\n        let mut put = |key: &str, value: Option<Value>| {\n            if let Some(v) = value {\n                subject.insert(key.into(), v);\n            }\n        };\n        put(\"before_name\", prev.map(|r| json!(r.name)));\n        put(\"after_name\", next.map(|r| json!(r.name)));\n        put(\"kind\", shown.map(|r| json!(r.kind)));\n        put(\"file\", shown.map(|r| json!(r.file)));\n        put(\"before_source\", before.as_ref().and_then(|b| source(store, b, id)).map(Value::String));\n        put(\"after_source\", source(store, after, id).map(Value::String));\n        put(\"touch\", touch(prev, next, e.observed).map(|t| json!(t)));\n        m.insert(\"subject\".into(), Value::Object(subject));\n    }\n    v\n}\n\n/// Write the catalog; default `.svc/forge.json` under the repository root.\npub fn export(repo: &Repo, out: Option<&Path>) -> Result<PathBuf> {\n    let path = out.map(Path::to_path_buf).unwrap_or_else(|| repo.root_dir().join(\".svc/forge.json\"));\n    let text = serde_json::to_string_pretty(&catalog(repo)?).map_err(|e| Error::Other(e.to_string()))?;\n    if let Some(dir) = path.parent() {\n        std::fs::create_dir_all(dir).map_err(|e| Error::Other(e.to_string()))?;\n    }\n    // Atomic replace: the forge may be reading the old file.\n    let tmp = path.with_extension(\"json.tmp\");\n    std::fs::write(&tmp, text).map_err(|e| Error::Other(e.to_string()))?;\n    std::fs::rename(&tmp, &path).map_err(|e| Error::Other(e.to_string()))?;\n    Ok(path)\n}\n"
+        }
+      },
       "after_tree": "7a01a29ee09a268ca9020434fcb08de6a24a9b308d1948fa839dc8e5d26c90d3",
       "workspace": null
     },
     {
-      "ix": 3,
+      "ix": 55,
       "entry": {
         "op": {
           "Rename": {
-            "id": "01a0bd06-32d7-7282-8cdd-c8f3f7bbb4ee",
+            "id": "01a0bd1c-156c-7602-9c18-c2e062a1733c",
             "new": "use svc_core::{Conflict, EntityId, Error, Op, OpIx, OpLogEntry, RelPath, ReviewItem, Result, Snapshot, SnapshotId, Store};"
           }
         },
@@ -87,22 +131,42 @@
         "at": 1789877767239,
         "group": null,
         "before": {
-          "root": "e658b88991155b1d8085b68696d43f7e2f2c0d072508b018ce1a70e91cbcec6e",
+          "root": "fd2068f171f1b2d9ba312700f49dcb48c1e6af6f81465bbc4ed90be49e518579",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "e658b88991155b1d8085b68696d43f7e2f2c0d072508b018ce1a70e91cbcec6e"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "fd2068f171f1b2d9ba312700f49dcb48c1e6af6f81465bbc4ed90be49e518579"
           }
         },
         "after": {
-          "root": "05e13eb8551d4de9322e2886c596916c8d003351e0fda6666bc0adce317db680",
+          "root": "ce5407fe31abfb08c31ddc0b80a0acc9c7cc701f4a1cc6152bb47ba94bf1f53e",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "05e13eb8551d4de9322e2886c596916c8d003351e0fda6666bc0adce317db680"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "ce5407fe31abfb08c31ddc0b80a0acc9c7cc701f4a1cc6152bb47ba94bf1f53e"
           }
         }
       },
       "refs": {
-        "01a0bd06-32d7-7282-8cdd-c8f3f7bbb4ee": {
+        "01a0bd1c-156c-7602-9c18-c2e062a1733c": {
           "file": "crates/svc-repo/src/forge.rs",
           "chain": [
             [
@@ -117,24 +181,45 @@
       "workspace": null
     },
     {
-      "ix": 4,
+      "ix": 56,
       "entry": {
         "op": "Undo",
         "observed": null,
         "at": 1789877778594,
         "group": null,
         "before": {
-          "root": "05e13eb8551d4de9322e2886c596916c8d003351e0fda6666bc0adce317db680",
+          "root": "ce5407fe31abfb08c31ddc0b80a0acc9c7cc701f4a1cc6152bb47ba94bf1f53e",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "05e13eb8551d4de9322e2886c596916c8d003351e0fda6666bc0adce317db680"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "ce5407fe31abfb08c31ddc0b80a0acc9c7cc701f4a1cc6152bb47ba94bf1f53e"
           }
         },
         "after": {
-          "root": "e658b88991155b1d8085b68696d43f7e2f2c0d072508b018ce1a70e91cbcec6e",
+          "root": "fd2068f171f1b2d9ba312700f49dcb48c1e6af6f81465bbc4ed90be49e518579",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "e658b88991155b1d8085b68696d43f7e2f2c0d072508b018ce1a70e91cbcec6e"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "fd2068f171f1b2d9ba312700f49dcb48c1e6af6f81465bbc4ed90be49e518579"
           }
         }
       },
@@ -144,24 +229,46 @@
       "workspace": null
     },
     {
-      "ix": 5,
+      "ix": 57,
       "entry": {
         "op": "Absorb",
         "observed": null,
         "at": 1789877779251,
         "group": null,
         "before": {
-          "root": "e658b88991155b1d8085b68696d43f7e2f2c0d072508b018ce1a70e91cbcec6e",
+          "root": "fd2068f171f1b2d9ba312700f49dcb48c1e6af6f81465bbc4ed90be49e518579",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "e658b88991155b1d8085b68696d43f7e2f2c0d072508b018ce1a70e91cbcec6e"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "fd2068f171f1b2d9ba312700f49dcb48c1e6af6f81465bbc4ed90be49e518579"
           }
         },
         "after": {
-          "root": "9cdbed6cd7118a81496ea2c0cdd48fbe96666c340d82f2e646ce4caa44ba8acc",
+          "root": "e793680ebf62199d7680457f64430dc585ec6a45345f22a60dbdd17f0f33fa48",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "9cdbed6cd7118a81496ea2c0cdd48fbe96666c340d82f2e646ce4caa44ba8acc"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "e793680ebf62199d7680457f64430dc585ec6a45345f22a60dbdd17f0f33fa48"
           }
         }
       },
@@ -175,11 +282,11 @@
       "workspace": null
     },
     {
-      "ix": 6,
+      "ix": 58,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd06-32d7-7282-8cdd-c8f741d38678",
+            "id": "01a0bd1b-f1e7-7747-89c1-74b74ba34340",
             "definition": "\n\npub fn catalog(repo: &Repo) -> Result<Value> {\n    let store = repo.store();\n    let view = repo.view()?;\n    let mut full: BTreeSet<SnapshotId> = view.heads.values().copied().collect();\n    full.insert(view.root);\n\n    // Breadth-first over parents and predecessors from every head and the root.\n    let mut order: Vec<SnapshotId> = Vec::new();\n    let mut seen: BTreeSet<SnapshotId> = BTreeSet::new();\n    // Root first, then the other heads, then ancestors.\n    let mut queue: VecDeque<SnapshotId> = VecDeque::from([view.root]);\n    queue.extend(full.iter().copied().filter(|id| *id != view.root));\n    while let Some(id) = queue.pop_front() {\n        if !seen.insert(id) {\n            continue;\n        }\n        order.push(id);\n        if order.len() > full.len() + ANCESTOR_LIMIT {\n            break;\n        }\n        if let Ok(s) = store.get_snapshot(id) {\n            queue.extend(s.parents.iter().chain(s.predecessors.iter()).copied());\n        }\n    }\n\n    let mut snapshots = Vec::with_capacity(order.len());\n    for id in &order {\n        let s = store.get_snapshot(*id)?;\n        let entities: Vec<Value> = if full.contains(id) {\n            s.entities\n                .iter()\n                .map(|(eid, rec)| {\n                    let mut v = serde_json::to_value(rec).unwrap_or(Value::Null);\n                    if let Value::Object(m) = &mut v {\n                        m.insert(\"id\".into(), json!(eid));\n                        if let Some(text) = source(store, &s, *eid) {\n                            m.insert(\"source\".into(), Value::String(text));\n                        }\n                    }\n                    v\n                })\n                .collect()\n        } else {\n            Vec::new()\n        };\n        snapshots.push(json!({\n            \"id\": id,\n            \"change\": s.change,\n            \"message\": s.message,\n            \"parents\": s.parents,\n            \"entities\": entities,\n            \"conflicts\": s.conflicts,\n        }));\n    }\n\n    let ops = store.ops(OpIx(0), false)?;\n    let operations: Vec<Value> = ops.iter().map(|(ix, e)| operation(store, *ix, e)).collect();\n\n    // The review queue as the review rules define it: every edit-def, and every binding conflict\n    // in the current snapshot. (Changesets' own `queue` is not populated by any verb.)\n    let mut review: Vec<ReviewItem> = ops\n        .iter()\n        .filter_map(|(ix, e)| match &e.op {\n            Op::EditDef { intent, .. } => Some(ReviewItem::EditReview {\n                op: *ix,\n                declared: intent.clone(),\n                observed: e.observed,\n                ask_id: None,\n            }),\n            _ => None,\n        })\n        .collect();\n    let cur = repo.current()?;\n    review.extend(cur.conflicts.iter().filter(|c| matches!(c, Conflict::Binding { .. })).map(|c| ReviewItem::BindingConflict { conflict: c.clone() }));\n\n    let root = repo.root_dir();\n    let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| \"repo\".into());\n    let slug: String = name.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();\n    Ok(json!({\n        \"repositories\": [{\n            \"slug\": slug,\n            \"name\": name,\n            \"path\": root,\n            \"description\": format!(\"{} entities, {} operations, {} changes\", cur.entities.len(), ops.len(), view.heads.len()),\n            \"head\": view.root,\n            \"heads\": view.heads.values().collect::<Vec<_>>(),\n            \"snapshots\": snapshots,\n            \"operations\": operations,\n            \"review_queue\": review,\n        }]\n    }))\n}",
             "intent": "Feature"
           }
@@ -188,22 +295,44 @@
         "at": 1789877802432,
         "group": null,
         "before": {
-          "root": "9cdbed6cd7118a81496ea2c0cdd48fbe96666c340d82f2e646ce4caa44ba8acc",
+          "root": "e793680ebf62199d7680457f64430dc585ec6a45345f22a60dbdd17f0f33fa48",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "9cdbed6cd7118a81496ea2c0cdd48fbe96666c340d82f2e646ce4caa44ba8acc"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "e793680ebf62199d7680457f64430dc585ec6a45345f22a60dbdd17f0f33fa48"
           }
         },
         "after": {
-          "root": "d6af356704adab8d6c2343aa469b5a1c31e4a55c273f663d1191e21d1b516edd",
+          "root": "0a7e9a016f209ce4ab008e32d49feb73a362a4b96b498257939abafffce29ee3",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "d6af356704adab8d6c2343aa469b5a1c31e4a55c273f663d1191e21d1b516edd"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "0a7e9a016f209ce4ab008e32d49feb73a362a4b96b498257939abafffce29ee3"
           }
         }
       },
       "refs": {
-        "01a0bd06-32d7-7282-8cdd-c8f741d38678": {
+        "01a0bd1b-f1e7-7747-89c1-74b74ba34340": {
           "file": "crates/svc-repo/src/forge.rs",
           "chain": [
             [
@@ -213,16 +342,20 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-repo/src/forge.rs": {
+          "Text": "//! `svc forge export` (done-criterion 1): the catalog `crates/svc-forge` serves, produced\n//! from this store so the browser shows *this* repository rather than a fixture. The shape\n//! is `svc_forge::Catalog`'s serde form, written here as JSON so `svc-repo` needs no\n//! dependency on the web crate; operations, conflicts and review items are the `svc-core`\n//! types the forge deserialises. Heads and the root carry their entities; ancestors are\n//! listed bare so a long history on a large crate stays a small file. The forge reads the\n//! file, never the store, so it can never contend with a writer.\n\nuse std::collections::{BTreeSet, VecDeque};\nuse std::path::{Path, PathBuf};\n\nuse serde_json::{Value, json};\nuse svc_core::engine::render_entity;\nuse svc_core::{Conflict, EntityId, Error, Op, OpIx, OpLogEntry, RelPath, ReviewItem, Result, Snapshot, SnapshotId, Store};\n\nuse crate::history::{op_entity, touch, touches};\nuse crate::repo::Repo;\n\n/// How many ancestor snapshots to list beyond the heads and the root.\nconst ANCESTOR_LIMIT: usize = 200;\n\npub fn catalog(repo: &Repo) -> Result<Value> {\n    let store = repo.store();\n    let view = repo.view()?;\n    let mut full: BTreeSet<SnapshotId> = view.heads.values().copied().collect();\n    full.insert(view.root);\n\n    // Breadth-first over parents and predecessors from every head and the root.\n    let mut order: Vec<SnapshotId> = Vec::new();\n    let mut seen: BTreeSet<SnapshotId> = BTreeSet::new();\n    // Root first, then the other heads, then ancestors.\n    let mut queue: VecDeque<SnapshotId> = VecDeque::from([view.root]);\n    queue.extend(full.iter().copied().filter(|id| *id != view.root));\n    while let Some(id) = queue.pop_front() {\n        if !seen.insert(id) {\n            continue;\n        }\n        order.push(id);\n        if order.len() > full.len() + ANCESTOR_LIMIT {\n            break;\n        }\n        if let Ok(s) = store.get_snapshot(id) {\n            queue.extend(s.parents.iter().chain(s.predecessors.iter()).copied());\n        }\n    }\n\n    let mut snapshots = Vec::with_capacity(order.len());\n    for id in &order {\n        let s = store.get_snapshot(*id)?;\n        let entities: Vec<Value> = if full.contains(id) {\n            s.entities\n                .iter()\n                .map(|(eid, rec)| {\n                    let mut v = serde_json::to_value(rec).unwrap_or(Value::Null);\n                    if let Value::Object(m) = &mut v {\n                        m.insert(\"id\".into(), json!(eid));\n                        if let Some(text) = source(store, &s, *eid) {\n                            m.insert(\"source\".into(), Value::String(text));\n                        }\n                    }\n                    v\n                })\n                .collect()\n        } else {\n            Vec::new()\n        };\n        snapshots.push(json!({\n            \"id\": id,\n            \"change\": s.change,\n            \"message\": s.message,\n            \"parents\": s.parents,\n            \"entities\": entities,\n            \"conflicts\": s.conflicts,\n        }));\n    }\n\n    let ops = store.ops(OpIx(0), false)?;\n    let operations: Vec<Value> = ops.iter().map(|(ix, e)| operation(store, *ix, e)).collect();\n\n    // The review queue as the review rules define it: every edit-def, and every binding conflict\n    // in the current snapshot. (Changesets' own `queue` is not populated by any verb.)\n    let mut review: Vec<ReviewItem> = ops\n        .iter()\n        .filter_map(|(ix, e)| match &e.op {\n            Op::EditDef { intent, .. } => Some(ReviewItem::EditReview {\n                op: *ix,\n                declared: intent.clone(),\n                observed: e.observed,\n                ask_id: None,\n            }),\n            _ => None,\n        })\n        .collect();\n    let cur = repo.current()?;\n    review.extend(cur.conflicts.iter().filter(|c| matches!(c, Conflict::Binding { .. })).map(|c| ReviewItem::BindingConflict { conflict: c.clone() }));\n\n    let root = repo.root_dir();\n    let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| \"repo\".into());\n    let slug: String = name.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();\n    Ok(json!({\n        \"repositories\": [{\n            \"slug\": slug,\n            \"name\": name,\n            \"path\": root,\n            \"description\": format!(\"{} entities, {} operations, {} changes\", cur.entities.len(), ops.len(), view.heads.len()),\n            \"head\": view.root,\n            \"heads\": view.heads.values().collect::<Vec<_>>(),\n            \"snapshots\": snapshots,\n            \"operations\": operations,\n            \"review_queue\": review,\n        }]\n    }))\n}\n\n/// The entity's rendered text, for the browser's entity and change pages.\nfn source(store: &dyn Store, snap: &Snapshot, id: EntityId) -> Option<String> {\n    render_entity(snap, store, id, false)\n        .ok()\n        .map(|(bytes, _)| String::from_utf8_lossy(&bytes).into_owned())\n}\n\n/// The raw log entry plus what the browser needs beside it: `ix`, the after-root's `change`,\n/// and for an op about one entity a `subject` with its names, kind, file, both sources and\n/// the touch — so a change page can show a rename or edit without opening the store.\nfn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry) -> Value {\n    let mut v = serde_json::to_value(e).unwrap_or(Value::Null);\n    let Value::Object(m) = &mut v else { return v };\n    m.insert(\"ix\".into(), json!(ix));\n    let after = store.get_snapshot(e.after.root).ok();\n    if let Some(after) = &after {\n        m.insert(\"change\".into(), json!(after.change));\n    }\n    if let Some(name) = e.group.and_then(|g| store.get_changeset(g).ok()).map(|cs| cs.name) {\n        m.insert(\"group_name\".into(), json!(name));\n    }\n    // Every entity the op touched and every opaque file it changed, so an absorb or a\n    // merge — the ops that carry other people's work — has names and paths too.\n    let before = store.get_snapshot(e.before.root).ok();\n    if let (Some(b), Some(a)) = (&before, &after) {\n        let touched = touches(b, a, e.observed);\n        if !touched.is_empty() {\n            m.insert(\"subjects\".into(), json!(touched));\n        }\n        let changed: Vec<&RelPath> = a\n            .files\n            .iter()\n            .filter(|(p, rec)| b.files.get(*p) != Some(rec))\n            .map(|(p, _)| p)\n            .chain(b.files.keys().filter(|p| !a.files.contains_key(*p)))\n            .collect();\n        if !changed.is_empty() {\n            m.insert(\"files\".into(), json!(changed));\n        }\n    }\n    if let (Some(id), Some(after)) = (op_entity(&e.op), &after) {\n        let prev = before.as_ref().and_then(|b| b.entities.get(&id));\n        let next = after.entities.get(&id);\n        let shown = next.or(prev);\n        // Absent rather than null: the browser's fields default when a key is missing.\n        let mut subject = serde_json::Map::new();\n        subject.insert(\"id\".into(), json!(id));\n        let mut put = |key: &str, value: Option<Value>| {\n            if let Some(v) = value {\n                subject.insert(key.into(), v);\n            }\n        };\n        put(\"before_name\", prev.map(|r| json!(r.name)));\n        put(\"after_name\", next.map(|r| json!(r.name)));\n        put(\"kind\", shown.map(|r| json!(r.kind)));\n        put(\"file\", shown.map(|r| json!(r.file)));\n        put(\"before_source\", before.as_ref().and_then(|b| source(store, b, id)).map(Value::String));\n        put(\"after_source\", source(store, after, id).map(Value::String));\n        put(\"touch\", touch(prev, next, e.observed).map(|t| json!(t)));\n        m.insert(\"subject\".into(), Value::Object(subject));\n    }\n    v\n}\n\n/// Write the catalog; default `.svc/forge.json` under the repository root.\npub fn export(repo: &Repo, out: Option<&Path>) -> Result<PathBuf> {\n    let path = out.map(Path::to_path_buf).unwrap_or_else(|| repo.root_dir().join(\".svc/forge.json\"));\n    let text = serde_json::to_string_pretty(&catalog(repo)?).map_err(|e| Error::Other(e.to_string()))?;\n    if let Some(dir) = path.parent() {\n        std::fs::create_dir_all(dir).map_err(|e| Error::Other(e.to_string()))?;\n    }\n    // Atomic replace: the forge may be reading the old file.\n    let tmp = path.with_extension(\"json.tmp\");\n    std::fs::write(&tmp, text).map_err(|e| Error::Other(e.to_string()))?;\n    std::fs::rename(&tmp, &path).map_err(|e| Error::Other(e.to_string()))?;\n    Ok(path)\n}\n"
+        }
+      },
       "after_tree": "e6daf25eacaaaccacb93e5b9852912bb5eaafe45c8eb179f9bb54b08d9a91f0a",
       "workspace": null
     },
     {
-      "ix": 7,
+      "ix": 59,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd06-32d6-75d3-a2c5-db67647a4aa8",
+            "id": "01a0bd1c-156a-75ae-8891-2a9359b79b1b",
             "definition": "\n\n#[derive(Clone, Debug, Serialize, Deserialize)]\npub struct Bundle {\n    /// blake3 of the rendered tree the first entry starts from; an import checks its own.\n    pub base_tree: String,\n    pub entries: Vec<BundleEntry>,\n    /// The changesets the entries belong to, so a replayed op keeps its group's name.\n    #[serde(default)]\n    pub changesets: Vec<ChangeSet>,\n}",
             "intent": "Feature"
           }
@@ -231,22 +364,44 @@
         "at": 1789877833345,
         "group": null,
         "before": {
-          "root": "d6af356704adab8d6c2343aa469b5a1c31e4a55c273f663d1191e21d1b516edd",
+          "root": "0a7e9a016f209ce4ab008e32d49feb73a362a4b96b498257939abafffce29ee3",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "d6af356704adab8d6c2343aa469b5a1c31e4a55c273f663d1191e21d1b516edd"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "0a7e9a016f209ce4ab008e32d49feb73a362a4b96b498257939abafffce29ee3"
           }
         },
         "after": {
-          "root": "157e38aa0a1debc57705c52b99c697a94e243711dce28f4344adce0d2365ced7",
+          "root": "b033cac10edfe76be64d23dd3e24b06d42c918cad6b7cb29474860ab7d820917",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "157e38aa0a1debc57705c52b99c697a94e243711dce28f4344adce0d2365ced7"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "b033cac10edfe76be64d23dd3e24b06d42c918cad6b7cb29474860ab7d820917"
           }
         }
       },
       "refs": {
-        "01a0bd06-32d6-75d3-a2c5-db67647a4aa8": {
+        "01a0bd1c-156a-75ae-8891-2a9359b79b1b": {
           "file": "crates/svc-repo/src/bundle.rs",
           "chain": [
             [
@@ -256,16 +411,20 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-repo/src/bundle.rs": {
+          "Text": "//! A history bundle: the op log of one store, written so another checkout of the same tree\n//! can replay it into its own store. Typed ops carry themselves; what they cannot carry is\n//! resolved on import — entity ids by their path (file, then kind/name from the root\n//! down), change ids by the order they are minted — and a hand edit (`Absorb`) carries the\n//! files it changed. Every entry names the hash of the tree it left behind, so an import\n//! knows at which op, if any, it stopped reproducing the recorded history.\n//!\n//! `svc history export` writes one; `svc history import` replays one; `demo/history/` keeps\n//! the bundles of this repository's own svc-made changes.\n\nuse std::collections::BTreeMap;\n\nuse serde::{Deserialize, Serialize};\nuse svc_core::engine::{add_def_at, delete, edit_def, inline, move_def, relocate, render, rename};\nuse svc_core::{\n    ChangeId, EntityId, Error, Kind, Op, OpIx, OpLogEntry, RelPath, Result, Snapshot, SnapshotId,\n};\n\nuse crate::history::{self, op_entity};\nuse crate::merge;\nuse crate::repo::{Provenance, Repo};\n\n/// Where an entity sits: its file, then kind and name from the outermost parent down to\n/// itself. The same tree ingested twice gives every entity a fresh id; the path is what\n/// survives.\n#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\npub struct EntityPath {\n    pub file: RelPath,\n    pub chain: Vec<(Kind, String)>,\n}\n\n/// A file a hand edit left: its new bytes (text when UTF-8), or removed.\n#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\npub enum FileBody {\n    Text(String),\n    Bytes(Vec<u8>),\n    Removed,\n}\n\n#[derive(Clone, Debug, Serialize, Deserialize)]\npub struct BundleEntry {\n    pub ix: OpIx,\n    pub entry: OpLogEntry,\n    /// Every entity id the op names, by path in the tree the op started from (the op's own\n    /// new entity, for add-def, is absent: its id is minted by the op).\n    #[serde(default)]\n    pub refs: BTreeMap<EntityId, EntityPath>,\n    /// For `Absorb`: the files the hand edit changed.\n    #[serde(default)]\n    pub files: BTreeMap<RelPath, FileBody>,\n    /// blake3 over the rendered tree after this op (sorted path, bytes).\n    pub after_tree: String,\n    /// The checkout that made it (`None` = the default one).\n    #[serde(default)]\n    pub workspace: Option<String>,\n}\n\n#[derive(Clone, Debug, Serialize, Deserialize)]\npub struct Bundle {\n    /// blake3 of the rendered tree the first entry starts from; an import checks its own.\n    pub base_tree: String,\n    pub entries: Vec<BundleEntry>,\n    /// The changesets the entries belong to, so a replayed op keeps its group's name.\n    #[serde(default)]\n    pub changesets: Vec<ChangeSet>,\n}\n\n#[derive(Clone, Debug, Serialize)]\npub struct ImportReport {\n    pub applied: usize,\n    /// First entry whose tree after import differs from the recorded hash, if any.\n    pub diverged_at: Option<OpIx>,\n}\n\nfn tree_hash(files: &BTreeMap<RelPath, Vec<u8>>) -> String {\n    let mut h = blake3::Hasher::new();\n    for (path, bytes) in files {\n        h.update(path.as_str().as_bytes());\n        h.update(&[0]);\n        h.update(&(bytes.len() as u64).to_le_bytes());\n        h.update(bytes);\n    }\n    h.finalize().to_hex().to_string()\n}\n\nfn rendered(repo: &Repo, snap: &Snapshot) -> Result<BTreeMap<RelPath, Vec<u8>>> {\n    Ok(render(snap, repo.store(), repo.langs(), false)?.files)\n}\n\nfn path_of(snap: &Snapshot, id: EntityId) -> Option<EntityPath> {\n    let rec = snap.entities.get(&id)?;\n    let mut chain = vec![(rec.kind, rec.name.clone())];\n    let mut parent = rec.parent;\n    while let Some(p) = parent {\n        let pr = snap.entities.get(&p)?;\n        chain.push((pr.kind, pr.name.clone()));\n        parent = pr.parent;\n    }\n    chain.reverse();\n    Some(EntityPath { file: rec.file.clone(), chain })\n}\n\nfn find_by_path(snap: &Snapshot, path: &EntityPath) -> Option<EntityId> {\n    snap.entities\n        .iter()\n        .filter(|(_, r)| r.file == path.file)\n        .find(|(id, _)| path_of(snap, **id).as_ref() == Some(path))\n        .map(|(id, _)| *id)\n}\n\n/// Every entity id an op names besides one it mints itself.\nfn named_ids(op: &Op) -> Vec<EntityId> {\n    match op {\n        Op::Move { id, parent, .. } => std::iter::once(*id).chain(*parent).collect(),\n        Op::Extract { id, new_parent, .. } => std::iter::once(*id).chain(*new_parent).collect(),\n        Op::AddDef { parent, .. } => parent.iter().copied().collect(),\n        _ => op_entity(op).into_iter().collect(),\n    }\n}\n\n/// The op log from `since` on, with what an import needs beside each entry.\npub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {\n    let store = repo.store();\n    let ops = store.ops(since, false)?;\n    let Some((_, first)) = ops.first() else {\n        return Err(Error::Other(format!(\"no ops at or after {}\", since.0)));\n    };\n    let base = store.get_snapshot(first.before.root)?;\n    let base_tree = tree_hash(&rendered(repo, &base)?);\n    let mut entries = Vec::with_capacity(ops.len());\n    for (ix, e) in &ops {\n        let before = store.get_snapshot(e.before.root)?;\n        let after = store.get_snapshot(e.after.root)?;\n        let after_files = rendered(repo, &after)?;\n        let refs = named_ids(&e.op)\n            .into_iter()\n            .filter_map(|id| path_of(&before, id).map(|p| (id, p)))\n            .collect();\n        let mut files = BTreeMap::new();\n        if matches!(e.op, Op::Absorb) {\n            let before_files = rendered(repo, &before)?;\n            for (path, bytes) in &after_files {\n                if before_files.get(path) != Some(bytes) {\n                    let body = match String::from_utf8(bytes.clone()) {\n                        Ok(text) => FileBody::Text(text),\n                        Err(_) => FileBody::Bytes(bytes.clone()),\n                    };\n                    files.insert(path.clone(), body);\n                }\n            }\n            for path in before_files.keys() {\n                if !after_files.contains_key(path) {\n                    files.insert(path.clone(), FileBody::Removed);\n                }\n            }\n        }\n        entries.push(BundleEntry {\n            ix: *ix,\n            entry: e.clone(),\n            refs,\n            files,\n            after_tree: tree_hash(&after_files),\n            workspace: repo.redb().op_workspace(*ix)?.filter(|w| !w.is_empty()),\n        });\n    }\n    Ok(Bundle { base_tree, entries })\n}\n\nstruct Import<'a> {\n    repo: &'a Repo,\n    /// Recorded change id → the one minted here.\n    changes: BTreeMap<ChangeId, ChangeId>,\n    /// Recorded snapshot id → the one this import produced for it.\n    snaps: BTreeMap<SnapshotId, SnapshotId>,\n}\n\nimpl Import<'_> {\n    fn change(&self, c: ChangeId) -> ChangeId {\n        *self.changes.get(&c).unwrap_or(&c)\n    }\n\n    fn entity(&self, cur: &Snapshot, b: &BundleEntry, id: EntityId) -> Result<EntityId> {\n        let path = b.refs.get(&id).ok_or_else(|| {\n            Error::Other(format!(\"op {}: no path recorded for entity {}\", b.ix.0, id.short()))\n        })?;\n        find_by_path(cur, path).ok_or_else(|| {\n            Error::Other(format!(\n                \"op {}: no entity at {} {} in this tree\",\n                b.ix.0,\n                path.file,\n                path.chain.iter().map(|(k, n)| format!(\"{k:?} {n}\")).collect::<Vec<_>>().join(\" / \")\n            ))\n        })\n    }\n\n    fn apply(&mut self, b: &BundleEntry) -> Result<()> {\n        let repo = self.repo;\n        let e = &b.entry;\n        // A `checkout` between ops is not an op: the entry names the root it started from,\n        // and if that is not where the last op left us, switch there first.\n        if let Some(from) = self.snaps.get(&e.before.root).copied() {\n            if from != repo.store().root()? {\n                history::checkout(repo, from)?;\n            }\n        }\n        // Same-snapshot rewrites: the op with its ids mapped, then the engine call the verb\n        // itself makes.\n        let cur = repo.current()?;\n        match &e.op {\n            Op::Rename { id, new } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::Rename { id, new: new.clone() };\n                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, rename(cur, id, new)?))?;\n            }\n            Op::Move { id, parent, ordinal } => {\n                let id = self.entity(&cur, b, *id)?;\n                let parent = parent.map(|p| self.entity(&cur, b, p)).transpose()?;\n                let op = Op::Move { id, parent, ordinal: *ordinal };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    repo.amend(cur, move_def(repo.store(), repo.langs(), cur, id, parent, *ordinal)?)\n                })?;\n            }\n            Op::Relocate { id, file, ordinal } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::Relocate { id, file: file.clone(), ordinal: *ordinal };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    repo.amend(cur, relocate(cur, repo.store(), id, file.clone(), *ordinal)?)\n                })?;\n            }\n            Op::Extract { id, new_parent, ordinal } => {\n                let id = self.entity(&cur, b, *id)?;\n                let new_parent = new_parent.map(|p| self.entity(&cur, b, p)).transpose()?;\n                let op = Op::Extract { id, new_parent, ordinal: *ordinal };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    repo.amend(cur, move_def(repo.store(), repo.langs(), cur, id, new_parent, Some(*ordinal))?)\n                })?;\n            }\n            Op::Inline { id } => {\n                let id = self.entity(&cur, b, *id)?;\n                repo.mutate(Op::Inline { id }, e.observed, |repo, cur| {\n                    repo.amend(cur, inline(repo.store(), repo.langs(), cur, id)?)\n                })?;\n            }\n            Op::AddDef { id, parent, ordinal, definition, intent, file } => {\n                let parent = parent.map(|p| self.entity(&cur, b, p)).transpose()?;\n                let (id, ordinal, intent, file) = (*id, *ordinal, intent.clone(), file.clone());\n                let op = Op::AddDef {\n                    id,\n                    parent,\n                    ordinal,\n                    definition: definition.clone(),\n                    intent: intent.clone(),\n                    file: file.clone(),\n                };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    let next = add_def_at(\n                        repo.store(),\n                        repo.langs(),\n                        cur,\n                        id,\n                        parent,\n                        file.clone(),\n                        ordinal,\n                        definition.as_bytes(),\n                        intent.clone(),\n                    )?;\n                    repo.amend(cur, next)\n                })?;\n            }\n            Op::Delete { id, intent } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::Delete { id, intent: intent.clone() };\n                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, delete(cur, repo.store(), id)?))?;\n            }\n            Op::EditDef { id, definition, intent } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::EditDef { id, definition: definition.clone(), intent: intent.clone() };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    let (next, _) = edit_def(repo.store(), repo.langs(), cur, id, definition.as_bytes())?;\n                    repo.amend(cur, next)\n                })?;\n            }\n            Op::New { change } => {\n                let out = history::new(repo)?;\n                self.changes.insert(*change, out.change);\n            }\n            Op::Describe { msg } => {\n                history::describe(repo, msg)?;\n            }\n            Op::Branch { name } => {\n                let out = history::branch(repo, name)?;\n                if let Some(recorded) = recorded_change(e) {\n                    self.changes.insert(recorded, out.change);\n                }\n            }\n            Op::Merge { other } => {\n                let other = self.change(*other);\n                let out = merge::merge(repo, &other.to_string())?;\n                if let Some(recorded) = recorded_change(e) {\n                    self.changes.insert(recorded, out.change);\n                }\n            }\n            // Undo and restore both set a recorded view; restore the mapped ids.\n            Op::Undo | Op::Restore { .. } => {\n                let mut view = repo.view()?;\n                if let Some(root) = self.snaps.get(&e.after.root) {\n                    view.root = *root;\n                }\n                for (change, snap) in &e.after.heads {\n                    if let Some(mapped) = self.snaps.get(snap) {\n                        view.heads.insert(self.change(*change), *mapped);\n                    }\n                }\n                repo.restore_view(&view, e.op.clone())?;\n            }\n            Op::Resolve { conflict, take } => {\n                merge::resolve(repo, *conflict as usize, *take)?;\n            }\n            Op::Absorb => {\n                let root = repo.root_dir();\n                for (path, body) in &b.files {\n                    let at = root.join(path.as_str());\n                    match body {\n                        FileBody::Removed => {\n                            let _ = std::fs::remove_file(&at);\n                        }\n                        FileBody::Text(t) => write_file(&at, t.as_bytes())?,\n                        FileBody::Bytes(v) => write_file(&at, v)?,\n                    }\n                }\n                repo.absorb()?;\n            }\n        }\n        Ok(())\n    }\n}\n\n/// The change an op minted: the head that is the op's after root.\nfn recorded_change(e: &OpLogEntry) -> Option<ChangeId> {\n    e.after.heads.iter().find(|(_, s)| **s == e.after.root).map(|(c, _)| *c)\n}\n\nfn write_file(at: &std::path::Path, bytes: &[u8]) -> Result<()> {\n    if let Some(dir) = at.parent() {\n        std::fs::create_dir_all(dir).map_err(Error::backend)?;\n    }\n    std::fs::write(at, bytes).map_err(Error::backend)\n}\n\n/// Replay `bundle` into `repo`, whose current tree must be the bundle's base. Stops at the\n/// first entry that cannot be applied; reports the first whose result differs from the record.\npub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {\n    let have = tree_hash(&rendered(repo, &repo.current()?)?);\n    if have != bundle.base_tree {\n        return Err(Error::Other(format!(\n            \"this tree is not the bundle's base (tree {}…, bundle starts from {}…)\",\n            &have[..12],\n            &bundle.base_tree[..12]\n        )));\n    }\n    let mut im = Import { repo, changes: BTreeMap::new(), snaps: BTreeMap::new() };\n    if let Some(first) = bundle.entries.first() {\n        im.snaps.insert(first.entry.before.root, repo.store().root()?);\n    }\n    let mut diverged_at = None;\n    let mut applied = 0;\n    for b in &bundle.entries {\n        // The op line keeps its recorded time, changeset and checkout.\n        let p = Provenance { at: b.entry.at, group: b.entry.group, workspace: b.workspace.clone() };\n        repo.with_provenance(p, || im.apply(b))?;\n        applied += 1;\n        im.snaps.insert(b.entry.after.root, repo.store().root()?);\n        if diverged_at.is_none() {\n            let got = tree_hash(&rendered(repo, &repo.current()?)?);\n            if got != b.after_tree {\n                diverged_at = Some(b.ix);\n            }\n        }\n    }\n    Ok(ImportReport { applied, diverged_at })\n}\n"
+        }
+      },
       "after_tree": "2b33faa4c5ff3a51f48ed037cf36f53fab60123c9598565e3e2f1bad2c19cb1b",
       "workspace": null
     },
     {
-      "ix": 8,
+      "ix": 60,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd06-32d6-75d3-a2c5-db6ed058aa1f",
+            "id": "01a0bd1c-156a-75ae-8891-2a9a211f6f71",
             "definition": "\n\n/// The op log from `since` on, with what an import needs beside each entry.\npub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {\n    let store = repo.store();\n    let ops = store.ops(since, false)?;\n    let Some((_, first)) = ops.first() else {\n        return Err(Error::Other(format!(\"no ops at or after {}\", since.0)));\n    };\n    let base = store.get_snapshot(first.before.root)?;\n    let base_tree = tree_hash(&rendered(repo, &base)?);\n    let mut entries = Vec::with_capacity(ops.len());\n    for (ix, e) in &ops {\n        let before = store.get_snapshot(e.before.root)?;\n        let after = store.get_snapshot(e.after.root)?;\n        let after_files = rendered(repo, &after)?;\n        let refs = named_ids(&e.op)\n            .into_iter()\n            .filter_map(|id| path_of(&before, id).map(|p| (id, p)))\n            .collect();\n        let mut files = BTreeMap::new();\n        if matches!(e.op, Op::Absorb) {\n            let before_files = rendered(repo, &before)?;\n            for (path, bytes) in &after_files {\n                if before_files.get(path) != Some(bytes) {\n                    let body = match String::from_utf8(bytes.clone()) {\n                        Ok(text) => FileBody::Text(text),\n                        Err(_) => FileBody::Bytes(bytes.clone()),\n                    };\n                    files.insert(path.clone(), body);\n                }\n            }\n            for path in before_files.keys() {\n                if !after_files.contains_key(path) {\n                    files.insert(path.clone(), FileBody::Removed);\n                }\n            }\n        }\n        entries.push(BundleEntry {\n            ix: *ix,\n            entry: e.clone(),\n            refs,\n            files,\n            after_tree: tree_hash(&after_files),\n            workspace: repo.redb().op_workspace(*ix)?.filter(|w| !w.is_empty()),\n        });\n    }\n    let mut changesets = Vec::new();\n    for g in entries.iter().filter_map(|b| b.entry.group) {\n        if !changesets.iter().any(|cs: &ChangeSet| cs.id == g)\n            && let Ok(cs) = store.get_changeset(g)\n        {\n            changesets.push(cs);\n        }\n    }\n    Ok(Bundle { base_tree, entries, changesets })\n}",
             "intent": "Feature"
           }
@@ -274,22 +433,44 @@
         "at": 1789877834043,
         "group": null,
         "before": {
-          "root": "157e38aa0a1debc57705c52b99c697a94e243711dce28f4344adce0d2365ced7",
+          "root": "b033cac10edfe76be64d23dd3e24b06d42c918cad6b7cb29474860ab7d820917",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "157e38aa0a1debc57705c52b99c697a94e243711dce28f4344adce0d2365ced7"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "b033cac10edfe76be64d23dd3e24b06d42c918cad6b7cb29474860ab7d820917"
           }
         },
         "after": {
-          "root": "ae87fc61ab7716c3018bfa690d5a3cac9393998c471ab5572375e690051fc979",
+          "root": "5655941da567d6ada3a012e93985775c7c56180f865775fc89349ac6fac7f996",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "ae87fc61ab7716c3018bfa690d5a3cac9393998c471ab5572375e690051fc979"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "5655941da567d6ada3a012e93985775c7c56180f865775fc89349ac6fac7f996"
           }
         }
       },
       "refs": {
-        "01a0bd06-32d6-75d3-a2c5-db6ed058aa1f": {
+        "01a0bd1c-156a-75ae-8891-2a9a211f6f71": {
           "file": "crates/svc-repo/src/bundle.rs",
           "chain": [
             [
@@ -299,16 +480,20 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-repo/src/bundle.rs": {
+          "Text": "//! A history bundle: the op log of one store, written so another checkout of the same tree\n//! can replay it into its own store. Typed ops carry themselves; what they cannot carry is\n//! resolved on import — entity ids by their path (file, then kind/name from the root\n//! down), change ids by the order they are minted — and a hand edit (`Absorb`) carries the\n//! files it changed. Every entry names the hash of the tree it left behind, so an import\n//! knows at which op, if any, it stopped reproducing the recorded history.\n//!\n//! `svc history export` writes one; `svc history import` replays one; `demo/history/` keeps\n//! the bundles of this repository's own svc-made changes.\n\nuse std::collections::BTreeMap;\n\nuse serde::{Deserialize, Serialize};\nuse svc_core::engine::{add_def_at, delete, edit_def, inline, move_def, relocate, render, rename};\nuse svc_core::{\n    ChangeId, EntityId, Error, Kind, Op, OpIx, OpLogEntry, RelPath, Result, Snapshot, SnapshotId,\n};\n\nuse crate::history::{self, op_entity};\nuse crate::merge;\nuse crate::repo::{Provenance, Repo};\n\n/// Where an entity sits: its file, then kind and name from the outermost parent down to\n/// itself. The same tree ingested twice gives every entity a fresh id; the path is what\n/// survives.\n#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\npub struct EntityPath {\n    pub file: RelPath,\n    pub chain: Vec<(Kind, String)>,\n}\n\n/// A file a hand edit left: its new bytes (text when UTF-8), or removed.\n#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\npub enum FileBody {\n    Text(String),\n    Bytes(Vec<u8>),\n    Removed,\n}\n\n#[derive(Clone, Debug, Serialize, Deserialize)]\npub struct BundleEntry {\n    pub ix: OpIx,\n    pub entry: OpLogEntry,\n    /// Every entity id the op names, by path in the tree the op started from (the op's own\n    /// new entity, for add-def, is absent: its id is minted by the op).\n    #[serde(default)]\n    pub refs: BTreeMap<EntityId, EntityPath>,\n    /// For `Absorb`: the files the hand edit changed.\n    #[serde(default)]\n    pub files: BTreeMap<RelPath, FileBody>,\n    /// blake3 over the rendered tree after this op (sorted path, bytes).\n    pub after_tree: String,\n    /// The checkout that made it (`None` = the default one).\n    #[serde(default)]\n    pub workspace: Option<String>,\n}\n\n#[derive(Clone, Debug, Serialize, Deserialize)]\npub struct Bundle {\n    /// blake3 of the rendered tree the first entry starts from; an import checks its own.\n    pub base_tree: String,\n    pub entries: Vec<BundleEntry>,\n    /// The changesets the entries belong to, so a replayed op keeps its group's name.\n    #[serde(default)]\n    pub changesets: Vec<ChangeSet>,\n}\n\n#[derive(Clone, Debug, Serialize)]\npub struct ImportReport {\n    pub applied: usize,\n    /// First entry whose tree after import differs from the recorded hash, if any.\n    pub diverged_at: Option<OpIx>,\n}\n\nfn tree_hash(files: &BTreeMap<RelPath, Vec<u8>>) -> String {\n    let mut h = blake3::Hasher::new();\n    for (path, bytes) in files {\n        h.update(path.as_str().as_bytes());\n        h.update(&[0]);\n        h.update(&(bytes.len() as u64).to_le_bytes());\n        h.update(bytes);\n    }\n    h.finalize().to_hex().to_string()\n}\n\nfn rendered(repo: &Repo, snap: &Snapshot) -> Result<BTreeMap<RelPath, Vec<u8>>> {\n    Ok(render(snap, repo.store(), repo.langs(), false)?.files)\n}\n\nfn path_of(snap: &Snapshot, id: EntityId) -> Option<EntityPath> {\n    let rec = snap.entities.get(&id)?;\n    let mut chain = vec![(rec.kind, rec.name.clone())];\n    let mut parent = rec.parent;\n    while let Some(p) = parent {\n        let pr = snap.entities.get(&p)?;\n        chain.push((pr.kind, pr.name.clone()));\n        parent = pr.parent;\n    }\n    chain.reverse();\n    Some(EntityPath { file: rec.file.clone(), chain })\n}\n\nfn find_by_path(snap: &Snapshot, path: &EntityPath) -> Option<EntityId> {\n    snap.entities\n        .iter()\n        .filter(|(_, r)| r.file == path.file)\n        .find(|(id, _)| path_of(snap, **id).as_ref() == Some(path))\n        .map(|(id, _)| *id)\n}\n\n/// Every entity id an op names besides one it mints itself.\nfn named_ids(op: &Op) -> Vec<EntityId> {\n    match op {\n        Op::Move { id, parent, .. } => std::iter::once(*id).chain(*parent).collect(),\n        Op::Extract { id, new_parent, .. } => std::iter::once(*id).chain(*new_parent).collect(),\n        Op::AddDef { parent, .. } => parent.iter().copied().collect(),\n        _ => op_entity(op).into_iter().collect(),\n    }\n}\n\n/// The op log from `since` on, with what an import needs beside each entry.\npub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {\n    let store = repo.store();\n    let ops = store.ops(since, false)?;\n    let Some((_, first)) = ops.first() else {\n        return Err(Error::Other(format!(\"no ops at or after {}\", since.0)));\n    };\n    let base = store.get_snapshot(first.before.root)?;\n    let base_tree = tree_hash(&rendered(repo, &base)?);\n    let mut entries = Vec::with_capacity(ops.len());\n    for (ix, e) in &ops {\n        let before = store.get_snapshot(e.before.root)?;\n        let after = store.get_snapshot(e.after.root)?;\n        let after_files = rendered(repo, &after)?;\n        let refs = named_ids(&e.op)\n            .into_iter()\n            .filter_map(|id| path_of(&before, id).map(|p| (id, p)))\n            .collect();\n        let mut files = BTreeMap::new();\n        if matches!(e.op, Op::Absorb) {\n            let before_files = rendered(repo, &before)?;\n            for (path, bytes) in &after_files {\n                if before_files.get(path) != Some(bytes) {\n                    let body = match String::from_utf8(bytes.clone()) {\n                        Ok(text) => FileBody::Text(text),\n                        Err(_) => FileBody::Bytes(bytes.clone()),\n                    };\n                    files.insert(path.clone(), body);\n                }\n            }\n            for path in before_files.keys() {\n                if !after_files.contains_key(path) {\n                    files.insert(path.clone(), FileBody::Removed);\n                }\n            }\n        }\n        entries.push(BundleEntry {\n            ix: *ix,\n            entry: e.clone(),\n            refs,\n            files,\n            after_tree: tree_hash(&after_files),\n            workspace: repo.redb().op_workspace(*ix)?.filter(|w| !w.is_empty()),\n        });\n    }\n    let mut changesets = Vec::new();\n    for g in entries.iter().filter_map(|b| b.entry.group) {\n        if !changesets.iter().any(|cs: &ChangeSet| cs.id == g)\n            && let Ok(cs) = store.get_changeset(g)\n        {\n            changesets.push(cs);\n        }\n    }\n    Ok(Bundle { base_tree, entries, changesets })\n}\n\nstruct Import<'a> {\n    repo: &'a Repo,\n    /// Recorded change id → the one minted here.\n    changes: BTreeMap<ChangeId, ChangeId>,\n    /// Recorded snapshot id → the one this import produced for it.\n    snaps: BTreeMap<SnapshotId, SnapshotId>,\n}\n\nimpl Import<'_> {\n    fn change(&self, c: ChangeId) -> ChangeId {\n        *self.changes.get(&c).unwrap_or(&c)\n    }\n\n    fn entity(&self, cur: &Snapshot, b: &BundleEntry, id: EntityId) -> Result<EntityId> {\n        let path = b.refs.get(&id).ok_or_else(|| {\n            Error::Other(format!(\"op {}: no path recorded for entity {}\", b.ix.0, id.short()))\n        })?;\n        find_by_path(cur, path).ok_or_else(|| {\n            Error::Other(format!(\n                \"op {}: no entity at {} {} in this tree\",\n                b.ix.0,\n                path.file,\n                path.chain.iter().map(|(k, n)| format!(\"{k:?} {n}\")).collect::<Vec<_>>().join(\" / \")\n            ))\n        })\n    }\n\n    fn apply(&mut self, b: &BundleEntry) -> Result<()> {\n        let repo = self.repo;\n        let e = &b.entry;\n        // A `checkout` between ops is not an op: the entry names the root it started from,\n        // and if that is not where the last op left us, switch there first.\n        if let Some(from) = self.snaps.get(&e.before.root).copied() {\n            if from != repo.store().root()? {\n                history::checkout(repo, from)?;\n            }\n        }\n        // Same-snapshot rewrites: the op with its ids mapped, then the engine call the verb\n        // itself makes.\n        let cur = repo.current()?;\n        match &e.op {\n            Op::Rename { id, new } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::Rename { id, new: new.clone() };\n                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, rename(cur, id, new)?))?;\n            }\n            Op::Move { id, parent, ordinal } => {\n                let id = self.entity(&cur, b, *id)?;\n                let parent = parent.map(|p| self.entity(&cur, b, p)).transpose()?;\n                let op = Op::Move { id, parent, ordinal: *ordinal };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    repo.amend(cur, move_def(repo.store(), repo.langs(), cur, id, parent, *ordinal)?)\n                })?;\n            }\n            Op::Relocate { id, file, ordinal } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::Relocate { id, file: file.clone(), ordinal: *ordinal };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    repo.amend(cur, relocate(cur, repo.store(), id, file.clone(), *ordinal)?)\n                })?;\n            }\n            Op::Extract { id, new_parent, ordinal } => {\n                let id = self.entity(&cur, b, *id)?;\n                let new_parent = new_parent.map(|p| self.entity(&cur, b, p)).transpose()?;\n                let op = Op::Extract { id, new_parent, ordinal: *ordinal };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    repo.amend(cur, move_def(repo.store(), repo.langs(), cur, id, new_parent, Some(*ordinal))?)\n                })?;\n            }\n            Op::Inline { id } => {\n                let id = self.entity(&cur, b, *id)?;\n                repo.mutate(Op::Inline { id }, e.observed, |repo, cur| {\n                    repo.amend(cur, inline(repo.store(), repo.langs(), cur, id)?)\n                })?;\n            }\n            Op::AddDef { id, parent, ordinal, definition, intent, file } => {\n                let parent = parent.map(|p| self.entity(&cur, b, p)).transpose()?;\n                let (id, ordinal, intent, file) = (*id, *ordinal, intent.clone(), file.clone());\n                let op = Op::AddDef {\n                    id,\n                    parent,\n                    ordinal,\n                    definition: definition.clone(),\n                    intent: intent.clone(),\n                    file: file.clone(),\n                };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    let next = add_def_at(\n                        repo.store(),\n                        repo.langs(),\n                        cur,\n                        id,\n                        parent,\n                        file.clone(),\n                        ordinal,\n                        definition.as_bytes(),\n                        intent.clone(),\n                    )?;\n                    repo.amend(cur, next)\n                })?;\n            }\n            Op::Delete { id, intent } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::Delete { id, intent: intent.clone() };\n                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, delete(cur, repo.store(), id)?))?;\n            }\n            Op::EditDef { id, definition, intent } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::EditDef { id, definition: definition.clone(), intent: intent.clone() };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    let (next, _) = edit_def(repo.store(), repo.langs(), cur, id, definition.as_bytes())?;\n                    repo.amend(cur, next)\n                })?;\n            }\n            Op::New { change } => {\n                let out = history::new(repo)?;\n                self.changes.insert(*change, out.change);\n            }\n            Op::Describe { msg } => {\n                history::describe(repo, msg)?;\n            }\n            Op::Branch { name } => {\n                let out = history::branch(repo, name)?;\n                if let Some(recorded) = recorded_change(e) {\n                    self.changes.insert(recorded, out.change);\n                }\n            }\n            Op::Merge { other } => {\n                let other = self.change(*other);\n                let out = merge::merge(repo, &other.to_string())?;\n                if let Some(recorded) = recorded_change(e) {\n                    self.changes.insert(recorded, out.change);\n                }\n            }\n            // Undo and restore both set a recorded view; restore the mapped ids.\n            Op::Undo | Op::Restore { .. } => {\n                let mut view = repo.view()?;\n                if let Some(root) = self.snaps.get(&e.after.root) {\n                    view.root = *root;\n                }\n                for (change, snap) in &e.after.heads {\n                    if let Some(mapped) = self.snaps.get(snap) {\n                        view.heads.insert(self.change(*change), *mapped);\n                    }\n                }\n                repo.restore_view(&view, e.op.clone())?;\n            }\n            Op::Resolve { conflict, take } => {\n                merge::resolve(repo, *conflict as usize, *take)?;\n            }\n            Op::Absorb => {\n                let root = repo.root_dir();\n                for (path, body) in &b.files {\n                    let at = root.join(path.as_str());\n                    match body {\n                        FileBody::Removed => {\n                            let _ = std::fs::remove_file(&at);\n                        }\n                        FileBody::Text(t) => write_file(&at, t.as_bytes())?,\n                        FileBody::Bytes(v) => write_file(&at, v)?,\n                    }\n                }\n                repo.absorb()?;\n            }\n        }\n        Ok(())\n    }\n}\n\n/// The change an op minted: the head that is the op's after root.\nfn recorded_change(e: &OpLogEntry) -> Option<ChangeId> {\n    e.after.heads.iter().find(|(_, s)| **s == e.after.root).map(|(c, _)| *c)\n}\n\nfn write_file(at: &std::path::Path, bytes: &[u8]) -> Result<()> {\n    if let Some(dir) = at.parent() {\n        std::fs::create_dir_all(dir).map_err(Error::backend)?;\n    }\n    std::fs::write(at, bytes).map_err(Error::backend)\n}\n\n/// Replay `bundle` into `repo`, whose current tree must be the bundle's base. Stops at the\n/// first entry that cannot be applied; reports the first whose result differs from the record.\npub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {\n    let have = tree_hash(&rendered(repo, &repo.current()?)?);\n    if have != bundle.base_tree {\n        return Err(Error::Other(format!(\n            \"this tree is not the bundle's base (tree {}…, bundle starts from {}…)\",\n            &have[..12],\n            &bundle.base_tree[..12]\n        )));\n    }\n    let mut im = Import { repo, changes: BTreeMap::new(), snaps: BTreeMap::new() };\n    if let Some(first) = bundle.entries.first() {\n        im.snaps.insert(first.entry.before.root, repo.store().root()?);\n    }\n    let mut diverged_at = None;\n    let mut applied = 0;\n    for b in &bundle.entries {\n        // The op line keeps its recorded time, changeset and checkout.\n        let p = Provenance { at: b.entry.at, group: b.entry.group, workspace: b.workspace.clone() };\n        repo.with_provenance(p, || im.apply(b))?;\n        applied += 1;\n        im.snaps.insert(b.entry.after.root, repo.store().root()?);\n        if diverged_at.is_none() {\n            let got = tree_hash(&rendered(repo, &repo.current()?)?);\n            if got != b.after_tree {\n                diverged_at = Some(b.ix);\n            }\n        }\n    }\n    Ok(ImportReport { applied, diverged_at })\n}\n"
+        }
+      },
       "after_tree": "350c37ba28465af898fd0c16cf72d2e3a4d725ab829b562267a7e017b52bb416",
       "workspace": null
     },
     {
-      "ix": 9,
+      "ix": 61,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd06-32d6-75d3-a2c5-db7618ceb508",
+            "id": "01a0bd1c-156a-75ae-8891-2aa237408555",
             "definition": "\n\n/// Replay `bundle` into `repo`, whose current tree must be the bundle's base. Stops at the\n/// first entry that cannot be applied; reports the first whose result differs from the record.\npub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {\n    let have = tree_hash(&rendered(repo, &repo.current()?)?);\n    if have != bundle.base_tree {\n        return Err(Error::Other(format!(\n            \"this tree is not the bundle's base (tree {}…, bundle starts from {}…)\",\n            &have[..12],\n            &bundle.base_tree[..12]\n        )));\n    }\n    for cs in &bundle.changesets {\n        if repo.store().get_changeset(cs.id).is_err() {\n            repo.store().put_changeset(cs)?;\n        }\n    }\n    let mut im = Import { repo, changes: BTreeMap::new(), snaps: BTreeMap::new() };\n    if let Some(first) = bundle.entries.first() {\n        im.snaps.insert(first.entry.before.root, repo.store().root()?);\n    }\n    let mut diverged_at = None;\n    let mut applied = 0;\n    for b in &bundle.entries {\n        // The op line keeps its recorded time, changeset and checkout.\n        let p = Provenance { at: b.entry.at, group: b.entry.group, workspace: b.workspace.clone() };\n        repo.with_provenance(p, || im.apply(b))?;\n        applied += 1;\n        im.snaps.insert(b.entry.after.root, repo.store().root()?);\n        if diverged_at.is_none() {\n            let got = tree_hash(&rendered(repo, &repo.current()?)?);\n            if got != b.after_tree {\n                diverged_at = Some(b.ix);\n            }\n        }\n    }\n    Ok(ImportReport { applied, diverged_at })\n}",
             "intent": "Feature"
           }
@@ -317,22 +502,44 @@
         "at": 1789877834788,
         "group": null,
         "before": {
-          "root": "ae87fc61ab7716c3018bfa690d5a3cac9393998c471ab5572375e690051fc979",
+          "root": "5655941da567d6ada3a012e93985775c7c56180f865775fc89349ac6fac7f996",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "ae87fc61ab7716c3018bfa690d5a3cac9393998c471ab5572375e690051fc979"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "5655941da567d6ada3a012e93985775c7c56180f865775fc89349ac6fac7f996"
           }
         },
         "after": {
-          "root": "a9e4275009766e09d75b397380c2076c3fa042efb49488aa71169dfcbbd63f35",
+          "root": "42e63945287adb9e8dc3c84c65ce0d3a6d56f6489c0dc488bfbe976c82d7a465",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "a9e4275009766e09d75b397380c2076c3fa042efb49488aa71169dfcbbd63f35"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "42e63945287adb9e8dc3c84c65ce0d3a6d56f6489c0dc488bfbe976c82d7a465"
           }
         }
       },
       "refs": {
-        "01a0bd06-32d6-75d3-a2c5-db7618ceb508": {
+        "01a0bd1c-156a-75ae-8891-2aa237408555": {
           "file": "crates/svc-repo/src/bundle.rs",
           "chain": [
             [
@@ -342,29 +549,55 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-repo/src/bundle.rs": {
+          "Text": "//! A history bundle: the op log of one store, written so another checkout of the same tree\n//! can replay it into its own store. Typed ops carry themselves; what they cannot carry is\n//! resolved on import — entity ids by their path (file, then kind/name from the root\n//! down), change ids by the order they are minted — and a hand edit (`Absorb`) carries the\n//! files it changed. Every entry names the hash of the tree it left behind, so an import\n//! knows at which op, if any, it stopped reproducing the recorded history.\n//!\n//! `svc history export` writes one; `svc history import` replays one; `demo/history/` keeps\n//! the bundles of this repository's own svc-made changes.\n\nuse std::collections::BTreeMap;\n\nuse serde::{Deserialize, Serialize};\nuse svc_core::engine::{add_def_at, delete, edit_def, inline, move_def, relocate, render, rename};\nuse svc_core::{\n    ChangeId, EntityId, Error, Kind, Op, OpIx, OpLogEntry, RelPath, Result, Snapshot, SnapshotId,\n};\n\nuse crate::history::{self, op_entity};\nuse crate::merge;\nuse crate::repo::{Provenance, Repo};\n\n/// Where an entity sits: its file, then kind and name from the outermost parent down to\n/// itself. The same tree ingested twice gives every entity a fresh id; the path is what\n/// survives.\n#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\npub struct EntityPath {\n    pub file: RelPath,\n    pub chain: Vec<(Kind, String)>,\n}\n\n/// A file a hand edit left: its new bytes (text when UTF-8), or removed.\n#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]\npub enum FileBody {\n    Text(String),\n    Bytes(Vec<u8>),\n    Removed,\n}\n\n#[derive(Clone, Debug, Serialize, Deserialize)]\npub struct BundleEntry {\n    pub ix: OpIx,\n    pub entry: OpLogEntry,\n    /// Every entity id the op names, by path in the tree the op started from (the op's own\n    /// new entity, for add-def, is absent: its id is minted by the op).\n    #[serde(default)]\n    pub refs: BTreeMap<EntityId, EntityPath>,\n    /// For `Absorb`: the files the hand edit changed.\n    #[serde(default)]\n    pub files: BTreeMap<RelPath, FileBody>,\n    /// blake3 over the rendered tree after this op (sorted path, bytes).\n    pub after_tree: String,\n    /// The checkout that made it (`None` = the default one).\n    #[serde(default)]\n    pub workspace: Option<String>,\n}\n\n#[derive(Clone, Debug, Serialize, Deserialize)]\npub struct Bundle {\n    /// blake3 of the rendered tree the first entry starts from; an import checks its own.\n    pub base_tree: String,\n    pub entries: Vec<BundleEntry>,\n    /// The changesets the entries belong to, so a replayed op keeps its group's name.\n    #[serde(default)]\n    pub changesets: Vec<ChangeSet>,\n}\n\n#[derive(Clone, Debug, Serialize)]\npub struct ImportReport {\n    pub applied: usize,\n    /// First entry whose tree after import differs from the recorded hash, if any.\n    pub diverged_at: Option<OpIx>,\n}\n\nfn tree_hash(files: &BTreeMap<RelPath, Vec<u8>>) -> String {\n    let mut h = blake3::Hasher::new();\n    for (path, bytes) in files {\n        h.update(path.as_str().as_bytes());\n        h.update(&[0]);\n        h.update(&(bytes.len() as u64).to_le_bytes());\n        h.update(bytes);\n    }\n    h.finalize().to_hex().to_string()\n}\n\nfn rendered(repo: &Repo, snap: &Snapshot) -> Result<BTreeMap<RelPath, Vec<u8>>> {\n    Ok(render(snap, repo.store(), repo.langs(), false)?.files)\n}\n\nfn path_of(snap: &Snapshot, id: EntityId) -> Option<EntityPath> {\n    let rec = snap.entities.get(&id)?;\n    let mut chain = vec![(rec.kind, rec.name.clone())];\n    let mut parent = rec.parent;\n    while let Some(p) = parent {\n        let pr = snap.entities.get(&p)?;\n        chain.push((pr.kind, pr.name.clone()));\n        parent = pr.parent;\n    }\n    chain.reverse();\n    Some(EntityPath { file: rec.file.clone(), chain })\n}\n\nfn find_by_path(snap: &Snapshot, path: &EntityPath) -> Option<EntityId> {\n    snap.entities\n        .iter()\n        .filter(|(_, r)| r.file == path.file)\n        .find(|(id, _)| path_of(snap, **id).as_ref() == Some(path))\n        .map(|(id, _)| *id)\n}\n\n/// Every entity id an op names besides one it mints itself.\nfn named_ids(op: &Op) -> Vec<EntityId> {\n    match op {\n        Op::Move { id, parent, .. } => std::iter::once(*id).chain(*parent).collect(),\n        Op::Extract { id, new_parent, .. } => std::iter::once(*id).chain(*new_parent).collect(),\n        Op::AddDef { parent, .. } => parent.iter().copied().collect(),\n        _ => op_entity(op).into_iter().collect(),\n    }\n}\n\n/// The op log from `since` on, with what an import needs beside each entry.\npub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {\n    let store = repo.store();\n    let ops = store.ops(since, false)?;\n    let Some((_, first)) = ops.first() else {\n        return Err(Error::Other(format!(\"no ops at or after {}\", since.0)));\n    };\n    let base = store.get_snapshot(first.before.root)?;\n    let base_tree = tree_hash(&rendered(repo, &base)?);\n    let mut entries = Vec::with_capacity(ops.len());\n    for (ix, e) in &ops {\n        let before = store.get_snapshot(e.before.root)?;\n        let after = store.get_snapshot(e.after.root)?;\n        let after_files = rendered(repo, &after)?;\n        let refs = named_ids(&e.op)\n            .into_iter()\n            .filter_map(|id| path_of(&before, id).map(|p| (id, p)))\n            .collect();\n        let mut files = BTreeMap::new();\n        if matches!(e.op, Op::Absorb) {\n            let before_files = rendered(repo, &before)?;\n            for (path, bytes) in &after_files {\n                if before_files.get(path) != Some(bytes) {\n                    let body = match String::from_utf8(bytes.clone()) {\n                        Ok(text) => FileBody::Text(text),\n                        Err(_) => FileBody::Bytes(bytes.clone()),\n                    };\n                    files.insert(path.clone(), body);\n                }\n            }\n            for path in before_files.keys() {\n                if !after_files.contains_key(path) {\n                    files.insert(path.clone(), FileBody::Removed);\n                }\n            }\n        }\n        entries.push(BundleEntry {\n            ix: *ix,\n            entry: e.clone(),\n            refs,\n            files,\n            after_tree: tree_hash(&after_files),\n            workspace: repo.redb().op_workspace(*ix)?.filter(|w| !w.is_empty()),\n        });\n    }\n    let mut changesets = Vec::new();\n    for g in entries.iter().filter_map(|b| b.entry.group) {\n        if !changesets.iter().any(|cs: &ChangeSet| cs.id == g)\n            && let Ok(cs) = store.get_changeset(g)\n        {\n            changesets.push(cs);\n        }\n    }\n    Ok(Bundle { base_tree, entries, changesets })\n}\n\nstruct Import<'a> {\n    repo: &'a Repo,\n    /// Recorded change id → the one minted here.\n    changes: BTreeMap<ChangeId, ChangeId>,\n    /// Recorded snapshot id → the one this import produced for it.\n    snaps: BTreeMap<SnapshotId, SnapshotId>,\n}\n\nimpl Import<'_> {\n    fn change(&self, c: ChangeId) -> ChangeId {\n        *self.changes.get(&c).unwrap_or(&c)\n    }\n\n    fn entity(&self, cur: &Snapshot, b: &BundleEntry, id: EntityId) -> Result<EntityId> {\n        let path = b.refs.get(&id).ok_or_else(|| {\n            Error::Other(format!(\"op {}: no path recorded for entity {}\", b.ix.0, id.short()))\n        })?;\n        find_by_path(cur, path).ok_or_else(|| {\n            Error::Other(format!(\n                \"op {}: no entity at {} {} in this tree\",\n                b.ix.0,\n                path.file,\n                path.chain.iter().map(|(k, n)| format!(\"{k:?} {n}\")).collect::<Vec<_>>().join(\" / \")\n            ))\n        })\n    }\n\n    fn apply(&mut self, b: &BundleEntry) -> Result<()> {\n        let repo = self.repo;\n        let e = &b.entry;\n        // A `checkout` between ops is not an op: the entry names the root it started from,\n        // and if that is not where the last op left us, switch there first.\n        if let Some(from) = self.snaps.get(&e.before.root).copied() {\n            if from != repo.store().root()? {\n                history::checkout(repo, from)?;\n            }\n        }\n        // Same-snapshot rewrites: the op with its ids mapped, then the engine call the verb\n        // itself makes.\n        let cur = repo.current()?;\n        match &e.op {\n            Op::Rename { id, new } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::Rename { id, new: new.clone() };\n                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, rename(cur, id, new)?))?;\n            }\n            Op::Move { id, parent, ordinal } => {\n                let id = self.entity(&cur, b, *id)?;\n                let parent = parent.map(|p| self.entity(&cur, b, p)).transpose()?;\n                let op = Op::Move { id, parent, ordinal: *ordinal };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    repo.amend(cur, move_def(repo.store(), repo.langs(), cur, id, parent, *ordinal)?)\n                })?;\n            }\n            Op::Relocate { id, file, ordinal } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::Relocate { id, file: file.clone(), ordinal: *ordinal };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    repo.amend(cur, relocate(cur, repo.store(), id, file.clone(), *ordinal)?)\n                })?;\n            }\n            Op::Extract { id, new_parent, ordinal } => {\n                let id = self.entity(&cur, b, *id)?;\n                let new_parent = new_parent.map(|p| self.entity(&cur, b, p)).transpose()?;\n                let op = Op::Extract { id, new_parent, ordinal: *ordinal };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    repo.amend(cur, move_def(repo.store(), repo.langs(), cur, id, new_parent, Some(*ordinal))?)\n                })?;\n            }\n            Op::Inline { id } => {\n                let id = self.entity(&cur, b, *id)?;\n                repo.mutate(Op::Inline { id }, e.observed, |repo, cur| {\n                    repo.amend(cur, inline(repo.store(), repo.langs(), cur, id)?)\n                })?;\n            }\n            Op::AddDef { id, parent, ordinal, definition, intent, file } => {\n                let parent = parent.map(|p| self.entity(&cur, b, p)).transpose()?;\n                let (id, ordinal, intent, file) = (*id, *ordinal, intent.clone(), file.clone());\n                let op = Op::AddDef {\n                    id,\n                    parent,\n                    ordinal,\n                    definition: definition.clone(),\n                    intent: intent.clone(),\n                    file: file.clone(),\n                };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    let next = add_def_at(\n                        repo.store(),\n                        repo.langs(),\n                        cur,\n                        id,\n                        parent,\n                        file.clone(),\n                        ordinal,\n                        definition.as_bytes(),\n                        intent.clone(),\n                    )?;\n                    repo.amend(cur, next)\n                })?;\n            }\n            Op::Delete { id, intent } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::Delete { id, intent: intent.clone() };\n                repo.mutate(op, e.observed, |repo, cur| repo.amend(cur, delete(cur, repo.store(), id)?))?;\n            }\n            Op::EditDef { id, definition, intent } => {\n                let id = self.entity(&cur, b, *id)?;\n                let op = Op::EditDef { id, definition: definition.clone(), intent: intent.clone() };\n                repo.mutate(op, e.observed, |repo, cur| {\n                    let (next, _) = edit_def(repo.store(), repo.langs(), cur, id, definition.as_bytes())?;\n                    repo.amend(cur, next)\n                })?;\n            }\n            Op::New { change } => {\n                let out = history::new(repo)?;\n                self.changes.insert(*change, out.change);\n            }\n            Op::Describe { msg } => {\n                history::describe(repo, msg)?;\n            }\n            Op::Branch { name } => {\n                let out = history::branch(repo, name)?;\n                if let Some(recorded) = recorded_change(e) {\n                    self.changes.insert(recorded, out.change);\n                }\n            }\n            Op::Merge { other } => {\n                let other = self.change(*other);\n                let out = merge::merge(repo, &other.to_string())?;\n                if let Some(recorded) = recorded_change(e) {\n                    self.changes.insert(recorded, out.change);\n                }\n            }\n            // Undo and restore both set a recorded view; restore the mapped ids.\n            Op::Undo | Op::Restore { .. } => {\n                let mut view = repo.view()?;\n                if let Some(root) = self.snaps.get(&e.after.root) {\n                    view.root = *root;\n                }\n                for (change, snap) in &e.after.heads {\n                    if let Some(mapped) = self.snaps.get(snap) {\n                        view.heads.insert(self.change(*change), *mapped);\n                    }\n                }\n                repo.restore_view(&view, e.op.clone())?;\n            }\n            Op::Resolve { conflict, take } => {\n                merge::resolve(repo, *conflict as usize, *take)?;\n            }\n            Op::Absorb => {\n                let root = repo.root_dir();\n                for (path, body) in &b.files {\n                    let at = root.join(path.as_str());\n                    match body {\n                        FileBody::Removed => {\n                            let _ = std::fs::remove_file(&at);\n                        }\n                        FileBody::Text(t) => write_file(&at, t.as_bytes())?,\n                        FileBody::Bytes(v) => write_file(&at, v)?,\n                    }\n                }\n                repo.absorb()?;\n            }\n        }\n        Ok(())\n    }\n}\n\n/// The change an op minted: the head that is the op's after root.\nfn recorded_change(e: &OpLogEntry) -> Option<ChangeId> {\n    e.after.heads.iter().find(|(_, s)| **s == e.after.root).map(|(c, _)| *c)\n}\n\nfn write_file(at: &std::path::Path, bytes: &[u8]) -> Result<()> {\n    if let Some(dir) = at.parent() {\n        std::fs::create_dir_all(dir).map_err(Error::backend)?;\n    }\n    std::fs::write(at, bytes).map_err(Error::backend)\n}\n\n/// Replay `bundle` into `repo`, whose current tree must be the bundle's base. Stops at the\n/// first entry that cannot be applied; reports the first whose result differs from the record.\npub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {\n    let have = tree_hash(&rendered(repo, &repo.current()?)?);\n    if have != bundle.base_tree {\n        return Err(Error::Other(format!(\n            \"this tree is not the bundle's base (tree {}…, bundle starts from {}…)\",\n            &have[..12],\n            &bundle.base_tree[..12]\n        )));\n    }\n    for cs in &bundle.changesets {\n        if repo.store().get_changeset(cs.id).is_err() {\n            repo.store().put_changeset(cs)?;\n        }\n    }\n    let mut im = Import { repo, changes: BTreeMap::new(), snaps: BTreeMap::new() };\n    if let Some(first) = bundle.entries.first() {\n        im.snaps.insert(first.entry.before.root, repo.store().root()?);\n    }\n    let mut diverged_at = None;\n    let mut applied = 0;\n    for b in &bundle.entries {\n        // The op line keeps its recorded time, changeset and checkout.\n        let p = Provenance { at: b.entry.at, group: b.entry.group, workspace: b.workspace.clone() };\n        repo.with_provenance(p, || im.apply(b))?;\n        applied += 1;\n        im.snaps.insert(b.entry.after.root, repo.store().root()?);\n        if diverged_at.is_none() {\n            let got = tree_hash(&rendered(repo, &repo.current()?)?);\n            if got != b.after_tree {\n                diverged_at = Some(b.ix);\n            }\n        }\n    }\n    Ok(ImportReport { applied, diverged_at })\n}\n"
+        }
+      },
       "after_tree": "2e8ff7432196cade50dbaf32a2a7fd0e6170f91c92cf432c91206086ece3071d",
       "workspace": null
     },
     {
-      "ix": 10,
+      "ix": 62,
       "entry": {
         "op": "Absorb",
         "observed": null,
         "at": 1789877878598,
         "group": null,
         "before": {
-          "root": "a9e4275009766e09d75b397380c2076c3fa042efb49488aa71169dfcbbd63f35",
+          "root": "42e63945287adb9e8dc3c84c65ce0d3a6d56f6489c0dc488bfbe976c82d7a465",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "a9e4275009766e09d75b397380c2076c3fa042efb49488aa71169dfcbbd63f35"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "42e63945287adb9e8dc3c84c65ce0d3a6d56f6489c0dc488bfbe976c82d7a465"
           }
         },
         "after": {
-          "root": "bb4927ad0b841697a9193a558447074b0cf4cb1dc78baaa102fbd78381b7e90a",
+          "root": "43e7ce22e1bc10b3d167f64802df815e8b69f4f68243700453e1fe2986148055",
           "heads": {
-            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "a256c652add11da24c96ed23697ad7a55a081932e850d121dbd318091f9d9453",
-            "01a0bd06-e1c1-718b-830b-2bafbc7de5b4": "bb4927ad0b841697a9193a558447074b0cf4cb1dc78baaa102fbd78381b7e90a"
+            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bcf8-9c2a-727a-8d96-c485fb502d0e": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
+            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
+            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
+            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+            "01a0bd1c-941a-7069-8b1e-a9751781175d": "14b9c14b458d98eba51e6ed00426a5496e0ef49daf5c4f7c7203617c537fdcc6",
+            "01a0bd1c-d45b-74ff-ade3-a44682589798": "3f233e262f48938e083effe1f39cccf6390c359ff3bb130561b1e57d8dc80181",
+            "01a0bd1c-d9a4-736e-b675-02bcd8de5411": "f0a8be90212d8fc2477ef890e046fac11b3de5585c73cba7a92bf09bebbbb315",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "bd1eda60a7327aca6df8039e1b2392ed9e8ca7cba34d0740fcec0011b6b9d91f",
+            "01a0bd1d-3ab6-7103-99be-fa344bb9498d": "43e7ce22e1bc10b3d167f64802df815e8b69f4f68243700453e1fe2986148055"
           }
         }
       },
