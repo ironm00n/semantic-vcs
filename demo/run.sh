@@ -13,6 +13,7 @@
 #
 #   demo/run.sh [path/to/svc]            # everything
 #   SVC_SKIP_SELF_HOST=1 demo/run.sh     # skip line 14
+#   SVC_SKIP_SELFHOST_FULL=1 demo/run.sh # skip M1 whole-repo fidelity
 HERE="$(cd "$(dirname "$0")" && pwd)"
 if [ -n "${1:-}" ]; then
   dir="$(cd "$(dirname "$1")" && pwd)"
@@ -37,6 +38,15 @@ if [ -z "${SVC_SKIP_O9:-}" ]; then
     echo "PASS  O9 alpha-renamed svc-core still compiles"
   else
     echo "FAIL  O9 alpha-renamed svc-core still compiles (run: cargo test -p svc-core --test o9_compiler_oracle -- --ignored --nocapture)"
+    fail=$((fail + 1))
+  fi
+  echo
+fi
+if [ -z "${SVC_SKIP_SELFHOST_FULL:-}" ] && [ -x "$HERE/selfhost-full.sh" ]; then
+  if "$HERE/selfhost-full.sh" "$SVC"; then
+    echo "PASS  selfhost-full / whole-repo fidelity"
+  else
+    echo "FAIL  selfhost-full / whole-repo fidelity"
     fail=$((fail + 1))
   fi
   echo
