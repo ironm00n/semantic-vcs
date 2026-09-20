@@ -15,7 +15,7 @@ use super::align::{
 };
 use super::{
     env_from_snapshot, fill_nested_items_from_snapshot, fill_self_methods_from_snapshot,
-    ingest_file_with_env, parse, render_entity,
+    ingest_file_prev, parse, render_entity,
 };
 
 /// Per-entity 3-way merge plus the §5.4 binding post-condition.
@@ -114,6 +114,7 @@ pub fn merge(
                     store,
                     langs,
                     &env,
+                    &a_s,
                     ro,
                     ra,
                     &rb,
@@ -176,6 +177,7 @@ fn merge_record(
     store: &dyn Store,
     langs: &Langs,
     env: &crate::lang::Env,
+    a_snap: &Snapshot,
     o: &EntityRecord,
     a: &EntityRecord,
     b: &EntityRecord,
@@ -201,7 +203,7 @@ fn merge_record(
     } else if body(b) == body(o) {
         body(a)
     } else {
-        merge_content(store, langs, env, a, id, o_src, a_src, b_src, conflicts)?
+        merge_content(store, langs, env, a_snap, a, id, o_src, a_src, b_src, conflicts)?
     };
     Ok(EntityRecord {
         name,
@@ -248,6 +250,7 @@ fn merge_content(
     store: &dyn Store,
     langs: &Langs,
     env: &crate::lang::Env,
+    a_snap: &Snapshot,
     a: &EntityRecord,
     id: EntityId,
     o_src: &[u8],
@@ -329,13 +332,16 @@ fn merge_content(
             }
         }
     }
-    // A throwaway snapshot: only the re-ingested content/bytes hashes are kept.
-    let part = ingest_file_with_env(
+    // Re-ingest against A's snapshot so nested Opaque children (`use` inside
+    // the fn) keep their ids. Fresh ids here left Child holes that binding_post
+    // could not expand (NoSuchEntity) on a clean textual merge.
+    let part = ingest_file_prev(
         &out,
         a.file.clone(),
         lang,
         store,
         crate::ids::ChangeId::new(),
+        Some(a_snap),
         env,
     )?;
     let rec = part
