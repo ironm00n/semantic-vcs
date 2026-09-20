@@ -2631,3 +2631,42 @@ fn rename_to_raw_keyword() {
         "call site of keyword rename must be raw: {text}"
     );
 }
+
+#[test]
+fn rename_does_not_rewrite_attribute_name() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"fn parse() {}\nfn test() {}\n#[parse]\n#[test]\nfn f() { parse(); test(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let test_fn = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "test")
+        .map(|(id, _)| *id)
+        .expect("test");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let next = rename(&store, &next, test_fn, "test_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("#[parse]"),
+        "attribute name must stay: {text}"
+    );
+    assert!(
+        text.contains("#[test]"),
+        "#[test] must not follow fn test: {text}"
+    );
+    assert!(text.contains("parse_file();"), "{text}");
+    assert!(text.contains("test_file();"), "{text}");
+}

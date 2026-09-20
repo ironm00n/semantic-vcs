@@ -372,6 +372,7 @@ fn collect_refs<'a>(
                 || is_dot_field(node)
                 || is_type_binding_name(node)
                 || is_use_alias(node)
+                || in_attribute(node)
             {
                 refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(binder) = local
@@ -883,6 +884,23 @@ fn is_use_alias(node: tree_sitter::Node<'_>) -> bool {
         n.id() == node.id()
             || (n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte())
     })
+}
+
+/// `#[parse]` is an attribute / derive / lint name, not the value-namespace
+/// `fn parse`. A later proc-macro identity can bind Macro; until then Free.
+fn in_attribute(mut node: tree_sitter::Node<'_>) -> bool {
+    loop {
+        let Some(parent) = node.parent() else {
+            return false;
+        };
+        if matches!(
+            parent.kind(),
+            "attribute_item" | "inner_attribute_item" | "attribute"
+        ) {
+            return true;
+        }
+        node = parent;
+    }
 }
 
 /// `It<Item = T>`: the left `Item` is an associated-type binding name, not a
