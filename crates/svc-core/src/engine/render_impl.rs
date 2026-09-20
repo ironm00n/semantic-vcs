@@ -20,7 +20,7 @@ pub fn render(snapshot: &Snapshot, store: &dyn Store, with_maps: bool) -> Result
                 maps.insert(id, map);
             }
         }
-        buf.extend_from_slice(&rec.trailing);
+        buf.extend_from_slice(&rec.tail(store)?);
         files.insert(path.clone(), buf);
     }
     Ok(Rendered { files, maps })

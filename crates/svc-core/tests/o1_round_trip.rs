@@ -63,7 +63,7 @@ fn o1_opaque_manifest_round_trips_without_a_language() {
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let toml = RelPath::new("Cargo.toml").unwrap();
     assert_eq!(
-        snap.files.get(&toml).unwrap().trailing,
+        snap.files.get(&toml).unwrap().tail(&store).unwrap(),
         b"[package]\nname = \"x\"\n"
     );
     assert!(!snap.entities.values().any(|e| e.file == toml));

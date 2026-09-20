@@ -65,7 +65,7 @@ pub fn diff(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<Vec<D
             None => out.push(Delta::FileAdded(path.clone())),
             Some(old) if old.trailing != rec.trailing => out.push(Delta::FileTail {
                 path: path.clone(),
-                whitespace_only: sans_whitespace(&old.trailing) == sans_whitespace(&rec.trailing),
+                whitespace_only: sans_whitespace(&old.tail(store)?) == sans_whitespace(&rec.tail(store)?),
             }),
             Some(_) => {}
         }

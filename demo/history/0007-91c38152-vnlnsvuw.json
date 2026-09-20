@@ -1,0 +1,340 @@
+{
+  "base_tree": "0ce99cd983cc1493738243154e999d96aeac0f96d5ebf69970aaae244e6de008",
+  "entries": [
+    {
+      "ix": 8,
+      "entry": {
+        "op": {
+          "New": {
+            "change": "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53"
+          }
+        },
+        "observed": null,
+        "at": 1789879379218,
+        "group": null,
+        "before": {
+          "root": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2"
+          }
+        },
+        "after": {
+          "root": "4a59adaab320d907e3e6e9b963d1f57156cac3dd426025d82b98dd5220f5c294",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "4a59adaab320d907e3e6e9b963d1f57156cac3dd426025d82b98dd5220f5c294"
+          }
+        }
+      },
+      "refs": {},
+      "files": {},
+      "after_tree": "0ce99cd983cc1493738243154e999d96aeac0f96d5ebf69970aaae244e6de008",
+      "workspace": null
+    },
+    {
+      "ix": 9,
+      "entry": {
+        "op": {
+          "EditDef": {
+            "id": "01a0bd18-6ee8-70c9-acc0-6511ec7d8271",
+            "definition": "/// File tail after the last entity — or the whole of a file svc has no language for —\n/// as a content-addressed blob shared by every snapshot that has the same bytes; `None`\n/// when nothing follows the last entity. Roots are derived from `Snapshot.entities`\n/// (parent is None, same file, ordinal-sorted) so they cannot drift.\n#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug, Default)]\npub struct FileRecord {\n    pub trailing: Option<BytesId>,\n}",
+            "intent": "Feature"
+          }
+        },
+        "observed": "BindingPreserving",
+        "at": 1789879393980,
+        "group": null,
+        "before": {
+          "root": "4a59adaab320d907e3e6e9b963d1f57156cac3dd426025d82b98dd5220f5c294",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "4a59adaab320d907e3e6e9b963d1f57156cac3dd426025d82b98dd5220f5c294"
+          }
+        },
+        "after": {
+          "root": "57177d958ede055bd414b1ed7a40f60e371b215ad9c4e1519f3a0feb988cb226",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "57177d958ede055bd414b1ed7a40f60e371b215ad9c4e1519f3a0feb988cb226"
+          }
+        }
+      },
+      "refs": {
+        "01a0bd18-6ee8-70c9-acc0-6511ec7d8271": {
+          "file": "crates/svc-core/src/entity.rs",
+          "chain": [
+            [
+              "Struct",
+              "FileRecord"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "af2b5389eee124791cea040af3cad34a40b52b859834326906ad27e590d4ebd4",
+      "workspace": null
+    },
+    {
+      "ix": 10,
+      "entry": {
+        "op": {
+          "AddDef": {
+            "id": "01a0bd20-21d5-7138-a8e9-06aa3d36435f",
+            "parent": null,
+            "ordinal": 6,
+            "definition": "impl FileRecord {\n    /// Store `tail` as a one-literal blob and point at it; empty tails are `None`.\n    pub fn from_tail(store: &dyn Store, tail: &[u8]) -> Result<Self> {\n        if tail.is_empty() {\n            return Ok(Self::default());\n        }\n        let blob = Bytes::new(\n            tail.to_vec(),\n            vec![Chunk::Literal(ByteRange {\n                start: 0,\n                end: tail.len() as u32,\n            })],\n            Vec::new(),\n        )?;\n        Ok(Self {\n            trailing: Some(store.put_bytes_blob(&blob)?),\n        })\n    }\n\n    /// The tail's bytes, fetched from `store`.\n    pub fn tail(&self, store: &dyn Store) -> Result<Vec<u8>> {\n        match self.trailing {\n            None => Ok(Vec::new()),\n            Some(id) => Ok(store.get_bytes_blob(id)?.src().to_vec()),\n        }\n    }\n}",
+            "intent": "Feature",
+            "file": "crates/svc-core/src/entity.rs"
+          }
+        },
+        "observed": null,
+        "at": 1789879394865,
+        "group": null,
+        "before": {
+          "root": "57177d958ede055bd414b1ed7a40f60e371b215ad9c4e1519f3a0feb988cb226",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "57177d958ede055bd414b1ed7a40f60e371b215ad9c4e1519f3a0feb988cb226"
+          }
+        },
+        "after": {
+          "root": "f19fae13cf9b22829c85f829ed5ddec791337523740c5902ecc5bb38d43ba7d5",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "f19fae13cf9b22829c85f829ed5ddec791337523740c5902ecc5bb38d43ba7d5"
+          }
+        }
+      },
+      "refs": {},
+      "files": {},
+      "after_tree": "c66d8584fe8911771e7c0986876bddfd7bac4e874f2f10445a49abd838b98ebf",
+      "workspace": null
+    },
+    {
+      "ix": 11,
+      "entry": {
+        "op": {
+          "EditDef": {
+            "id": "01a0bd18-6edc-7573-8ffd-8022fab7b3a6",
+            "definition": "/// Bytes-in → snapshot-out. Does not write the snapshot, set root/heads, or append an op.\n/// `files` is the whole tree; `prev` lends ids only. Names resolve against what is parsed\n/// here — never against `prev`, whose entities may be exactly what this edit deleted (a\n/// reference kept bound to a gone id renders as `?`).\npub fn snapshot_files(\n    store: &dyn Store,\n    langs: &Langs,\n    files: &BTreeMap<RelPath, Vec<u8>>,\n    prev: Option<&Snapshot>,\n    change: ChangeId,\n) -> Result<Snapshot> {\n    struct Parsed<'a> {\n        path: RelPath,\n        src: &'a [u8],\n        tree: tree_sitter::Tree,\n        raw: Vec<RawEntity>,\n        lang: &'a dyn Lang,\n        ids: Vec<EntityId>,\n    }\n    let mut parsed = Vec::new();\n    let mut opaque = BTreeMap::new();\n    let mut prev_ids = prev_ids(prev);\n    for (path, src) in files {\n        match langs.for_path(path) {\n            Some(lang) => {\n                let tree = parse(src, lang)?;\n                let raw = extract(&tree, src, lang)?;\n                let ids = assign_ids(&raw, path, &mut prev_ids);\n                parsed.push(Parsed {\n                    path: path.clone(),\n                    src,\n                    tree,\n                    raw,\n                    lang,\n                    ids,\n                });\n            }\n            // Manifests, lockfiles, recordings: stored as the file tail with no\n            // entities so `svc init` on this repo still renders a tree cargo can build.\n            None => {\n                opaque.insert(path.clone(), src.clone());\n            }\n        }\n    }\n    // Prev is for assign_ids. Seeding names from it keeps deleted same-file\n    // defs in the env, so a remaining call binds to a missing id and render\n    // prints `?` (claude 03:34: absorb after deleting resolve_entity_in).\n    let mut env = Env::default();\n    for p in &parsed {\n        for (i, ent) in p.raw.iter().enumerate() {\n            if is_inherent_raw(&p.raw, i) {\n                continue;\n            }\n            env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));\n        }\n    }\n    let mut entities = BTreeMap::new();\n    let mut file_recs = BTreeMap::new();\n    for p in &parsed {\n        let (ents, file) = materialize(\n            p.src,\n            p.path.clone(),\n            p.lang,\n            store,\n            &p.tree,\n            &p.raw,\n            &p.ids,\n            &env,\n        )?;\n        entities.extend(ents);\n        file_recs.insert(p.path.clone(), file);\n    }\n    for (path, src) in opaque {\n        file_recs.insert(path, FileRecord::from_tail(store, &src)?);\n    }\n    Ok(Snapshot {\n        parents: Vec::new(),\n        predecessors: Vec::new(),\n        change,\n        entities,\n        files: file_recs,\n        conflicts: Vec::new(),\n        message: String::new(),\n    })\n}",
+            "intent": "Feature"
+          }
+        },
+        "observed": "BindingPreserving",
+        "at": 1789879417535,
+        "group": null,
+        "before": {
+          "root": "f19fae13cf9b22829c85f829ed5ddec791337523740c5902ecc5bb38d43ba7d5",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "f19fae13cf9b22829c85f829ed5ddec791337523740c5902ecc5bb38d43ba7d5"
+          }
+        },
+        "after": {
+          "root": "63a4ef8802d8b5bd39533ee85e05580689eddc8cba4be346d19d1c03b5cf3d5e",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "63a4ef8802d8b5bd39533ee85e05580689eddc8cba4be346d19d1c03b5cf3d5e"
+          }
+        }
+      },
+      "refs": {
+        "01a0bd18-6edc-7573-8ffd-8022fab7b3a6": {
+          "file": "crates/svc-core/src/engine/mod.rs",
+          "chain": [
+            [
+              "Fn",
+              "snapshot_files"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "d75a4dea13692150a868da2dc4b3e585dc0f936eb4cef724229a67d551b4a51c",
+      "workspace": null
+    },
+    {
+      "ix": 12,
+      "entry": {
+        "op": {
+          "EditDef": {
+            "id": "01a0bd18-6edc-7573-8ffd-8027f9e6d1f4",
+            "definition": "fn materialize(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    tree: &tree_sitter::Tree,\n    raw: &[RawEntity],\n    ids: &[EntityId],\n    env: &Env,\n) -> Result<(BTreeMap<EntityId, EntityRecord>, FileRecord)> {\n    let mut entities = BTreeMap::new();\n    // Clone once per file: `Env.names` is Arc, so this is not O(n) in the snapshot.\n    // Filling `self_methods` only when the caller left it empty — `edit_def` fills it\n    // from the snapshot, and the fragment being parsed has no siblings (opus 03:05).\n    let mut local_env = env.clone();\n    local_env.current_file = Some(path.clone());\n    let caller_supplied = !env.self_methods.is_empty();\n    let mut sibs: std::collections::HashMap<usize, std::collections::HashMap<String, EntityId>> =\n        std::collections::HashMap::new();\n    if !caller_supplied {\n        for (j, sib) in raw.iter().enumerate() {\n            if let Some(p) = sib.parent_idx {\n                if is_callable_member(sib.kind) {\n                    sibs.entry(p).or_default().insert(sib.name.clone(), ids[j]);\n                }\n            }\n        }\n    }\n    for (i, ent) in raw.iter().enumerate() {\n        let node = extract::find_node(tree.root_node(), ent.item_range)\n            .ok_or_else(|| Error::Parse(format!(\"no node for {}\", ent.name)))?;\n        if !caller_supplied {\n            local_env.self_methods = ent\n                .parent_idx\n                .and_then(|p| sibs.get(&p))\n                .cloned()\n                .unwrap_or_default();\n        }\n        let res = resolve(node, src, lang, &local_env)?;\n        let children: Vec<(ByteRange, EntityId)> = ent\n            .children\n            .iter()\n            .map(|&c| (raw[c].bytes_range, ids[c]))\n            .collect();\n        let own_name = ent.name_range.map(|r| (r, EntityId::SELF));\n        let bytes = bytes::bytes_from_span(src, ent.bytes_range, &children, own_name, &res)?;\n        let bytes_id = store.put_bytes_blob(&bytes)?;\n        let child_spans: Vec<(ByteRange, EntityId)> = ent\n            .children\n            .iter()\n            .map(|&c| (raw[c].item_range, ids[c]))\n            .collect();\n        let content = canonicalize(node, src, &res, &child_spans, &local_env, lang)?;\n        let content_id = store.put_content(&content)?;\n        let ordinal = raw\n            .iter()\n            .filter(|o| o.parent_idx == ent.parent_idx && o.item_range.start < ent.item_range.start)\n            .count() as u32;\n        entities.insert(\n            ids[i],\n            EntityRecord {\n                name: ent.name.clone(),\n                kind: ent.kind,\n                parent: ent.parent_idx.map(|p| ids[p]),\n                file: path.clone(),\n                ordinal,\n                content: content_id,\n                bytes: bytes_id,\n            },\n        );\n    }\n    let roots: Vec<_> = raw\n        .iter()\n        .filter(|e| e.parent_idx.is_none())\n        .cloned()\n        .collect();\n    let trailing = render_impl::trailing_for(src, &roots);\n    Ok((entities, FileRecord::from_tail(store, &trailing)?))\n}",
+            "intent": "Feature"
+          }
+        },
+        "observed": "BindingPreserving",
+        "at": 1789879418627,
+        "group": null,
+        "before": {
+          "root": "63a4ef8802d8b5bd39533ee85e05580689eddc8cba4be346d19d1c03b5cf3d5e",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "63a4ef8802d8b5bd39533ee85e05580689eddc8cba4be346d19d1c03b5cf3d5e"
+          }
+        },
+        "after": {
+          "root": "8767528073e68bd8382e74e70cbfec204403f0ad4f640474fe12b26326af45ca",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "8767528073e68bd8382e74e70cbfec204403f0ad4f640474fe12b26326af45ca"
+          }
+        }
+      },
+      "refs": {
+        "01a0bd18-6edc-7573-8ffd-8027f9e6d1f4": {
+          "file": "crates/svc-core/src/engine/mod.rs",
+          "chain": [
+            [
+              "Fn",
+              "materialize"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "f56e39829b296e03ad4b15dbb4e6dc09ce7ac294b862bdf1acd936294ec1e92b",
+      "workspace": null
+    },
+    {
+      "ix": 13,
+      "entry": {
+        "op": {
+          "EditDef": {
+            "id": "01a0bd18-6ee7-7170-a91d-1c31f4d28642",
+            "definition": "pub fn render(snapshot: &Snapshot, store: &dyn Store, with_maps: bool) -> Result<Rendered> {\n    let mut files = BTreeMap::new();\n    let mut maps = with_maps.then(BTreeMap::new);\n    for (path, rec) in &snapshot.files {\n        let mut buf = Vec::new();\n        for id in snapshot.file_roots(path) {\n            let (bytes, map) = expand(snapshot, store, id, with_maps)?;\n            buf.extend_from_slice(&bytes);\n            if let (Some(maps), Some(map)) = (maps.as_mut(), map) {\n                maps.insert(id, map);\n            }\n        }\n        buf.extend_from_slice(&rec.tail(store)?);\n        files.insert(path.clone(), buf);\n    }\n    Ok(Rendered { files, maps })\n}",
+            "intent": "Feature"
+          }
+        },
+        "observed": "BindingPreserving",
+        "at": 1789879419778,
+        "group": null,
+        "before": {
+          "root": "8767528073e68bd8382e74e70cbfec204403f0ad4f640474fe12b26326af45ca",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "8767528073e68bd8382e74e70cbfec204403f0ad4f640474fe12b26326af45ca"
+          }
+        },
+        "after": {
+          "root": "2cda404ffd896c260794d87d8409fd1eb33fe988f47e5a08b4e40ba0814e46a8",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "2cda404ffd896c260794d87d8409fd1eb33fe988f47e5a08b4e40ba0814e46a8"
+          }
+        }
+      },
+      "refs": {
+        "01a0bd18-6ee7-7170-a91d-1c31f4d28642": {
+          "file": "crates/svc-core/src/engine/render_impl.rs",
+          "chain": [
+            [
+              "Fn",
+              "render"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "211532801b4943fe82dffefe732a3e1861ca7d39ccbbaec309b534a6a758d789",
+      "workspace": null
+    },
+    {
+      "ix": 14,
+      "entry": {
+        "op": {
+          "EditDef": {
+            "id": "01a0bd18-6ed3-7390-8f71-4e02caf60373",
+            "definition": "/// Structural deltas between two snapshots. An edited entity carries the class the\n/// classifier assigns to old → new (rendered from `store`), never a placeholder. Files\n/// are compared by their bytes outside entities, so an opaque file shows up as a whole.\npub fn diff(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<Vec<Delta>> {\n    let mut out = Vec::new();\n    for (id, rec) in &next.entities {\n        match prev.entities.get(id) {\n            None => out.push(Delta::Added(*id)),\n            Some(old) => {\n                if old.name != rec.name {\n                    out.push(Delta::Renamed {\n                        id: *id,\n                        from: old.name.clone(),\n                        to: rec.name.clone(),\n                    });\n                }\n                if old.parent != rec.parent {\n                    out.push(Delta::Moved {\n                        id: *id,\n                        from_parent: old.parent,\n                        to_parent: rec.parent,\n                    });\n                }\n                if old.file != rec.file || old.ordinal != rec.ordinal {\n                    let parent_kind = rec\n                        .parent\n                        .and_then(|pid| next.entities.get(&pid).map(|p| p.kind));\n                    let layout_only = old.parent == rec.parent\n                        && old.file == rec.file\n                        && commutative_layout(rec.file.extension(), parent_kind, rec.kind);\n                    if !layout_only {\n                        out.push(Delta::Relocated {\n                            id: *id,\n                            from: (old.file.clone(), old.ordinal),\n                            to: (rec.file.clone(), rec.ordinal),\n                        });\n                    }\n                }\n                if old.content != rec.content || old.bytes != rec.bytes {\n                    out.push(Delta::Edited(*id, classify_entity(store, prev, next, *id)?));\n                }\n            }\n        }\n    }\n    for (id, old) in &prev.entities {\n        if !next.entities.contains_key(id) {\n            out.push(Delta::Removed {\n                id: *id,\n                name: old.name.clone(),\n            });\n        }\n    }\n    for (path, rec) in &next.files {\n        match prev.files.get(path) {\n            None => out.push(Delta::FileAdded(path.clone())),\n            Some(old) if old.trailing != rec.trailing => out.push(Delta::FileTail {\n                path: path.clone(),\n                whitespace_only: sans_whitespace(&old.tail(store)?) == sans_whitespace(&rec.tail(store)?),\n            }),\n            Some(_) => {}\n        }\n    }\n    for path in prev.files.keys() {\n        if !next.files.contains_key(path) {\n            out.push(Delta::FileRemoved(path.clone()));\n        }\n    }\n    Ok(out)\n}",
+            "intent": "Feature"
+          }
+        },
+        "observed": "BindingPreserving",
+        "at": 1789879420953,
+        "group": null,
+        "before": {
+          "root": "2cda404ffd896c260794d87d8409fd1eb33fe988f47e5a08b4e40ba0814e46a8",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "2cda404ffd896c260794d87d8409fd1eb33fe988f47e5a08b4e40ba0814e46a8"
+          }
+        },
+        "after": {
+          "root": "b5686d4a51a8990af4fc5ee3c46c58c0954e78c8e54b48614be7fee6b8c3a5bd",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "b5686d4a51a8990af4fc5ee3c46c58c0954e78c8e54b48614be7fee6b8c3a5bd"
+          }
+        }
+      },
+      "refs": {
+        "01a0bd18-6ed3-7390-8f71-4e02caf60373": {
+          "file": "crates/svc-core/src/engine/diff_impl.rs",
+          "chain": [
+            [
+              "Fn",
+              "diff"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "d3e3a49b784b62b67db51e33e760efa36724aa42224e5650d3f0c7fcf7d8d84a",
+      "workspace": null
+    },
+    {
+      "ix": 15,
+      "entry": {
+        "op": "Absorb",
+        "observed": null,
+        "at": 1789879696498,
+        "group": null,
+        "before": {
+          "root": "b5686d4a51a8990af4fc5ee3c46c58c0954e78c8e54b48614be7fee6b8c3a5bd",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "b5686d4a51a8990af4fc5ee3c46c58c0954e78c8e54b48614be7fee6b8c3a5bd"
+          }
+        },
+        "after": {
+          "root": "00c345df403413b50b931ffd7921f97d0324615efddab214636b250b3a103c54",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "00c345df403413b50b931ffd7921f97d0324615efddab214636b250b3a103c54"
+          }
+        }
+      },
+      "refs": {},
+      "files": {
+        "crates/svc-core/src/entity.rs": {
+          "Text": "use serde::{Deserialize, Serialize};\n\nuse crate::content::{Bytes, Chunk};\nuse crate::error::Result;\nuse crate::ids::{ByteRange, BytesId, ContentId, EntityId, RelPath};\nuse crate::store::Store;\n\n/// Accessor/static roles are `Kind` variants so `(parent, kind, name)` stays unique\n/// without folding `\"get \"` into the stored name (which would render `get get path()`).\n#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]\npub enum Kind {\n    Fn,\n    Struct,\n    Enum,\n    Union,\n    Trait,\n    Impl,\n    Const,\n    Static,\n    Mod,\n    TypeAlias,\n    Macro,\n    JsFunction,\n    JsClass,\n    JsMethod,\n    JsGetter,\n    JsSetter,\n    JsField,\n    JsStaticMethod,\n    JsStaticField,\n    JsDeclarator,\n    JsStaticBlock,\n    Opaque,\n}\n\n#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]\n/// What makes an entity the same one across re-parses and merges. Nested items are\n/// unique under their parent; file-level items (`parent: None`) are unique within their\n/// file, so `file` is set exactly then. Two files may each have a `fn hex32`.\npub struct SigKey {\n    pub parent: Option<EntityId>,\n    pub file: Option<RelPath>,\n    pub kind: Kind,\n    pub name: String,\n}\n\n#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]\npub struct EntityRecord {\n    pub name: String,\n    pub kind: Kind,\n    pub parent: Option<EntityId>,\n    pub file: RelPath,\n    pub ordinal: u32,\n    pub content: ContentId,\n    pub bytes: BytesId,\n}\n\n/// File tail after the last entity — or the whole of a file svc has no language for —\n/// as a content-addressed blob shared by every snapshot that has the same bytes; `None`\n/// when nothing follows the last entity. Roots are derived from `Snapshot.entities`\n/// (parent is None, same file, ordinal-sorted) so they cannot drift.\n#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug, Default)]\npub struct FileRecord {\n    pub trailing: Option<BytesId>,\n}\n\nimpl FileRecord {\n    /// Store `tail` as a one-literal blob and point at it; empty tails are `None`.\n    pub fn from_tail(store: &dyn Store, tail: &[u8]) -> Result<Self> {\n        if tail.is_empty() {\n            return Ok(Self::default());\n        }\n        let blob = Bytes::new(\n            tail.to_vec(),\n            vec![Chunk::Literal(ByteRange {\n                start: 0,\n                end: tail.len() as u32,\n            })],\n            Vec::new(),\n        )?;\n        Ok(Self {\n            trailing: Some(store.put_bytes_blob(&blob)?),\n        })\n    }\n\n    /// The tail's bytes, fetched from `store`.\n    pub fn tail(&self, store: &dyn Store) -> Result<Vec<u8>> {\n        match self.trailing {\n            None => Ok(Vec::new()),\n            Some(id) => Ok(store.get_bytes_blob(id)?.src().to_vec()),\n        }\n    }\n}\n\nimpl EntityRecord {\n    pub fn sig_key(&self) -> SigKey {\n        SigKey::new(self.parent, &self.file, self.kind, self.name.clone())\n    }\n}\n\nimpl SigKey {\n    pub fn new(parent: Option<EntityId>, file: &RelPath, kind: Kind, name: String) -> Self {\n        Self {\n            parent,\n            file: parent.is_none().then(|| file.clone()),\n            kind,\n            name,\n        }\n    }\n}\n\nimpl Kind {\n    pub fn is_synthetic_named(self) -> bool {\n        matches!(self, Kind::Impl | Kind::JsStaticBlock)\n    }\n}\n"
+        },
+        "crates/svc-core/tests/file_tail_blob.rs": {
+          "Text": "//! A file svc has no language for, and the bytes after a source file's last entity, live\n//! in the store as one content-addressed blob per distinct content — not inline in every\n//! snapshot. Two snapshots with the same Cargo.lock share the id; the snapshot's own\n//! encoding does not grow with the file.\nuse std::collections::BTreeMap;\n\nuse svc_core::engine::{render, rust_langs, snapshot_files};\nuse svc_core::ids::{ChangeId, RelPath};\nuse svc_core::store::MemStore;\n\n#[test]\nfn opaque_file_bytes_are_one_shared_blob_outside_the_snapshot() {\n    let store = MemStore::new();\n    let langs = rust_langs();\n    let lock = RelPath::new(\"Cargo.lock\").unwrap();\n    let lib = RelPath::new(\"src/lib.rs\").unwrap();\n    let big = vec![b'x'; 1 << 20];\n    let mut files = BTreeMap::new();\n    files.insert(lock.clone(), big.clone());\n    files.insert(lib.clone(), b\"fn a() {}\\n\".to_vec());\n    let change = ChangeId::new();\n    let s1 = snapshot_files(&store, &langs, &files, None, change).unwrap();\n    files.insert(lib.clone(), b\"fn a() {}\\nfn b() {}\\n\".to_vec());\n    let s2 = snapshot_files(&store, &langs, &files, Some(&s1), change).unwrap();\n\n    let id1 = s1.files[&lock].trailing.expect(\"a tail\");\n    assert_eq!(s2.files[&lock].trailing, Some(id1), \"same bytes, same blob\");\n    let encoded = postcard::to_allocvec(&s2).unwrap();\n    assert!(encoded.len() < 64 * 1024, \"snapshot carries the 1 MiB file inline: {} bytes\", encoded.len());\n    assert_eq!(render(&s2, &store, &langs, false).unwrap().files[&lock], big);\n    assert_eq!(s2.files[&lib].tail(&store).unwrap(), b\"\\n\", \"the source tail is the newline after the last item\");\n}\n"
+        },
+        "crates/svc-core/tests/o1_round_trip.rs": {
+          "Text": "use svc_core::RustLang;\nuse svc_core::engine::{ingest_file, lookup_name, relocate, render, rust_langs, snapshot_files};\nuse svc_core::ids::{ChangeId, RelPath};\nuse svc_core::lang::Langs;\nuse svc_core::store::MemStore;\n\nfn round_trip(src: &str) -> String {\n    let store = MemStore::new();\n    let lang = RustLang;\n    let path = RelPath::new(\"src/lib.rs\").unwrap();\n    let snap = ingest_file(src.as_bytes(), path, &lang, &store, ChangeId::new()).unwrap();\n    let langs = Langs::new(vec![Box::new(RustLang)]);\n    let rendered = render(&snap, &store, &langs, false).unwrap();\n    let bytes = rendered.files.values().next().cloned().unwrap_or_default();\n    String::from_utf8(bytes).unwrap()\n}\n\n#[test]\nfn o1_simple_file() {\n    let src = r#\"struct Config { path: String }\n\nfn read(path: &str) -> String {\n    path.to_string()\n}\n\nfn main() {\n    let _ = read(\"x\");\n}\n\"#;\n    assert_eq!(round_trip(src), src);\n}\n\n#[test]\nfn o1_impl_method() {\n    let src = r#\"struct Config;\n\nimpl Config {\n    fn new() -> Self {\n        Config\n    }\n}\n\"#;\n    assert_eq!(round_trip(src), src);\n}\n\n#[test]\nfn o1_use_and_trailing_newline() {\n    let src = \"use std::fmt;\\n\\nfn f() {}\\n\";\n    assert_eq!(round_trip(src), src);\n}\n\n#[test]\nfn o1_opaque_manifest_round_trips_without_a_language() {\n    use std::collections::BTreeMap;\n    let store = MemStore::new();\n    let langs = rust_langs();\n    let mut files = BTreeMap::new();\n    files.insert(RelPath::new(\"src/lib.rs\").unwrap(), b\"fn f() {}\\n\".to_vec());\n    files.insert(\n        RelPath::new(\"Cargo.toml\").unwrap(),\n        b\"[package]\\nname = \\\"x\\\"\\n\".to_vec(),\n    );\n    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();\n    let toml = RelPath::new(\"Cargo.toml\").unwrap();\n    assert_eq!(\n        snap.files.get(&toml).unwrap().tail(&store).unwrap(),\n        b\"[package]\\nname = \\\"x\\\"\\n\"\n    );\n    assert!(!snap.entities.values().any(|e| e.file == toml));\n    let rendered = render(&snap, &store, &langs, false).unwrap();\n    assert_eq!(\n        rendered.files.get(&toml).unwrap().as_slice(),\n        b\"[package]\\nname = \\\"x\\\"\\n\"\n    );\n}\n\n#[test]\nfn relocate_to_a_missing_path_is_still_rendered() {\n    use std::collections::BTreeMap;\n    let store = MemStore::new();\n    let langs = rust_langs();\n    let src = RelPath::new(\"src/lib.rs\").unwrap();\n    let dest = RelPath::new(\"src/b.rs\").unwrap();\n    let mut files = BTreeMap::new();\n    files.insert(src.clone(), b\"fn a() {}\\nfn b() {}\\n\".to_vec());\n    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();\n    let id = lookup_name(&snap, \"b\").unwrap();\n    let next = relocate(&snap, &store, id, dest.clone(), 0).unwrap();\n    assert!(\n        next.files.contains_key(&dest),\n        \"relocate must create a FileRecord\"\n    );\n    let rendered = render(&next, &store, &langs, false).unwrap();\n    let dest_src = String::from_utf8_lossy(rendered.files.get(&dest).unwrap());\n    assert!(dest_src.contains(\"fn b\"), \"{dest_src}\");\n    let src_src = String::from_utf8_lossy(rendered.files.get(&src).unwrap());\n    assert!(!src_src.contains(\"fn b\"), \"{src_src}\");\n}\n\n#[test]\nfn o1_svc_core_source() {\n    let root = std::path::Path::new(env!(\"CARGO_MANIFEST_DIR\")).join(\"src\");\n    let mut files = Vec::new();\n    visit(&root, &mut files);\n    assert!(!files.is_empty());\n    for path in files {\n        let src = std::fs::read_to_string(&path).unwrap();\n        let got = round_trip(&src);\n        assert_eq!(got, src, \"round-trip failed for {}\", path.display());\n    }\n}\n\nfn visit(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {\n    for e in std::fs::read_dir(dir).unwrap() {\n        let e = e.unwrap();\n        let p = e.path();\n        if p.is_dir() {\n            visit(&p, out);\n        } else if p.extension().and_then(|s| s.to_str()) == Some(\"rs\") {\n            out.push(p);\n        }\n    }\n}\n"
+        }
+      },
+      "after_tree": "219ff8f2be311a2deffd7ecea43942db6315c8869d7dbb788052053efdd3969a",
+      "workspace": null
+    }
+  ],
+  "changesets": []
+}

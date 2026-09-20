@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{BytesId, ContentId, EntityId, RelPath};
+use crate::content::{Bytes, Chunk};
+use crate::error::Result;
+use crate::ids::{ByteRange, BytesId, ContentId, EntityId, RelPath};
+use crate::store::Store;
 
 /// Accessor/static roles are `Kind` variants so `(parent, kind, name)` stays unique
 /// without folding `"get "` into the stored name (which would render `get get path()`).
@@ -52,11 +55,41 @@ pub struct EntityRecord {
     pub bytes: BytesId,
 }
 
-/// File tail after the last entity. Roots are derived from `Snapshot.entities`
+/// File tail after the last entity — or the whole of a file svc has no language for —
+/// as a content-addressed blob shared by every snapshot that has the same bytes; `None`
+/// when nothing follows the last entity. Roots are derived from `Snapshot.entities`
 /// (parent is None, same file, ordinal-sorted) so they cannot drift.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug, Default)]
 pub struct FileRecord {
-    pub trailing: Vec<u8>,
+    pub trailing: Option<BytesId>,
+}
+
+impl FileRecord {
+    /// Store `tail` as a one-literal blob and point at it; empty tails are `None`.
+    pub fn from_tail(store: &dyn Store, tail: &[u8]) -> Result<Self> {
+        if tail.is_empty() {
+            return Ok(Self::default());
+        }
+        let blob = Bytes::new(
+            tail.to_vec(),
+            vec![Chunk::Literal(ByteRange {
+                start: 0,
+                end: tail.len() as u32,
+            })],
+            Vec::new(),
+        )?;
+        Ok(Self {
+            trailing: Some(store.put_bytes_blob(&blob)?),
+        })
+    }
+
+    /// The tail's bytes, fetched from `store`.
+    pub fn tail(&self, store: &dyn Store) -> Result<Vec<u8>> {
+        match self.trailing {
+            None => Ok(Vec::new()),
+            Some(id) => Ok(store.get_bytes_blob(id)?.src().to_vec()),
+        }
+    }
 }
 
 impl EntityRecord {

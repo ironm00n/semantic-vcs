@@ -330,7 +330,7 @@ pub fn snapshot_files(
         file_recs.insert(p.path.clone(), file);
     }
     for (path, src) in opaque {
-        file_recs.insert(path, FileRecord { trailing: src });
+        file_recs.insert(path, FileRecord::from_tail(store, &src)?);
     }
     Ok(Snapshot {
         parents: Vec::new(),
@@ -475,7 +475,7 @@ fn materialize(
         .cloned()
         .collect();
     let trailing = render_impl::trailing_for(src, &roots);
-    Ok((entities, FileRecord { trailing }))
+    Ok((entities, FileRecord::from_tail(store, &trailing)?))
 }
 
 /// Reuse ids from `prev` by SigKey: nested items match under their parent, file-level
