@@ -57,4 +57,4 @@ the checkout must hold no git-ignored files (svc tracks them; the base tree then
   crate still alias. Check `svc show-def --json | jq .canonical` for the `#name⟨id⟩`.
 - svc reads `.svcignore`, not `.gitignore`: a `result` link or demo scratch dir gets tracked.
 - Two bundles may share a number; `replay.sh` orders them by the base commit, not the name.
-- `svc log` renders every op it lists: ~10 s on this store; `svc status`/`diff` are sub-second.
+- Cross-file `relocate`/`move` moves the item only: fix the `use` lines by hand, then `svc status`.

@@ -1,0 +1,240 @@
+{
+  "base_tree": "c5c2adbe7cbaf3c49c297a161c652f33966811789f0dc0ab8a55818c8edca59a",
+  "entries": [
+    {
+      "ix": 1,
+      "entry": {
+        "op": {
+          "New": {
+            "change": "01a0bd18-78cf-71ec-8f40-b092161153e3"
+          }
+        },
+        "observed": null,
+        "at": 1789878892827,
+        "group": null,
+        "before": {
+          "root": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9"
+          }
+        },
+        "after": {
+          "root": "b1285b11734170bb052136b9d6866ed9678928fddd261c4d16882bbcd9bd1abb",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "b1285b11734170bb052136b9d6866ed9678928fddd261c4d16882bbcd9bd1abb"
+          }
+        }
+      },
+      "refs": {},
+      "files": {},
+      "after_tree": "c5c2adbe7cbaf3c49c297a161c652f33966811789f0dc0ab8a55818c8edca59a",
+      "workspace": null
+    },
+    {
+      "ix": 2,
+      "entry": {
+        "op": {
+          "AddDef": {
+            "id": "01a0bd18-7b74-75fb-87ae-deca0fe5681b",
+            "parent": "01a0bd18-6ec7-760b-ad3e-c39ed1e069b8",
+            "ordinal": 6,
+            "definition": "    /// The same bytes with every line that starts with `from` starting with `to`\n    /// instead — an item moved between nesting levels keeps its inner structure and\n    /// drops or gains one level. Literal text is rebuilt chunk by chunk and every\n    /// range (chunks, local identifiers) follows its bytes. Lines inside multi-line\n    /// string literals move too; that is what a reviewer would expect to see.\n    pub fn reindent(&self, from: &[u8], to: &[u8]) -> crate::error::Result<Self> {\n        if from == to {\n            return Ok(self.clone());\n        }\n        let mut src = Vec::with_capacity(self.src.len());\n        let mut map = vec![u32::MAX; self.src.len() + 1];\n        let mut chunks = Vec::with_capacity(self.chunks.len());\n        for chunk in &self.chunks {\n            let Chunk::Literal(r) = chunk else {\n                chunks.push(chunk.clone());\n                continue;\n            };\n            let start = src.len() as u32;\n            let mut at_line_start = r.start == 0 || self.src.get(r.start as usize - 1) == Some(&b'\\n');\n            let mut i = r.start as usize;\n            while i < r.end as usize {\n                map[i] = src.len() as u32;\n                if at_line_start && !from.is_empty() && self.src[i..r.end as usize].starts_with(from) {\n                    src.extend_from_slice(to);\n                    for k in 1..from.len() {\n                        map[i + k] = src.len() as u32;\n                    }\n                    i += from.len();\n                    at_line_start = false;\n                    continue;\n                }\n                if at_line_start && from.is_empty() && self.src[i] != b'\\n' {\n                    src.extend_from_slice(to);\n                    map[i] = src.len() as u32;\n                }\n                let b = self.src[i];\n                src.push(b);\n                at_line_start = b == b'\\n';\n                i += 1;\n            }\n            map[r.end as usize] = src.len() as u32;\n            chunks.push(Chunk::Literal(ByteRange {\n                start,\n                end: src.len() as u32,\n            }));\n        }\n        let local_ranges = self\n            .local_ranges\n            .iter()\n            .map(|(r, ident)| {\n                (\n                    ByteRange {\n                        start: map[r.start as usize],\n                        end: map[r.end as usize],\n                    },\n                    ident.clone(),\n                )\n            })\n            .collect();\n        Self::new(src, chunks, local_ranges)\n    }",
+            "intent": "Feature",
+            "file": "crates/svc-core/src/content.rs"
+          }
+        },
+        "observed": null,
+        "at": 1789878893516,
+        "group": null,
+        "before": {
+          "root": "b1285b11734170bb052136b9d6866ed9678928fddd261c4d16882bbcd9bd1abb",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "b1285b11734170bb052136b9d6866ed9678928fddd261c4d16882bbcd9bd1abb"
+          }
+        },
+        "after": {
+          "root": "a313688011a0aa1bc000bf150d1e71bdc88a515069813dc1ed0d34757f1596e1",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "a313688011a0aa1bc000bf150d1e71bdc88a515069813dc1ed0d34757f1596e1"
+          }
+        }
+      },
+      "refs": {
+        "01a0bd18-6ec7-760b-ad3e-c39ed1e069b8": {
+          "file": "crates/svc-core/src/content.rs",
+          "chain": [
+            [
+              "Impl",
+              "impl<Bytes>"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "726c999f739d46bf70801309536323cff0b04a44b42b57272a67a90ba8b3147d",
+      "workspace": null
+    },
+    {
+      "ix": 3,
+      "entry": {
+        "op": {
+          "AddDef": {
+            "id": "01a0bd18-7dc2-7348-83e6-ef8bea5656f8",
+            "parent": null,
+            "ordinal": 63,
+            "definition": "/// Re-indent `id` and everything nested in it from the level it had to the level of its\n/// new parent (`None` = column 0), by the first code line's leading whitespace.\nfn reindent_subtree(\n    store: &dyn Store,\n    snap: &mut Snapshot,\n    id: EntityId,\n    new_parent: Option<EntityId>,\n) -> Result<()> {\n    let (rendered, _) = render_entity(snap, store, id, false)?;\n    let lead = rendered.iter().take_while(|b| b.is_ascii_whitespace()).count();\n    let line_start = rendered[..lead].iter().rposition(|b| *b == b'\\n').map_or(0, |p| p + 1);\n    let from = rendered[line_start..lead].to_vec();\n    let to = new_parent\n        .map(|p| sibling_indent(store, snap, p))\n        .unwrap_or_default();\n    if from == to {\n        return Ok(());\n    }\n    for eid in subtree(snap, id) {\n        let rec = &snap.entities[&eid];\n        let bytes = store.get_bytes_blob(rec.bytes)?.reindent(&from, &to)?;\n        let bytes_id = store.put_bytes_blob(&bytes)?;\n        snap.entities.get_mut(&eid).unwrap().bytes = bytes_id;\n    }\n    Ok(())\n}",
+            "intent": "Feature",
+            "file": "crates/svc-core/src/engine/ops.rs"
+          }
+        },
+        "observed": null,
+        "at": 1789878894093,
+        "group": null,
+        "before": {
+          "root": "a313688011a0aa1bc000bf150d1e71bdc88a515069813dc1ed0d34757f1596e1",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "a313688011a0aa1bc000bf150d1e71bdc88a515069813dc1ed0d34757f1596e1"
+          }
+        },
+        "after": {
+          "root": "96962a86e6594af1d09c889b7d4b6a09da0da32a209bc452652868d5e41b7d61",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "96962a86e6594af1d09c889b7d4b6a09da0da32a209bc452652868d5e41b7d61"
+          }
+        }
+      },
+      "refs": {},
+      "files": {},
+      "after_tree": "e8884a1bcb10a7d70958a2a7156cfd4a51732c84ae761ecdb675f35cf8ccfc2e",
+      "workspace": null
+    },
+    {
+      "ix": 4,
+      "entry": {
+        "op": {
+          "EditDef": {
+            "id": "01a0bd18-6ee6-7586-9321-3e319fe0e673",
+            "definition": "pub fn move_def(\n    store: &dyn Store,\n    langs: &Langs,\n    snap: &Snapshot,\n    id: EntityId,\n    new_parent: Option<EntityId>,\n    ordinal: Option<u32>,\n) -> Result<Snapshot> {\n    let rec = snap\n        .entities\n        .get(&id)\n        .ok_or(Error::NoSuchEntity(id))?\n        .clone();\n    if let Some(p) = new_parent {\n        if p == id || subtree(snap, id).contains(&p) {\n            return Err(Error::Other(\"move would create a cycle\".into()));\n        }\n        snap.entities.get(&p).ok_or(Error::NoSuchEntity(p))?;\n    }\n    let old_parent = rec.parent;\n    let mut next = snap.clone();\n    if let (None, Some(o)) = (new_parent, ordinal) {\n        next.make_room_at_root(&rec.file, o, id);\n    }\n    next.reparent(id, new_parent, ordinal)?;\n    if let Some(p) = new_parent {\n        let file = next.entities[&p].file.clone();\n        next.set_file(id, file, ordinal.unwrap_or(rec.ordinal))?;\n    }\n    if old_parent != new_parent {\n        reindent_subtree(store, &mut next, id, new_parent)?;\n    }\n    if old_parent == new_parent {\n        if let Some(p) = new_parent {\n            let mut kids = child_ids_of(store, &next, p)?;\n            kids.retain(|c| *c != id);\n            let at = ordinal.unwrap_or(kids.len() as u32) as usize;\n            kids.insert(at.min(kids.len()), id);\n            apply_child_holes(store, &mut next, p, &kids)?;\n        }\n        if new_parent.is_none() {\n            normalize_root_separators(store, &mut next, &rec.file)?;\n        }\n        return Ok(next);\n    }\n    if let Some(p) = old_parent {\n        if next.entities.contains_key(&p) {\n            let mut kids = child_ids_of(store, snap, p)?;\n            kids.retain(|c| *c != id);\n            apply_child_holes(store, &mut next, p, &kids)?;\n        }\n    }\n    if let Some(p) = new_parent {\n        let mut kids = child_ids_of(store, &next, p)?;\n        kids.retain(|c| *c != id);\n        let at = ordinal.unwrap_or(kids.len() as u32) as usize;\n        kids.insert(at.min(kids.len()), id);\n        apply_child_holes(store, &mut next, p, &kids)?;\n    }\n    reresolve_subtree(store, langs, &mut next, id)?;\n    if old_parent.is_none() || new_parent.is_none() {\n        let file = next.entities[&id].file.clone();\n        normalize_root_separators(store, &mut next, &file)?;\n        if rec.file != file {\n            normalize_root_separators(store, &mut next, &rec.file)?;\n        }\n    }\n    Ok(next)\n}",
+            "intent": "Fix"
+          }
+        },
+        "observed": "BindingPreserving",
+        "at": 1789878894763,
+        "group": null,
+        "before": {
+          "root": "96962a86e6594af1d09c889b7d4b6a09da0da32a209bc452652868d5e41b7d61",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "96962a86e6594af1d09c889b7d4b6a09da0da32a209bc452652868d5e41b7d61"
+          }
+        },
+        "after": {
+          "root": "c11caa6757e94c5b7f8e167c7b0fa4291cff8ca6ebb309445b5ce12121d6afc0",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "c11caa6757e94c5b7f8e167c7b0fa4291cff8ca6ebb309445b5ce12121d6afc0"
+          }
+        }
+      },
+      "refs": {
+        "01a0bd18-6ee6-7586-9321-3e319fe0e673": {
+          "file": "crates/svc-core/src/engine/ops.rs",
+          "chain": [
+            [
+              "Fn",
+              "move_def"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "3169190fc4cb9fbb43a64a07199635e9f1b1f02c4d81871e2667077269238a43",
+      "workspace": null
+    },
+    {
+      "ix": 5,
+      "entry": {
+        "op": {
+          "EditDef": {
+            "id": "01a0bd18-6ef5-747e-9881-133a90733946",
+            "definition": "#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]\npub enum Op {\n    Rename {\n        id: EntityId,\n        new: String,\n    },\n    Move {\n        id: EntityId,\n        parent: Option<EntityId>,\n        ordinal: Option<u32>,\n    },\n    Relocate {\n        id: EntityId,\n        file: RelPath,\n        ordinal: u32,\n    },\n    Extract {\n        id: EntityId,\n        new_parent: Option<EntityId>,\n        ordinal: u32,\n    },\n    Inline {\n        id: EntityId,\n    },\n    AddDef {\n        id: EntityId,\n        parent: Option<EntityId>,\n        ordinal: u32,\n        definition: String,\n        intent: Intent,\n        /// Recorded target. Absent on ops from before this field existed\n        /// (JSON) and on tests that still omit it; apply then uses the parent\n        /// file, else the first tracked source file.\n        #[serde(default)]\n        file: Option<RelPath>,\n    },\n    Delete {\n        id: EntityId,\n        intent: Intent,\n    },\n    EditDef {\n        id: EntityId,\n        definition: String,\n        intent: Intent,\n    },\n    Merge {\n        other: ChangeId,\n    },\n    Undo,\n    New {\n        change: ChangeId,\n    },\n    Describe {\n        msg: String,\n    },\n    /// Start a sibling change: parent is the current change's parent, then name it.\n    Branch {\n        name: String,\n    },\n    /// Working-copy reconciliation. Snapshot is `after.root` on the log entry so O5 can replay.\n    Absorb,\n    /// Resolution of conflict `conflict` (an index into the merge snapshot's list) by\n    /// taking one side. Recorded as itself so replay reproduces the resolved snapshot.\n    Resolve {\n        conflict: u32,\n        take: Take,\n    },\n    /// `svc op restore <n>`: return to the view as it stood right after op `n`.\n    /// Distinct from `Undo` so the log names the verb.\n    ///\n    /// Last on purpose: postcard writes a variant as its index, so a variant added\n    /// anywhere but the end re-labels every op already in every store (a `New` read\n    /// back as `Restore`). `op_wire_format` pins the order.\n    Restore {\n        at: u64,\n    },\n}",
+            "intent": "Fix"
+          }
+        },
+        "observed": "BindingPreserving",
+        "at": 1789878895442,
+        "group": null,
+        "before": {
+          "root": "c11caa6757e94c5b7f8e167c7b0fa4291cff8ca6ebb309445b5ce12121d6afc0",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "c11caa6757e94c5b7f8e167c7b0fa4291cff8ca6ebb309445b5ce12121d6afc0"
+          }
+        },
+        "after": {
+          "root": "cfc67457f398054ac3f0d1063d450b2989111ae7db877379d82d370cd400165c",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "cfc67457f398054ac3f0d1063d450b2989111ae7db877379d82d370cd400165c"
+          }
+        }
+      },
+      "refs": {
+        "01a0bd18-6ef5-747e-9881-133a90733946": {
+          "file": "crates/svc-core/src/op.rs",
+          "chain": [
+            [
+              "Enum",
+              "Op"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "70070c9a93f3b222a90b5f3b505742559cda3220ae70e52e7947f1940c28032b",
+      "workspace": null
+    },
+    {
+      "ix": 6,
+      "entry": {
+        "op": "Absorb",
+        "observed": null,
+        "at": 1789878896111,
+        "group": null,
+        "before": {
+          "root": "cfc67457f398054ac3f0d1063d450b2989111ae7db877379d82d370cd400165c",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "cfc67457f398054ac3f0d1063d450b2989111ae7db877379d82d370cd400165c"
+          }
+        },
+        "after": {
+          "root": "0f1d9cc3312409436c63649530af7d981b9e867bda7ba750a454e7fb49596938",
+          "heads": {
+            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
+            "01a0bd18-78cf-71ec-8f40-b092161153e3": "0f1d9cc3312409436c63649530af7d981b9e867bda7ba750a454e7fb49596938"
+          }
+        }
+      },
+      "refs": {},
+      "files": {
+        "DOGFOOD.md": {
+          "Text": "# Working on svc through svc\n\nThe store is `.svc/` at the repo root (ignored by git and jj); jj stays the system of\nrecord for landing. Every command below was run on this repo as written.\n\n```sh\ncargo build -p svc && export PATH=\"$PWD/target/debug:$PATH\"\nsvc init          # once per checkout: 1853 entities, ~3 s; skips target/ .git .jj + .svcignore\nsvc status        # \"1853 entities, 0 changes\"; also absorbs any hand edit since the last verb\nsvc new           # open a change: \"#n new change <id>\"\n```\n\n## Find the thing\n\n```sh\nsvc list-defs --json | jq -r '.definitions[] | select(.name==\"show_def\") | \"\\(.id) \\(.file)\"'\nsvc show-def --entity main.rs:show_def     # path-suffix:name, Type::method, or an id prefix\nsvc show-def --entity show_def             # ambiguity lists the candidates in both forms\nsvc show-def --entity <id> --json | jq -r .text > /tmp/def.rs      # the text to edit\n```\n\n## Change it\n\n```sh\nsvc rename   --entity <id> --new-name <name>            # the def and every resolved use\nsvc edit-def --entity <id> --definition \"$(cat /tmp/def.rs)\" --intent refactor|fix|feature\nsvc add-def  --parent <impl/class id | root> --ordinal <n> --definition \"...\" --intent feature\nsvc delete   --entity <id> --intent refactor            # refused while anything references it\nsvc move     --entity <id> --new-parent <id>;  svc relocate --entity <id> --file <p> --ordinal <n>\n```\n\nEach verb renders the working copy and appends one op-log line; `edit-def` reports the\ndeclared intent against the observed class (alpha / docs-only / binding-preserving /\nbinding-changing) and flags a mismatch. `use` lines, attributes, comments, Cargo.toml, `*.md`:\nedit by hand, then `svc status` absorbs them (a changed `use` line is one removed + one added).\n\n## Check and land\n\n```sh\nsvc status                    # exactly your change, or \"0 changes\"\nsvc diff <root-a> <root-b>    # per entity: added / removed / edited: <class>; roots: svc heads\nsvc undo; svc op restore <n>  # undo the last op; redo it\nsvc replay                    # \"replayed N operations: clean\"\ncargo test --workspace        # the rendered tree is the working copy\n```\n\n`jj describe` as usual and paste the `svc op log` lines for this change into the body.\nAfter `jj rebase` / `jj new main` the tree moves under the store: the next `svc status`\nabsorbs trunk's changes as hand edits — run it before your own edit. Then leave the bundle\n(`demo/history/README.md`): `svc history export --since <first op of this change> --out\ndemo/history/NNNN-<git sha your tree was clean at>-<change>.json`, landed with the change;\nthe checkout must hold no git-ignored files (svc tracks them; the base tree then differs).\n\n## Known edges (owners in the coordination plan)\n\n- Names resolve same file → same crate → repo; two file-level items with one name in one\n  crate still alias. Check `svc show-def --json | jq .canonical` for the `#name⟨id⟩`.\n- svc reads `.svcignore`, not `.gitignore`: a `result` link or demo scratch dir gets tracked.\n- Two bundles may share a number; `replay.sh` orders them by the base commit, not the name.\n- Cross-file `relocate`/`move` moves the item only: fix the `use` lines by hand, then `svc status`.\n"
+        },
+        "crates/svc-core/tests/move_reindent.rs": {
+          "Text": "//! An item moved between nesting levels is re-indented: a method extracted to file level\n//! starts at column 0, a free fn moved into an impl gains the members' indentation.\n//! Every line follows (bodies, attributes, doc comments), and the result reparses.\nuse std::collections::BTreeMap;\n\nuse svc_core::engine::{extract_hoist, lookup_name, move_def, render, rust_langs, snapshot_files};\nuse svc_core::ids::{ChangeId, RelPath};\nuse svc_core::store::MemStore;\nuse svc_core::Kind;\n\nconst SRC: &str = \"\\\npub struct B(Vec<u8>);\n\nimpl B {\n    /// Length.\n    #[inline]\n    pub fn len(&self) -> usize {\n        if self.0.is_empty() {\n            0\n        } else {\n            self.0.len()\n        }\n    }\n}\n\nfn helper(x: u32) -> u32 {\n    x + 1\n}\n\";\n\nfn setup() -> (MemStore, svc_core::Snapshot, RelPath) {\n    let store = MemStore::new();\n    let path = RelPath::new(\"src/lib.rs\").unwrap();\n    let mut files = BTreeMap::new();\n    files.insert(path.clone(), SRC.as_bytes().to_vec());\n    let snap = snapshot_files(&store, &rust_langs(), &files, None, ChangeId::new()).unwrap();\n    (store, snap, path)\n}\n\nfn text(store: &MemStore, snap: &svc_core::Snapshot, path: &RelPath) -> String {\n    String::from_utf8(render(snap, store, &rust_langs(), false).unwrap().files[path].clone()).unwrap()\n}\n\n#[test]\nfn extracting_a_method_to_file_level_dedents_it() {\n    let (store, snap, path) = setup();\n    let len = lookup_name(&snap, \"len\").unwrap();\n    let next = extract_hoist(&store, &rust_langs(), &snap, len, None, 2).unwrap();\n    let out = text(&store, &next, &path);\n    assert!(\n        out.contains(\"\\n/// Length.\\n#[inline]\\npub fn len(&self) -> usize {\\n    if self.0.is_empty() {\\n        0\\n    } else {\\n        self.0.len()\\n    }\\n}\\n\"),\n        \"{out}\"\n    );\n    assert!(!out.contains(\"\\n    /// Length.\"), \"{out}\");\n    let reparsed = snapshot_files(\n        &store,\n        &rust_langs(),\n        &BTreeMap::from([(path.clone(), out.into_bytes())]),\n        Some(&next),\n        ChangeId::new(),\n    )\n    .unwrap();\n    assert_eq!(reparsed.entities.values().filter(|r| r.kind == Kind::Fn).count(), 2);\n}\n\n#[test]\nfn moving_a_free_fn_into_an_impl_indents_it() {\n    let (store, snap, path) = setup();\n    let helper = lookup_name(&snap, \"helper\").unwrap();\n    let imp = snap.entities.iter().find(|(_, r)| r.kind == Kind::Impl).map(|(id, _)| *id).unwrap();\n    let next = move_def(&store, &rust_langs(), &snap, helper, Some(imp), None).unwrap();\n    let out = text(&store, &next, &path);\n    assert!(\n        out.contains(\"    }\\n\\n    fn helper(x: u32) -> u32 {\\n        x + 1\\n    }\\n}\\n\"),\n        \"{out}\"\n    );\n    assert!(!out.contains(\"\\nfn helper\"), \"{out}\");\n}\n"
+        },
+        "crates/svc-core/tests/op_wire_format.rs": {
+          "Text": "//! The store writes `Op` with postcard, which encodes an enum variant as its index and\n//! nothing else. Inserting a variant anywhere but at the end re-labels every op already\n//! in every store: `Restore` added after `Undo` made a stored `New` read back as `Restore`\n//! and the ops after it fail to decode (\"Option discriminant that wasn't 0 or 1\").\n//! This table is the wire format. Add new variants at the end and extend the table.\nuse svc_core::ids::{ChangeId, EntityId, RelPath};\nuse svc_core::{Intent, Op, Take};\n\nfn index_of(op: &Op) -> u8 {\n    postcard::to_allocvec(op).unwrap()[0]\n}\n\n#[test]\nfn op_variant_indices_are_append_only() {\n    let id = EntityId::new();\n    let table: [(Op, u8); 16] = [\n        (Op::Rename { id, new: \"n\".into() }, 0),\n        (Op::Move { id, parent: None, ordinal: None }, 1),\n        (Op::Relocate { id, file: RelPath::new(\"a.rs\").unwrap(), ordinal: 0 }, 2),\n        (Op::Extract { id, new_parent: None, ordinal: 0 }, 3),\n        (Op::Inline { id }, 4),\n        (\n            Op::AddDef { id, parent: None, file: None, ordinal: 0, definition: String::new(), intent: Intent::Fix },\n            5,\n        ),\n        (Op::Delete { id, intent: Intent::Fix }, 6),\n        (Op::EditDef { id, definition: String::new(), intent: Intent::Fix }, 7),\n        (Op::Merge { other: ChangeId::new() }, 8),\n        (Op::Undo, 9),\n        (Op::New { change: ChangeId::new() }, 10),\n        (Op::Describe { msg: String::new() }, 11),\n        (Op::Branch { name: String::new() }, 12),\n        (Op::Absorb, 13),\n        (Op::Resolve { conflict: 0, take: Take::A }, 14),\n        (Op::Restore { at: 0 }, 15),\n    ];\n    for (op, want) in &table {\n        assert_eq!(index_of(op), *want, \"{op:?} moved on the wire\");\n    }\n}\n\n#[test]\nfn intent_and_take_indices_are_append_only() {\n    for (i, intent) in [Intent::Refactor, Intent::Fix, Intent::Feature, Intent::Docs, Intent::Other(String::new())]\n        .iter()\n        .enumerate()\n    {\n        assert_eq!(postcard::to_allocvec(intent).unwrap()[0] as usize, i, \"{intent:?}\");\n    }\n    for (i, take) in [Take::A, Take::B, Take::Base].iter().enumerate() {\n        assert_eq!(postcard::to_allocvec(take).unwrap()[0] as usize, i, \"{take:?}\");\n    }\n}\n"
+        }
+      },
+      "after_tree": "e62308c6c90e636bf13b74c697a64ebf2e06e12f896f8c06b80235e8cdb8e53e",
+      "workspace": null
+    }
+  ]
+}

@@ -63,11 +63,6 @@ pub enum Op {
         other: ChangeId,
     },
     Undo,
-    /// `svc op restore <n>`: return to the view as it stood right after op `n`.
-    /// Distinct from `Undo` so the log names the verb (PLAN: restore was logged as undo).
-    Restore {
-        at: u64,
-    },
     New {
         change: ChangeId,
     },
@@ -85,6 +80,15 @@ pub enum Op {
     Resolve {
         conflict: u32,
         take: Take,
+    },
+    /// `svc op restore <n>`: return to the view as it stood right after op `n`.
+    /// Distinct from `Undo` so the log names the verb.
+    ///
+    /// Last on purpose: postcard writes a variant as its index, so a variant added
+    /// anywhere but the end re-labels every op already in every store (a `New` read
+    /// back as `Restore`). `op_wire_format` pins the order.
+    Restore {
+        at: u64,
     },
 }
 

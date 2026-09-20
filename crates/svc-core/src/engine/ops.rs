@@ -97,6 +97,9 @@ pub fn move_def(
         let file = next.entities[&p].file.clone();
         next.set_file(id, file, ordinal.unwrap_or(rec.ordinal))?;
     }
+    if old_parent != new_parent {
+        reindent_subtree(store, &mut next, id, new_parent)?;
+    }
     if old_parent == new_parent {
         if let Some(p) = new_parent {
             let mut kids = child_ids_of(store, &next, p)?;
@@ -1320,6 +1323,33 @@ fn item_text(store: &dyn Store, snap: &Snapshot, id: EntityId, text: &[u8]) -> R
         out.push(b'\n');
     }
     Ok(out)
+}
+
+/// Re-indent `id` and everything nested in it from the level it had to the level of its
+/// new parent (`None` = column 0), by the first code line's leading whitespace.
+fn reindent_subtree(
+    store: &dyn Store,
+    snap: &mut Snapshot,
+    id: EntityId,
+    new_parent: Option<EntityId>,
+) -> Result<()> {
+    let (rendered, _) = render_entity(snap, store, id, false)?;
+    let lead = rendered.iter().take_while(|b| b.is_ascii_whitespace()).count();
+    let line_start = rendered[..lead].iter().rposition(|b| *b == b'\n').map_or(0, |p| p + 1);
+    let from = rendered[line_start..lead].to_vec();
+    let to = new_parent
+        .map(|p| sibling_indent(store, snap, p))
+        .unwrap_or_default();
+    if from == to {
+        return Ok(());
+    }
+    for eid in subtree(snap, id) {
+        let rec = &snap.entities[&eid];
+        let bytes = store.get_bytes_blob(rec.bytes)?.reindent(&from, &to)?;
+        let bytes_id = store.put_bytes_blob(&bytes)?;
+        snap.entities.get_mut(&eid).unwrap().bytes = bytes_id;
+    }
+    Ok(())
 }
 
 /// After roots of `file` were reordered: the first root starts at column 0 with no blank

@@ -125,6 +125,68 @@ impl Bytes {
         }
         Self::new(src, chunks, self.local_ranges.clone())
     }
+
+    /// The same bytes with every line that starts with `from` starting with `to`
+    /// instead — an item moved between nesting levels keeps its inner structure and
+    /// drops or gains one level. Literal text is rebuilt chunk by chunk and every
+    /// range (chunks, local identifiers) follows its bytes. Lines inside multi-line
+    /// string literals move too; that is what a reviewer would expect to see.
+    pub fn reindent(&self, from: &[u8], to: &[u8]) -> crate::error::Result<Self> {
+        if from == to {
+            return Ok(self.clone());
+        }
+        let mut src = Vec::with_capacity(self.src.len());
+        let mut map = vec![u32::MAX; self.src.len() + 1];
+        let mut chunks = Vec::with_capacity(self.chunks.len());
+        for chunk in &self.chunks {
+            let Chunk::Literal(r) = chunk else {
+                chunks.push(chunk.clone());
+                continue;
+            };
+            let start = src.len() as u32;
+            let mut at_line_start = r.start == 0 || self.src.get(r.start as usize - 1) == Some(&b'\n');
+            let mut i = r.start as usize;
+            while i < r.end as usize {
+                map[i] = src.len() as u32;
+                if at_line_start && !from.is_empty() && self.src[i..r.end as usize].starts_with(from) {
+                    src.extend_from_slice(to);
+                    for k in 1..from.len() {
+                        map[i + k] = src.len() as u32;
+                    }
+                    i += from.len();
+                    at_line_start = false;
+                    continue;
+                }
+                if at_line_start && from.is_empty() && self.src[i] != b'\n' {
+                    src.extend_from_slice(to);
+                    map[i] = src.len() as u32;
+                }
+                let b = self.src[i];
+                src.push(b);
+                at_line_start = b == b'\n';
+                i += 1;
+            }
+            map[r.end as usize] = src.len() as u32;
+            chunks.push(Chunk::Literal(ByteRange {
+                start,
+                end: src.len() as u32,
+            }));
+        }
+        let local_ranges = self
+            .local_ranges
+            .iter()
+            .map(|(r, ident)| {
+                (
+                    ByteRange {
+                        start: map[r.start as usize],
+                        end: map[r.end as usize],
+                    },
+                    ident.clone(),
+                )
+            })
+            .collect();
+        Self::new(src, chunks, local_ranges)
+    }
 }
 
 fn coalesce_literals(chunks: Vec<Chunk>) -> Vec<Chunk> {
