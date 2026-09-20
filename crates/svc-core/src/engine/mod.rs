@@ -246,6 +246,7 @@ fn link_file_modules(
             env.insert_mod_child(mod_id, &ent.name, ent.kind, ids[i]);
         }
     }
+    env.file_of_mod.extend(file_of_mod);
 }
 
 fn link_file_modules_from_raw(env: &mut Env, path: &RelPath, raw: &[RawEntity], ids: &[EntityId]) {
@@ -274,6 +275,7 @@ fn link_file_modules_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
         }
         env.insert_mod_child(mod_id, &rec.name, rec.kind, *id);
     }
+    env.file_of_mod.extend(file_of_mod);
 }
 
 fn nearest_mod_raw(raw: &[RawEntity], i: usize) -> Option<usize> {
@@ -301,10 +303,22 @@ fn nearest_mod_rec(snapshot: &Snapshot, id: EntityId) -> Option<EntityId> {
     None
 }
 
+fn apply_file_module_env(env: &mut Env) {
+    let Some(file) = env.current_file.clone() else {
+        return;
+    };
+    let Some(&m) = env.file_of_mod.get(&file) else {
+        return;
+    };
+    env.in_nested_mod = true;
+    env.self_mod = Some(m);
+}
+
 fn fill_mod_env_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
     env.in_nested_mod = false;
     env.super_stack.clear();
     env.self_mod = None;
+    apply_file_module_env(env);
     let Some(mut m) = nearest_mod_raw(raw, i) else {
         return;
     };
@@ -332,6 +346,7 @@ pub(crate) fn fill_mod_env_from_snapshot(env: &mut Env, snapshot: &Snapshot, id:
     env.in_nested_mod = false;
     env.super_stack.clear();
     env.self_mod = None;
+    apply_file_module_env(env);
     let Some(mut m) = nearest_mod_rec(snapshot, id) else {
         return;
     };

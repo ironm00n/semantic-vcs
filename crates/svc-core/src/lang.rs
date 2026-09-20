@@ -46,12 +46,20 @@ pub struct Env {
     pub mod_items: HashMap<EntityId, HashMap<(String, Namespace), EntityId>>,
     /// Enclosing `mod` entity, for `self::inner::f`.
     pub self_mod: Option<EntityId>,
+    /// File loaded by `mod foo;` → that `mod` entity. Items in the file are
+    /// inside the module, not the crate root.
+    pub file_of_mod: HashMap<RelPath, EntityId>,
 }
 
 impl Env {
     pub fn lookup(&self, name: &str, ns: Namespace) -> Option<EntityId> {
         if let Some(id) = Self::lookup_in_map(Some(&self.nested_items), name, ns) {
             return Some(id);
+        }
+        if let Some(m) = self.self_mod {
+            if let Some(id) = Self::lookup_in_map(self.mod_items.get(&m), name, ns) {
+                return Some(id);
+            }
         }
         if self.in_nested_mod {
             return None;
