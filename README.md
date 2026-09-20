@@ -127,6 +127,13 @@ Self-hosting alone:
 cargo build -p svc && demo/self-host.sh
 ```
 
+This repository's own history, made through svc: `demo/history/` holds one
+bundle per svc-made landing (the op log with entity paths, absorbed files and
+per-op tree hashes). `demo/history/replay.sh <dir>` rebuilds them into one
+store from git's trees, in order, refusing any op whose tree does not
+reproduce; `svc tui`, `svc log` and `svc blame` in `<dir>` then answer for
+this repository's real entities, with the recorded times and checkouts.
+
 ## Agent overlay
 
 Read, glob, and grep stay. `edit` and `write` are removed from the schema;
