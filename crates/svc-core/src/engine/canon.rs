@@ -1561,12 +1561,13 @@ fn super_glob_at(env: &Env, depth: usize) -> Option<HashMap<(String, Namespace),
     if let Some(map) = env.super_stack.get(i) {
         return Some(map.clone());
     }
-    let skip = usize::from(env.inline_mod);
-    if i < skip {
+    let rest = i - env.super_stack.len();
+    if env.inline_mod && rest == 0 {
         let file = env.current_file.as_ref()?;
         return merge_file_glob(env, file);
     }
-    let file = env.super_files.get(i - skip)?;
+    let file_i = if env.inline_mod { rest - 1 } else { rest };
+    let file = env.super_files.get(file_i)?;
     merge_file_glob(env, file)
 }
 
