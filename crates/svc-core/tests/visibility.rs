@@ -305,6 +305,18 @@ fn rust_closure_param_is_local_in_the_body() {
 }
 
 #[test]
+fn rust_typed_closure_param_is_a_single_slot() {
+    let src = "fn f() { let _ = |x: u32| x; }\n";
+    let refs = rust_item_refs(src);
+    let xs: Vec<_> = refs.iter().filter(|(n, _)| n == "x").collect();
+    assert_eq!(xs.len(), 1, "typed closure param must not double-bind: {refs:?}");
+    assert!(
+        matches!(xs[0].1, IdentRef::Local(_, Namespace::Value)),
+        "{refs:?}"
+    );
+}
+
+#[test]
 fn closure_inside_fn_still_sees_type_param() {
     let src = "fn outer<T>(x: T) { let _f = |y: T| y; }\n";
     let refs = rust_item_refs(src);

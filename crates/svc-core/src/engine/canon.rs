@@ -110,6 +110,11 @@ fn collect_binders<'a>(
             for name_node in locate(node, locator) {
                 for id in ident_leaves(name_node, name_node) {
                     let r = byte_range(id);
+                    // Typed `|x: T|` is both a `parameter` binder and a child of
+                    // `closure_parameters`. One range, one slot.
+                    if slots.iter().any(|(existing, _, _)| *existing == r) {
+                        continue;
+                    }
                     let n = next.entry(namespace).or_insert(0);
                     let slot = Slot(*n);
                     *n += 1;
