@@ -116,6 +116,9 @@ impl Repo {
             _checkout_lock: checkout_lock,
         };
         let change = ChangeId::new();
+        // Every blob and snapshot of the first import lands in the one transaction that
+        // records the op: one fsync, and no half-imported store on a crash.
+        repo.store.stage(None);
         let files = repo.tracked_files()?;
         let snapshot = repo.snapshot_files(&files, None, change)?;
         // The op log needs a "before"; an empty snapshot makes init blame as `Added`.
@@ -371,7 +374,7 @@ impl Repo {
         }
         let before = self.view()?;
         let (group, _) = self.open_group()?;
-        self.store.stage(&before);
+        self.store.stage(Some(&before));
         let staged = (|| -> Result<(SnapshotId, OpLogEntry)> {
             let id = self.amend(&cur, next)?;
             let after = self.view()?;
@@ -438,7 +441,7 @@ impl Repo {
         // From here to `append_op`, head/root/render-pending writes are staged and land in
         // the op's own transaction: a crash never leaves the store a snapshot ahead of
         // the log, and a failing verb publishes nothing.
-        self.store.stage(&before);
+        self.store.stage(Some(&before));
         let staged = (|| -> Result<(SnapshotId, OpLogEntry)> {
             self.store.set_render_pending(true)?;
             let snapshot = f(self, &cur)?;
@@ -469,7 +472,7 @@ impl Repo {
         self.absorb()?;
         let before = self.view()?;
         let (group, closed_stale_changeset) = self.open_group()?;
-        self.store.stage(&before);
+        self.store.stage(Some(&before));
         let staged = (|| -> Result<OpLogEntry> {
             self.store.set_render_pending(true)?;
             for (change, snap) in &view.heads {

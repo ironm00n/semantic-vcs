@@ -48,17 +48,21 @@ pub struct WorkspaceRow {
     pub open_changeset: Option<OpenChangeSet>,
 }
 
-/// Head/root/render-pending writes held back until `append_op`'s transaction, so a
-/// mutation is published in one redb txn and a crash can never leave head and root a
-/// snapshot ahead of the op log. Reads consult it first, so the code in
-/// between (`amend`, `view`) sees what it just wrote.
+/// Everything a verb writes, held back until `append_op`'s transaction: blobs, snapshots,
+/// head/root/render-pending. A mutation is published in one redb txn — one fsync instead of
+/// one per object, and a crash can never leave the store a snapshot ahead of the op log.
+/// Reads consult it first, so the code in between (`amend`, `view`, the engine reading a
+/// content it just put) sees what it just wrote.
 ///
-/// `expected` is the view the verb computed from. Other processes share the store, so
-/// `append_op` compares the persisted root and every head it is about to move against it
-/// inside the write transaction: two processes that both read head H and both try to
-/// publish H→H' cannot both win — the second finds H' and is refused with nothing written.
+/// `expected` is the view the verb computed from (`None` only for `Repo::init`, before a
+/// view exists). Other processes share the store, so `append_op` compares the persisted
+/// root and every head it is about to move against it inside the write transaction: two
+/// processes that both read head H and both try to publish H→H' cannot both win — the
+/// second finds H' and is refused with nothing written.
 struct Staged {
-    expected: View,
+    expected: Option<View>,
+    blobs: std::collections::BTreeMap<[u8; 32], Vec<u8>>,
+    snapshots: std::collections::BTreeMap<SnapshotId, Vec<u8>>,
     heads: std::collections::BTreeMap<ChangeId, SnapshotId>,
     root: Option<SnapshotId>,
     render_pending: Option<bool>,
@@ -148,19 +152,20 @@ impl RedbStore {
         Ok(self)
     }
 
-    /// Hold head/root/render-pending writes until the next `append_op`, which publishes
-    /// them with the op in one transaction. `Repo::mutate` brackets every verb with this.
-    pub fn stage(&self, expected: &View) {
+    /// Hold every write until the next `append_op`, which publishes them with the op in one
+    /// transaction. `Repo::mutate` brackets every verb with this.
+    pub fn stage(&self, expected: Option<&View>) {
         *self.staged.lock().unwrap() = Some(Staged {
-            expected: expected.clone(),
+            expected: expected.cloned(),
+            blobs: Default::default(),
+            snapshots: Default::default(),
             heads: Default::default(),
             root: None,
             render_pending: None,
         });
     }
 
-    /// Drop everything staged since `stage()` without writing it (the verb failed;
-    /// snapshots already put are content-addressed orphans and harmless).
+    /// Drop everything staged since `stage()`: the verb failed and nothing was written.
     pub fn discard_staged(&self) {
         *self.staged.lock().unwrap() = None;
     }
@@ -338,6 +343,11 @@ fn hex32(bytes: &[u8; 32]) -> String {
 impl Store for RedbStore {
     fn put_blob(&self, bytes: &[u8]) -> Result<[u8; 32]> {
         let id = *blake3::hash(bytes).as_bytes();
+        if self.stage_with(|s| {
+            s.blobs.insert(id, bytes.to_vec());
+        }) {
+            return Ok(id);
+        }
         self.write(|txn| {
             let mut table = txn.open_table(OBJECTS).map_err(Error::backend)?;
             table.insert(&id, bytes).map_err(Error::backend)?;
@@ -347,6 +357,9 @@ impl Store for RedbStore {
     }
 
     fn get_blob(&self, id: &[u8; 32]) -> Result<Vec<u8>> {
+        if let Some(b) = self.staged.lock().unwrap().as_ref().and_then(|s| s.blobs.get(id)) {
+            return Ok(b.clone());
+        }
         let txn = self.read()?;
         let table = txn.open_table(OBJECTS).map_err(Error::backend)?;
         table
@@ -359,6 +372,11 @@ impl Store for RedbStore {
     fn put_snapshot(&self, s: &Snapshot) -> Result<SnapshotId> {
         let id = s.id();
         let bytes = encode(s)?;
+        if self.stage_with(|st| {
+            st.snapshots.insert(id, bytes.clone());
+        }) {
+            return Ok(id);
+        }
         self.write(|txn| {
             let mut table = txn.open_table(SNAPSHOTS).map_err(Error::backend)?;
             table.insert(&id.0, bytes.as_slice()).map_err(Error::backend)?;
@@ -368,6 +386,9 @@ impl Store for RedbStore {
     }
 
     fn get_snapshot(&self, id: SnapshotId) -> Result<Snapshot> {
+        if let Some(b) = self.staged.lock().unwrap().as_ref().and_then(|s| s.snapshots.get(&id)) {
+            return decode(b);
+        }
         let txn = self.read()?;
         let table = txn.open_table(SNAPSHOTS).map_err(Error::backend)?;
         match table.get(&id.0).map_err(Error::backend)? {
@@ -385,11 +406,26 @@ impl Store for RedbStore {
             if let Some(s) = &staged {
                 // Compare-and-swap against the view the verb read: another process may have
                 // published since. A mismatch aborts the transaction with nothing written.
-                if self.root_in(txn)? != Some(s.expected.root) {
+                let expected = s.expected.as_ref();
+                if let Some(v) = expected
+                    && self.root_in(txn)? != Some(v.root)
+                {
                     return Err(Error::Other(
                         "concurrent update: this checkout's root moved under the verb; nothing was written"
                             .into(),
                     ));
+                }
+                if !s.blobs.is_empty() {
+                    let mut table = txn.open_table(OBJECTS).map_err(Error::backend)?;
+                    for (id, bytes) in &s.blobs {
+                        table.insert(id, bytes.as_slice()).map_err(Error::backend)?;
+                    }
+                }
+                if !s.snapshots.is_empty() {
+                    let mut table = txn.open_table(SNAPSHOTS).map_err(Error::backend)?;
+                    for (id, bytes) in &s.snapshots {
+                        table.insert(&id.0, bytes.as_slice()).map_err(Error::backend)?;
+                    }
                 }
                 if !s.heads.is_empty() {
                     let mut heads = txn.open_table(HEADS).map_err(Error::backend)?;
@@ -398,7 +434,7 @@ impl Store for RedbStore {
                             .get(c.as_uuid())
                             .map_err(Error::backend)?
                             .map(|g| SnapshotId(*g.value()));
-                        if actual != s.expected.heads.get(c).copied() {
+                        if expected.is_some_and(|v| actual != v.heads.get(c).copied()) {
                             return Err(Error::Other(format!(
                                 "concurrent update: change {} moved to {} under the verb; nothing was written (run `svc workspace update-stale`)",
                                 c.short(),

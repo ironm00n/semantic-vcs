@@ -153,3 +153,46 @@ fn two_handles_on_one_store_see_each_others_commits() {
     b.set_head(change, id2).unwrap();
     assert_eq!(a.head(change).unwrap(), id2, "and a follows b's");
 }
+
+#[test]
+fn a_staged_verb_publishes_everything_in_one_step_or_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.redb");
+    let store = RedbStore::create(&path).unwrap();
+    let change = ChangeId::new();
+
+    // Held: visible to the verb that put it, invisible to another handle, gone on discard.
+    store.stage(None);
+    let blob = store.put_blob(b"held").unwrap();
+    let snap = store.put_snapshot(&snapshot(change, "held")).unwrap();
+    assert_eq!(store.get_blob(&blob).unwrap(), b"held");
+    assert_eq!(store.get_snapshot(snap).unwrap().message, "held");
+    let other = RedbStore::open(&path).unwrap();
+    assert!(other.get_blob(&blob).is_err(), "not written yet");
+    store.discard_staged();
+    assert!(store.get_blob(&blob).is_err(), "never written");
+    assert!(store.get_snapshot(snap).is_err());
+
+    // Published: the objects, the head, the root and the op land together.
+    store.stage(None);
+    let blob = store.put_blob(b"kept").unwrap();
+    let snap = store.put_snapshot(&snapshot(change, "kept")).unwrap();
+    store.set_head(change, snap).unwrap();
+    store.set_root(snap).unwrap();
+    assert!(other.head(change).is_err(), "nothing published before append_op");
+    store
+        .append_op(&OpLogEntry {
+            op: Op::New { change },
+            observed: None,
+            at: 1,
+            group: None,
+            before: View { root: snap, heads: BTreeMap::new() },
+            after: view(&store),
+        })
+        .unwrap();
+    assert_eq!(other.get_blob(&blob).unwrap(), b"kept");
+    assert_eq!(other.get_snapshot(snap).unwrap().message, "kept");
+    assert_eq!(other.head(change).unwrap(), snap);
+    assert_eq!(other.root().unwrap(), snap);
+    assert_eq!(other.ops(OpIx(0), false).unwrap().len(), 1);
+}
