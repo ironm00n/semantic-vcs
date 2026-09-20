@@ -3317,3 +3317,34 @@ fn rename_follows_type_alias_use_from_a_real_mod() {
         "use of a real type alias must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_macro_rules_inside_a_brace_body_macro_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"m! { pub mod fs { macro_rules! parse { () => {}; } } }\nmod caller;\n".to_vec(),
+    );
+    files.insert(
+        caller.clone(),
+        b"fn f() { crate::fs::parse!(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("crate::fs::parse_file!()"),
+        "macro_rules in a brace-body macro mod must walk: {text}"
+    );
+}

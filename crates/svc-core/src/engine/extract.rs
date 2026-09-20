@@ -284,7 +284,8 @@ fn collect<'a>(
 /// a child of that module so `src/outer/fs.rs` attaches. Brace-body
 /// `pub mod fs { pub fn parse() {} }` has no file; mint the Mod and its `fn`
 /// children so `crate::fs::parse` walks. `struct`/`const`/`type` and the other
-/// named items in that soup are minted the same way. Token trees under a
+/// named items in that soup are minted the same way, as is `macro_rules!`.
+/// Token trees under a
 /// `macro_definition` stay matcher/body, not declarations.
 fn collect_macro_mod_decls<'a>(
     node: tree_sitter::Node<'a>,
@@ -383,8 +384,37 @@ fn collect_macro_mod_decls<'a>(
             i = f + 2;
             continue;
         }
+        if is_macro_rules_kw(kids[f], src) {
+            let mut m = f + 1;
+            if m < kids.len() && kids[m].kind() == "!" {
+                m += 1;
+            }
+            if m < kids.len() && kids[m].kind() == "identifier" {
+                emit_macro_named(
+                    kids[m],
+                    src,
+                    lang,
+                    parent_idx,
+                    Kind::Macro,
+                    raw,
+                    nodes,
+                );
+                i = m + 1;
+                if i < kids.len() && kids[i].kind() == "token_tree" {
+                    i += 1;
+                }
+                if i < kids.len() && kids[i].kind() == ";" {
+                    i += 1;
+                }
+                continue;
+            }
+        }
         i += 1;
     }
+}
+
+fn is_macro_rules_kw(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    node.kind() == "macro_rules" || node_text(src, node) == "macro_rules"
 }
 
 fn is_macro_item_prefix(node: tree_sitter::Node<'_>) -> bool {
