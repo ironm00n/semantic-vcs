@@ -189,11 +189,15 @@ impl Env {
     }
 
     /// `use a as b; b::parse` — `b` names a module, then walk its children.
+    /// A `pub use a as b` at the crate root is visible from a file module even
+    /// though nested-mod isolation hides it from [`Self::lookup`].
     pub fn lookup_aliased_mod_path(&self, segs: &[String], ns: Namespace) -> Option<EntityId> {
         if segs.len() < 2 {
             return None;
         }
-        let start = self.lookup(&segs[0], Namespace::Type)?;
+        let start = self
+            .lookup(&segs[0], Namespace::Type)
+            .or_else(|| self.lookup_crate_path(&segs[..1], Namespace::Type))?;
         if !self.mods.contains(&start) {
             return None;
         }

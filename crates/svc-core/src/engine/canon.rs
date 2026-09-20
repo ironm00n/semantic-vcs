@@ -1090,6 +1090,15 @@ fn is_foreign_scoped_ref(
     if env.lookup(name, Namespace::Type).is_some() || env.lookup(name, Namespace::Value).is_some() {
         return false;
     }
+    if env.alias_spellings.contains(name) {
+        return false;
+    }
+    if env
+        .lookup_crate_path(&[name.to_string()], Namespace::Type)
+        .is_some()
+    {
+        return false;
+    }
     env.lookup_global(name, Namespace::Value).is_none()
         && env.lookup_global(name, Namespace::Type).is_none()
 }

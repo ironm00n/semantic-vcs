@@ -2723,3 +2723,48 @@ fn rename_of_a_file_local_fn_is_not_blocked_by_another_files_module_alias() {
         "same-file call must follow; other-file module alias must not freeze the name: {text}"
     );
 }
+
+#[test]
+fn rename_follows_use_of_a_reexported_mod_alias_from_another_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let b = RelPath::new("src/b.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib, b"mod a; mod b;\npub use a as foo;\n".to_vec());
+    files.insert(a, b"pub fn parse() {}\n".to_vec());
+    files.insert(b.clone(), b"use foo::parse;\nfn f() { parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "parse").expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&b].clone()).unwrap();
+    assert!(
+        text.contains("use foo::parse_file;") || text.contains("use crate::foo::parse_file;"),
+        "reexport alias in a use path must keep the alias and follow the item: {text}"
+    );
+    assert!(text.contains("parse_file();"), "{text}");
+}
+
+#[test]
+fn rename_follows_call_through_a_reexported_mod_alias_from_another_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let b = RelPath::new("src/b.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib, b"mod a; mod b;\npub use a as foo;\n".to_vec());
+    files.insert(a, b"pub fn parse() {}\n".to_vec());
+    files.insert(b.clone(), b"fn f() { foo::parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "parse").expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&b].clone()).unwrap();
+    assert!(
+        text.contains("foo::parse_file()"),
+        "reexport alias as a path qualifier must follow: {text}"
+    );
+}
