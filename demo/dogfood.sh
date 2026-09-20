@@ -62,15 +62,20 @@ if [ -z "$STORY" ] && [ "$MODE" != check ] && [ "$MODE" != agent ] && ls "$HERE"
   if [ -n "${SVC_HISTORY_FRESH:-}" ] || [ ! -f "$HIST/.svc/replayed" ]; then
     rm -rf "$HIST"
     if [ -z "${SVC_HISTORY_FRESH:-}" ] && [ -f "$TAR" ] && [ -f "$MANIFEST" ]; then
-      have="$(ls "$HERE"/history/[0-9]*.json | xargs -n1 basename | sort | tr '\n' ' ')"
-      want="$(jq -r '.bundles[]' "$MANIFEST" | sort | tr '\n' ' ')"
-      if [ "$have" != "$want" ]; then
-        echo "artifacts/history-store.tar.xz was packed for other bundles than demo/history holds; replaying instead"
+      have="$(ls "$HERE"/history/[0-9]*.json | xargs -n1 basename | sort)"
+      want="$(jq -r '.bundles[]' "$MANIFEST" | sort)"
+      # Bundles the pack lacks (landed since it was made) are fine to lag behind, and said;
+      # a bundle the pack has that demo/history no longer holds is not.
+      missing="$(comm -23 <(echo "$want") <(echo "$have") | wc -l)"
+      lag="$(comm -13 <(echo "$want") <(echo "$have") | wc -l)"
+      if [ "$missing" -gt 0 ]; then
+        echo "artifacts/history-store.tar.xz holds $missing bundle(s) demo/history no longer has; replaying instead"
       elif mkdir -p "$HIST" && tar -xJf "$TAR" -C "$HIST" && [ -f "$HIST/.svc/store.redb" ]; then
         ops="$(cd "$HIST" && "$SVC" op log --json | jq length)"
         clean="$(cd "$HIST" && "$SVC" status --json | jq -r .clean)"
         if [ "$ops" = "$(jq -r .ops "$MANIFEST")" ] && [ "$clean" = true ]; then
           echo "from artifacts/history-store (verified: $(jq -r '.bundles|length' "$MANIFEST") bundles, $ops ops, tree clean)"
+          [ "$lag" -gt 0 ] && echo "the pack predates $lag newer bundle(s) in demo/history; SVC_HISTORY_FRESH=1 replays them all"
           opened=1
         else
           echo "artifacts/history-store.tar.xz did not verify (ops $ops vs $(jq -r .ops "$MANIFEST"), clean $clean); replaying instead"
