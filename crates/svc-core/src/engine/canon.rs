@@ -170,6 +170,16 @@ fn collect_refs<'a>(
     if is_opaque_node(node, lang) && node.id() != root_id {
         return;
     }
+    if is_inherent_method_ref(node, src) {
+        let r = byte_range(node);
+        let name = String::from_utf8_lossy(&src[r.start as usize..r.end as usize]).into_owned();
+        if let Some(id) = env.self_methods.get(&name) {
+            refs.push((r, IdentRef::Entity(*id)));
+        } else {
+            refs.push((r, IdentRef::Free(name.into())));
+        }
+        return;
+    }
     if is_ident_leaf(node) {
         let r = byte_range(node);
         if slot_at.contains_key(&(r.start, r.end)) {
@@ -578,6 +588,80 @@ fn skip_nested_item(node: tree_sitter::Node<'_>, lang: &dyn Lang, root_id: usize
 
 fn is_opaque_node(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
     lang.opaque_nodes().iter().any(|k| *k == node.kind())
+}
+
+/// Method name of `self.foo()`, `Self::foo()`, or JS `this.foo()` — bound to a
+/// sibling under the enclosing impl/class, not the flat Value env (a free `fn
+/// foo` is a different target). `x.foo()` stays Free: that needs types.
+fn is_inherent_method_ref(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    match node.kind() {
+        "field_identifier" => rust_self_field_call(node),
+        "property_identifier" => js_this_member_call(node),
+        "identifier" => rust_self_path_method(node, src),
+        _ => false,
+    }
+}
+
+fn rust_self_field_call(node: tree_sitter::Node<'_>) -> bool {
+    let Some(parent) = node.parent().filter(|p| p.kind() == "field_expression") else {
+        return false;
+    };
+    if parent.child_by_field_name("field").map(|n| n.id()) != Some(node.id()) {
+        return false;
+    }
+    let Some(value) = parent.child_by_field_name("value") else {
+        return false;
+    };
+    if value.kind() != "self" {
+        return false;
+    }
+    let Some(grand) = parent.parent() else {
+        return false;
+    };
+    grand.kind() == "call_expression"
+        && grand.child_by_field_name("function").map(|n| n.id()) == Some(parent.id())
+}
+
+fn js_this_member_call(node: tree_sitter::Node<'_>) -> bool {
+    let Some(parent) = node.parent().filter(|p| p.kind() == "member_expression") else {
+        return false;
+    };
+    if parent.child_by_field_name("property").map(|n| n.id()) != Some(node.id()) {
+        return false;
+    }
+    let Some(object) = parent.child_by_field_name("object") else {
+        return false;
+    };
+    if object.kind() != "this" {
+        return false;
+    }
+    let Some(grand) = parent.parent() else {
+        return false;
+    };
+    grand.kind() == "call_expression"
+        && grand.child_by_field_name("function").map(|n| n.id()) == Some(parent.id())
+}
+
+fn rust_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    let Some(parent) = node.parent().filter(|p| p.kind() == "scoped_identifier") else {
+        return false;
+    };
+    if parent.child_by_field_name("name").map(|n| n.id()) != Some(node.id()) {
+        return false;
+    }
+    let Some(path) = parent.child_by_field_name("path") else {
+        return false;
+    };
+    let start = path.start_byte();
+    let end = path.end_byte();
+    if end > src.len() || start >= end || &src[start..end] != b"Self" {
+        return false;
+    }
+    let Some(grand) = parent.parent() else {
+        return false;
+    };
+    grand.kind() == "call_expression"
+        && grand.child_by_field_name("function").map(|n| n.id()) == Some(parent.id())
 }
 
 fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {

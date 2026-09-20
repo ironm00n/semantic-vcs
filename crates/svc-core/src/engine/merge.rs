@@ -11,7 +11,9 @@ use crate::snapshot::{AttrValue, Conflict, Hunk, Merge, Side, Snapshot};
 use crate::store::Store;
 
 use super::align::{equal_lines, map_range, slot_bijection};
-use super::{env_from_snapshot, ingest_file_with_env, parse, render_entity};
+use super::{
+    env_from_snapshot, fill_self_methods_from_snapshot, ingest_file_with_env, parse, render_entity,
+};
 
 /// Per-entity 3-way merge plus the §5.4 binding post-condition.
 pub fn merge(
@@ -99,10 +101,12 @@ pub fn merge(
             (Some(ro), Some(ra), Some(rb)) => {
                 let rb = rewrite_record(rb, &rewrite);
                 let parent_kind = ra.parent.and_then(|p| a_s.entities.get(&p).map(|r| r.kind));
+                let mut env = env_from_snapshot(&a_s);
+                fill_self_methods_from_snapshot(&mut env, &a_s, ra.parent);
                 let rec = merge_record(
                     store,
                     langs,
-                    &env_from_snapshot(&a_s),
+                    &env,
                     ro,
                     ra,
                     &rb,
@@ -136,7 +140,11 @@ pub fn merge(
 }
 
 fn unify_add_add(a: &Snapshot, b: &Snapshot, rewrite: &mut HashMap<EntityId, EntityId>) {
-    let a_by: HashMap<_, _> = a.entities.iter().map(|(id, rec)| (rec.sig_key(), *id)).collect();
+    let a_by: HashMap<_, _> = a
+        .entities
+        .iter()
+        .map(|(id, rec)| (rec.sig_key(), *id))
+        .collect();
     for (bid, rec) in &b.entities {
         if a.entities.contains_key(bid) {
             continue;
@@ -175,11 +183,7 @@ fn merge_record(
     let name = merge_attr(sides, id, conflicts, |r| r.name.clone(), AttrValue::Name);
     let parent = merge_attr(sides, id, conflicts, |r| r.parent, AttrValue::Parent);
     let file = merge_attr(sides, id, conflicts, |r| r.file.clone(), AttrValue::File);
-    let ordinal = if super::diff_impl::commutative_layout(
-        a.file.extension(),
-        parent_kind,
-        a.kind,
-    ) {
+    let ordinal = if super::diff_impl::commutative_layout(a.file.extension(), parent_kind, a.kind) {
         three(o.ordinal, a.ordinal, b.ordinal).unwrap_or(a.ordinal)
     } else {
         merge_attr(sides, id, conflicts, |r| r.ordinal, AttrValue::Ordinal)
@@ -423,7 +427,7 @@ fn binding_post(
     b: &Snapshot,
     snap: &mut Snapshot,
 ) -> Result<()> {
-    let env = env_from_snapshot(snap);
+    let base_env = env_from_snapshot(snap);
     let ids: Vec<_> = snap.entities.keys().copied().collect();
     for id in ids {
         let rec = snap.entities[&id].clone();
@@ -457,6 +461,8 @@ fn binding_post(
         let own_name = node
             .child_by_field_name("name")
             .map(super::extract::byte_range);
+        let mut env = base_env.clone();
+        fill_self_methods_from_snapshot(&mut env, snap, rec.parent);
         let res = super::resolve(node, &item, lang, &env)?;
         for (i, (r, ident)) in res.refs.iter().enumerate() {
             if matches!(ident, IdentRef::Free(_)) || own_name == Some(*r) {

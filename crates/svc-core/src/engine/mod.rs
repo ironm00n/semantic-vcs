@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::content::{Bytes, Content, IdentRef};
-use crate::entity::{EntityRecord, FileRecord, SigKey};
+use crate::entity::{EntityRecord, FileRecord, Kind, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{ByteRange, BytesId, ChangeId, ContentId, EntityId, RelPath};
 use crate::lang::{Env, Lang, Langs, RawEntity, Resolution};
@@ -66,6 +66,29 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
         .collect();
     env.insert_defs(&defs);
     env
+}
+
+/// Inherent methods nested under `parent` (an `impl` or class). Empty when the
+/// item is file-root: there is no receiver to bind `self.foo()` against.
+pub(crate) fn fill_self_methods_from_snapshot(
+    env: &mut Env,
+    snapshot: &Snapshot,
+    parent: Option<EntityId>,
+) {
+    env.self_methods.clear();
+    let Some(parent) = parent else {
+        return;
+    };
+    env.self_methods = snapshot
+        .entities
+        .iter()
+        .filter(|(_, rec)| rec.parent == Some(parent) && is_callable_member(rec.kind))
+        .map(|(id, rec)| (rec.name.clone(), *id))
+        .collect();
+}
+
+fn is_callable_member(kind: Kind) -> bool {
+    matches!(kind, Kind::Fn | Kind::JsMethod | Kind::JsStaticMethod)
 }
 
 pub fn resolve(
@@ -282,7 +305,16 @@ fn materialize(
     for (i, ent) in raw.iter().enumerate() {
         let node = extract::find_node(tree.root_node(), ent.item_range)
             .ok_or_else(|| Error::Parse(format!("no node for {}", ent.name)))?;
-        let res = resolve(node, src, lang, env)?;
+        let mut local_env = env.clone();
+        if let Some(p) = ent.parent_idx {
+            local_env.self_methods.clear();
+            for (j, sib) in raw.iter().enumerate() {
+                if sib.parent_idx == Some(p) && is_callable_member(sib.kind) {
+                    local_env.self_methods.insert(sib.name.clone(), ids[j]);
+                }
+            }
+        }
+        let res = resolve(node, src, lang, &local_env)?;
         let children: Vec<(ByteRange, EntityId)> = ent
             .children
             .iter()
@@ -336,7 +368,8 @@ fn assign_ids(raw: &[RawEntity], file: &RelPath, prev: Option<&Snapshot>) -> Vec
                 if used.contains_key(id) {
                     return None;
                 }
-                (rec.sig_key() == SigKey::new(parent, file, ent.kind, ent.name.clone())).then_some(*id)
+                (rec.sig_key() == SigKey::new(parent, file, ent.kind, ent.name.clone()))
+                    .then_some(*id)
             })
         });
         let id = reuse.unwrap_or_else(EntityId::new);

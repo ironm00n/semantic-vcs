@@ -188,3 +188,93 @@ fn add_def_honours_an_explicit_file() {
     let a_src = String::from_utf8_lossy(rendered.files.get(&a).unwrap());
     assert!(!a_src.contains("fn c"), "{a_src}");
 }
+
+fn named_child<'a>(snap: &'a svc_core::Snapshot, name: &str, parent: Option<EntityId>) -> EntityId {
+    snap.entities
+        .iter()
+        .find(|(_, rec)| rec.name == name && rec.parent == parent)
+        .map(|(id, _)| *id)
+        .unwrap_or_else(|| panic!("missing {name} under {parent:?}"))
+}
+
+#[test]
+fn rename_rewrites_same_impl_self_and_self_path_calls() {
+    const SRC: &str = r#"
+struct S;
+impl S {
+    fn read(&self) {}
+    fn load(&self) {
+        self.read();
+        Self::read();
+    }
+}
+"#;
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, SRC.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let impl_id = snap
+        .entities
+        .iter()
+        .find(|(_, rec)| rec.kind == svc_core::Kind::Impl)
+        .map(|(id, _)| *id)
+        .expect("impl");
+    let method = named_child(&snap, "read", Some(impl_id));
+    let load = lookup_name(&snap, "load").unwrap();
+    let content = store.get_content(snap.entities[&load].content).unwrap();
+    let hits = content
+        .tokens
+        .iter()
+        .filter(|t| matches!(t, Token::Ident(IdentRef::Entity(id)) if *id == method))
+        .count();
+    assert_eq!(
+        hits, 2,
+        "self.read and Self::read must be the impl method, got {:?}",
+        content.tokens
+    );
+
+    let next = rename(&snap, method, "read_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files.values().next().unwrap().clone()).unwrap();
+    assert!(text.contains("fn read_file"), "{text}");
+    assert!(text.contains("self.read_file()"), "{text}");
+    assert!(text.contains("Self::read_file()"), "{text}");
+    assert!(!text.contains("self.read()"), "{text}");
+    assert!(!text.contains("Self::read()"), "{text}");
+}
+
+#[test]
+fn rename_leaves_typed_receiver_method_calls_untracked() {
+    const SRC: &str = r#"
+struct S;
+impl S {
+    fn read(&self) {}
+    fn load(&self, other: &S) {
+        other.read();
+    }
+}
+"#;
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, SRC.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let impl_id = snap
+        .entities
+        .iter()
+        .find(|(_, rec)| rec.kind == svc_core::Kind::Impl)
+        .map(|(id, _)| *id)
+        .expect("impl");
+    let method = named_child(&snap, "read", Some(impl_id));
+    let next = rename(&snap, method, "read_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files.values().next().unwrap().clone()).unwrap();
+    assert!(text.contains("fn read_file"), "{text}");
+    assert!(
+        text.contains("other.read()"),
+        "x.method() needs types and must stay untracked:\n{text}"
+    );
+}

@@ -7,6 +7,10 @@ use crate::ids::{ByteRange, EntityId, RelPath};
 #[derive(Clone, Debug, Default)]
 pub struct Env {
     pub names: HashMap<(String, Namespace), EntityId>,
+    /// Inherent methods of the impl/class this item is being resolved in.
+    /// `self.foo()` / `Self::foo()` / `this.foo()` look here, not in `names`
+    /// (a free `fn foo` is a different target).
+    pub self_methods: HashMap<String, EntityId>,
 }
 
 impl Env {
