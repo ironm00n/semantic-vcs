@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
+use svc_core::ObservedClass;
 use svc_core::engine::{edit_def, lookup_name, rust_langs, snapshot_files};
 use svc_core::ids::{ChangeId, RelPath};
 use svc_core::store::MemStore;
-use svc_core::ObservedClass;
 
 #[test]
 fn o8_shadowing_let_is_binding_changing() {
@@ -95,4 +95,50 @@ fn o8_demo_validate_without_trailing_newline() {
     assert_ne!(new.last(), Some(&b'\n'));
     let (_, class) = edit_def(&store, &langs, &snap, id, new).unwrap();
     assert_eq!(class, ObservedClass::BindingChanging);
+}
+
+#[test]
+fn o8_serde_attribute_is_not_docs_only() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/ids.rs").unwrap();
+    let src = "struct RelPath(String);\n";
+    let mut files = BTreeMap::new();
+    files.insert(path, src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "RelPath").unwrap();
+    let (_, class) = edit_def(
+        &store,
+        &langs,
+        &snap,
+        id,
+        b"#[serde(try_from = \"String\")]\nstruct RelPath(String);\n",
+    )
+    .unwrap();
+    assert_eq!(
+        class,
+        ObservedClass::BindingPreserving,
+        "a serde attribute changes compilation, not docs"
+    );
+}
+
+#[test]
+fn o8_doc_attribute_is_still_docs_only() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/ids.rs").unwrap();
+    let src = "struct RelPath(String);\n";
+    let mut files = BTreeMap::new();
+    files.insert(path, src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "RelPath").unwrap();
+    let (_, class) = edit_def(
+        &store,
+        &langs,
+        &snap,
+        id,
+        b"#[doc = \"a relative path\"]\nstruct RelPath(String);\n",
+    )
+    .unwrap();
+    assert_eq!(class, ObservedClass::DocsOnly);
 }

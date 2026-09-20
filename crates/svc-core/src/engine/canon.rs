@@ -980,6 +980,16 @@ fn impl_type_base_name<'a>(ty: tree_sitter::Node<'a>, src: &'a [u8]) -> Option<&
     }
 }
 
+fn is_doc_attribute(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    let Some(attr) = node.named_child(0).filter(|n| n.kind() == "attribute") else {
+        return false;
+    };
+    let Some(path) = attr.named_child(0) else {
+        return false;
+    };
+    &src[path.start_byte()..path.end_byte()] == b"doc"
+}
+
 fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {
     matches!(
         node.kind(),
@@ -1013,6 +1023,16 @@ fn walk(
             tokens.push(Token::Child(id));
             return;
         }
+    }
+    if matches!(node.kind(), "attribute_item" | "inner_attribute_item") {
+        if !is_doc_attribute(node, src) {
+            let r = byte_range(node);
+            let text = String::from_utf8_lossy(&src[r.start as usize..r.end as usize]);
+            if !text.trim().is_empty() {
+                tokens.push(Token::Lit(text.as_ref().into()));
+            }
+        }
+        return;
     }
     if lang.trivia_kinds().iter().any(|k| *k == node.kind()) {
         return;
