@@ -49,6 +49,7 @@
               rustfmt
               rust-analyzer
               nodejs_24
+              jq
               pkg-config
               openssl
               graphviz
