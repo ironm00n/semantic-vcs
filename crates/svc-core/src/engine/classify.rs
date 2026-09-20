@@ -3,7 +3,10 @@ use crate::delta::ObservedClass;
 use crate::ids::{ByteRange, BytesId};
 use crate::lang::Resolution;
 
-use super::align::{SlotKey, binder_sites, equal_lines, idents_in, is_site, slot_bijection};
+use super::align::{
+    SlotKey, binder_sites, equal_lines, idents_in, is_site, pair_unmapped_by_spelling,
+    slot_bijection,
+};
 
 /// First applicable class. Aligns rendered whole items, not neutralized tokens.
 pub fn classify(
@@ -64,7 +67,8 @@ fn surviving_refs_ok(
     new_map: &[(ByteRange, IdentRef)],
 ) -> bool {
     let pairs = equal_lines(old_render, new_render);
-    let bijection = slot_bijection(&pairs, old_map, new_map);
+    let mut bijection = slot_bijection(&pairs, old_map, new_map);
+    pair_unmapped_by_spelling(&mut bijection, old_render, new_render, old_map, new_map);
     let old_binders = binder_sites(old_map);
     for (o_line, n_line) in &pairs {
         let o_ids = idents_in(old_map, *o_line);

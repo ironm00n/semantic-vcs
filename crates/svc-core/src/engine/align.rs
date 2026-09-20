@@ -107,6 +107,46 @@ pub fn slot_bijection(
     out
 }
 
+/// Extend `bijection` with binders whose declaration line changed but whose
+/// spelling names exactly one binder on each side: an edited initializer or a
+/// `?` turned into `.map_err(..)?` does not move the uses of that binder to another
+/// declaration. A name with two binders on either side (a shadow) stays unmapped.
+pub fn pair_unmapped_by_spelling(
+    bijection: &mut HashMap<SlotKey, SlotKey>,
+    old_render: &[u8],
+    new_render: &[u8],
+    old_map: &[(ByteRange, IdentRef)],
+    new_map: &[(ByteRange, IdentRef)],
+) {
+    let unique = |render: &[u8], map: &[(ByteRange, IdentRef)]| {
+        let mut by_name: HashMap<(Vec<u8>, Namespace), Vec<SlotKey>> = HashMap::new();
+        for (key, site) in binder_sites(map) {
+            let text = render[site.start as usize..site.end as usize].to_vec();
+            by_name.entry((text, key.1)).or_default().push(key);
+        }
+        by_name
+            .into_iter()
+            .filter_map(|(name, keys)| match keys.as_slice() {
+                [one] => Some((name, *one)),
+                _ => None,
+            })
+            .collect::<HashMap<_, _>>()
+    };
+    let old_unique = unique(old_render, old_map);
+    let new_unique = unique(new_render, new_map);
+    let mapped_new: std::collections::HashSet<SlotKey> = bijection.values().copied().collect();
+    for (name, old_key) in old_unique {
+        if bijection.contains_key(&old_key) {
+            continue;
+        }
+        if let Some(new_key) = new_unique.get(&name)
+            && !mapped_new.contains(new_key)
+        {
+            bijection.insert(old_key, *new_key);
+        }
+    }
+}
+
 /// Carry a byte range from `from` into `to` through the equal lines, keeping
 /// its offset within the line. `None` if its line was changed.
 pub fn map_range(from: &[u8], to: &[u8], r: ByteRange) -> Option<ByteRange> {
