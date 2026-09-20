@@ -177,6 +177,10 @@ fn main() -> ExitCode {
 /// is the machine form). `None` for every other verb, which then takes the JSON path.
 fn run_text(cli: &Cli) -> Option<Result<String, String>> {
     use svc_repo::text;
+    // `init` has to run before discover: there is no store yet.
+    if matches!(cli.command, Command::Init) {
+        return Some(init_text());
+    }
     let cwd = env::current_dir().ok()?;
     let repo = Repo::discover(&cwd, Repo::default_langs()).ok()?;
     let snap = repo.current().ok()?;
@@ -271,6 +275,65 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
                     ));
                 }
                 line
+            }));
+        }
+        Command::ListDefs => {
+            let mut rows: Vec<_> = snap
+                .entities
+                .iter()
+                .map(|(id, e)| (e.file.clone(), e.ordinal, e.kind, e.name.clone(), *id))
+                .collect();
+            rows.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)).then(a.3.cmp(&b.3)));
+            let body = rows
+                .into_iter()
+                .map(|(file, _, kind, name, id)| format!("{kind:?} {name}  {file}  ⟨{}⟩", id.short()))
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Some(Ok(if body.is_empty() { "no definitions".into() } else { body }));
+        }
+        Command::ShowDef(arg) => return Some(show_def_text(&repo, &arg.entity)),
+        Command::Search { query } => {
+            return Some(search(&repo, query).map(|v| {
+                let matches = v["matches"].as_array().cloned().unwrap_or_default();
+                if matches.is_empty() {
+                    format!("no matches for {query:?}")
+                } else {
+                    matches
+                        .iter()
+                        .map(|m| {
+                            format!(
+                                "{} {}  {}",
+                                m["kind"].as_str().unwrap_or("?"),
+                                m["name"].as_str().unwrap_or("?"),
+                                m["file"].as_str().unwrap_or("")
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                }
+            }));
+        }
+        Command::Classify(args) => {
+            return Some(classify_cmd(&repo, args).map(|v| {
+                format!(
+                    "{} would be {} (not committed)",
+                    args.entity,
+                    v["observed"].as_str().unwrap_or("?")
+                )
+            }));
+        }
+        Command::Workspace(WorkspaceCommand::Add { name, path, .. }) => {
+            return Some(run_with(cli, &repo).map(|v| {
+                let shown = v["path"].as_str().map(str::to_string).unwrap_or_else(|| path.display().to_string());
+                format!("added workspace {name} at {shown}")
+            }));
+        }
+        Command::Workspace(WorkspaceCommand::Forget { name }) => {
+            return Some(run_with(cli, &repo).map(|_| format!("forgot workspace {name}")));
+        }
+        Command::Workspace(WorkspaceCommand::UpdateStale) => {
+            return Some(run_with(cli, &repo).map(|v| {
+                format!("workspace {} is current", v["name"].as_str().unwrap_or("default"))
             }));
         }
         _ => return None,
@@ -391,6 +454,19 @@ fn definition_bytes(definition: &str) -> Vec<u8> {
     bytes
 }
 
+fn init_text() -> Result<String, String> {
+    let cwd = env::current_dir().map_err(|e| e.to_string())?;
+    let repo = Repo::init(&cwd, Repo::default_langs()).map_err(|e| e.to_string())?;
+    let n = repo.current().map(|s| s.entities.len()).map_err(|e| e.to_string())?;
+    Ok(format!("initialized {} — {n} entities", repo.root_dir().display()))
+}
+
+fn show_def_text(repo: &Repo, query: &str) -> Result<String, String> {
+    show_def(repo, query).map(|v| {
+        v["text"].as_str().map(str::to_string).unwrap_or_else(|| serde_json::to_string_pretty(&v).unwrap_or_default())
+    })
+}
+
 fn list_defs(repo: &Repo) -> Result<Value, String> {
     let snapshot = repo.current().map_err(|e| e.to_string())?;
     Ok(json!({"definitions": snapshot.entities.into_iter().map(|(id, entity)| json!({
@@ -406,7 +482,9 @@ fn show_def(repo: &Repo, query: &str) -> Result<Value, String> {
     let entity = snap.entities.get(&id).cloned().ok_or_else(|| format!("missing {query}"))?;
     let bytes = repo.store().get_bytes_blob(entity.bytes).map_err(|e| e.to_string())?;
     let content = repo.store().get_content(entity.content).map_err(|e| e.to_string())?;
-    Ok(json!({"id": id, "entity": entity, "canonical": canonical, "bytes": bytes, "content": content}))
+    let (src, _) = render_entity(&snap, repo.store(), id, false).map_err(|e| e.to_string())?;
+    let text = String::from_utf8_lossy(&src);
+    Ok(json!({"id": id, "entity": entity, "canonical": canonical, "bytes": bytes, "content": content, "text": text}))
 }
 
 fn show_canonical(repo: &Repo, query: &str) -> Result<Value, String> {
