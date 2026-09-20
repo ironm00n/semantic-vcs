@@ -569,6 +569,60 @@ fn rename_does_not_rewrite_a_foreign_use_path() {
 }
 
 #[test]
+fn rename_follows_bare_use_and_use_as() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(a.clone(), b"pub fn f() {}\npub fn g() {}\npub fn h() {}\n".to_vec());
+    files.insert(
+        lib.clone(),
+        b"mod a;\nuse crate::a::f;\nuse crate::a::{g, h as hh};\nuse crate::a::g as gg;\nfn main() { f(); g(); hh(); gg(); }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let f = named_in_file(&snap, "f", &a);
+    let g = named_in_file(&snap, "g", &a);
+    let h = named_in_file(&snap, "h", &a);
+    let after_f = rename(&snap, f, "f2").unwrap();
+    let after_g = rename(&after_f, g, "g2").unwrap();
+    let next = rename(&after_g, h, "h2").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(text.contains("use crate::a::f2;"), "{text}");
+    assert!(text.contains("use crate::a::{g2, h2 as hh};"), "{text}");
+    assert!(text.contains("use crate::a::g2 as gg;"), "{text}");
+    assert!(text.contains("f2(); g2(); hh(); gg();"), "{text}");
+    assert!(!text.contains("use crate::a::f;"), "{text}");
+    assert!(!text.contains("use crate::a::g as gg;"), "{text}");
+}
+
+#[test]
+fn rename_follows_super_path_use() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let diff_impl = RelPath::new("crates/pkg/src/diff_impl.rs").unwrap();
+    let ops = RelPath::new("crates/pkg/src/ops.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(diff_impl.clone(), b"pub fn lang_for_ext() {}\n".to_vec());
+    files.insert(
+        ops.clone(),
+        b"use super::diff_impl::lang_for_ext;\nfn go() { lang_for_ext(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = named_in_file(&snap, "lang_for_ext", &diff_impl);
+    let next = rename(&snap, id, "lang_of_extension").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&ops].clone()).unwrap();
+    assert!(
+        text.contains("use super::diff_impl::lang_of_extension;"),
+        "{text}"
+    );
+    assert!(text.contains("lang_of_extension();"), "{text}");
+}
+
+#[test]
 fn rename_same_named_fn_in_the_same_crate_rewrites_only_that_file() {
     let store = MemStore::new();
     let langs = rust_langs();

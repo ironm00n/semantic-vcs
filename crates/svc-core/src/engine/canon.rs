@@ -817,7 +817,8 @@ fn is_rust_nonlocal_ident(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool 
 
 /// `axum::response` is not our `fn response` in another file. If the leftmost
 /// path segment is not `crate`/`super`/`self` and is not an entity, every
-/// later segment is Free.
+/// later segment is Free. `use crate::a::f` must not look foreign: wrapping
+/// `use` nodes are not the path root.
 fn is_foreign_scoped_ref(
     node: tree_sitter::Node<'_>,
     src: &[u8],
@@ -849,9 +850,8 @@ fn scoped_path_root(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node
                 saw_scoped = true;
                 node = parent;
             }
-            "use_list" | "use_as_clause" | "use_declaration" | "use_wildcard" => {
-                node = parent;
-            }
+            // `use crate::a::f` / `use crate::a::g as gg`: stop at the wrapper so
+            // the root stays `crate`, not the whole use line (which looks foreign).
             _ => break,
         }
     }
