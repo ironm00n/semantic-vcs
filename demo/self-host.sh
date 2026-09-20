@@ -23,6 +23,10 @@ command -v jq >/dev/null || { echo "jq is required"; exit 2; }
 command -v cargo >/dev/null || { echo "cargo is required"; exit 2; }
 
 WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+# One warm target for every build in this script, per checkout: the three builds differ in a few
+# svc crates, the ~300 dependency crates do not. A fresh target per run cost 3 cold builds (~3 GB, minutes).
+export CARGO_TARGET_DIR="${SVC_SELFHOST_TARGET:-$ROOT/target/selfhost}"
 fail=0
 check() { # check <label> '<shell expression>'
   if eval "$2" >/dev/null 2>&1; then echo "PASS  $1"; else echo "FAIL  $1"; fail=$((fail + 1)); fi
