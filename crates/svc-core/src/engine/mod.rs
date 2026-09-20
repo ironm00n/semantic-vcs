@@ -18,7 +18,7 @@ mod merge;
 mod ops;
 mod render_impl;
 
-pub use classify::classify;
+pub use classify::{Side, classify, classify_entity};
 pub use merge::{lca, merge};
 pub use ops::{
     StatusReport, add_def, add_def_at, classify_def, commit_snapshot, delete, edit_def,

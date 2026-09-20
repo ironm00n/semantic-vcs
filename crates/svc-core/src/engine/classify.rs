@@ -1,41 +1,64 @@
 use crate::content::{Content, IdentRef};
 use crate::delta::ObservedClass;
-use crate::ids::{ByteRange, BytesId};
-use crate::lang::Resolution;
+use crate::error::{Error, Result};
+use crate::ids::{ByteRange, BytesId, EntityId};
+use crate::snapshot::Snapshot;
+use crate::store::Store;
 
 use super::align::{
     SlotKey, binder_sites, equal_lines, idents_in, is_site, pair_unmapped_by_spelling,
     slot_bijection,
 };
+use super::render_entity;
+
+/// One side of an edit as the classifier sees it: canonical content, the exact bytes,
+/// and the rendered text with its identifier map.
+pub struct Side<'a> {
+    pub content: &'a Content,
+    pub bytes: BytesId,
+    pub render: &'a [u8],
+    pub map: &'a [(ByteRange, IdentRef)],
+}
 
 /// First applicable class. Aligns rendered whole items, not neutralized tokens.
-pub fn classify(
-    old: &Content,
-    new: &Content,
-    old_bytes: BytesId,
-    new_bytes: BytesId,
-    old_render: &[u8],
-    new_render: &[u8],
-    _old_res: &Resolution,
-    _new_res: &Resolution,
-    old_map: &[(ByteRange, IdentRef)],
-    new_map: &[(ByteRange, IdentRef)],
-) -> ObservedClass {
-    if old == new {
-        if old_bytes == new_bytes {
+pub fn classify(old: Side<'_>, new: Side<'_>) -> ObservedClass {
+    if old.content == new.content {
+        if old.bytes == new.bytes {
             return ObservedClass::Alpha;
         }
-        return if only_local_spellings(old_render, new_render, old_map, new_map) {
+        return if only_local_spellings(old.render, new.render, old.map, new.map) {
             ObservedClass::Alpha
         } else {
             ObservedClass::DocsOnly
         };
     }
-    if surviving_refs_ok(old_render, new_render, old_map, new_map) {
+    if surviving_refs_ok(old.render, new.render, old.map, new.map) {
         ObservedClass::BindingPreserving
     } else {
         ObservedClass::BindingChanging
     }
+}
+
+/// The class of `id`'s edit between two snapshots that both hold it: renders both sides
+/// with their identifier maps and hands them to [`classify`]. The one way edit_def and
+/// diff ask the question, so they cannot answer it differently.
+pub fn classify_entity(
+    store: &dyn Store,
+    prev: &Snapshot,
+    next: &Snapshot,
+    id: EntityId,
+) -> Result<ObservedClass> {
+    let side = |snap: &Snapshot| -> Result<(Content, BytesId, Vec<u8>, Vec<(ByteRange, IdentRef)>)> {
+        let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+        let (render, map) = render_entity(snap, store, id, true)?;
+        Ok((store.get_content(rec.content)?, rec.bytes, render, map.unwrap_or_default()))
+    };
+    let (old_c, old_b, old_r, old_m) = side(prev)?;
+    let (new_c, new_b, new_r, new_m) = side(next)?;
+    Ok(classify(
+        Side { content: &old_c, bytes: old_b, render: &old_r, map: &old_m },
+        Side { content: &new_c, bytes: new_b, render: &new_r, map: &new_m },
+    ))
 }
 
 fn only_local_spellings(

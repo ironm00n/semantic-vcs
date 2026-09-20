@@ -12,7 +12,7 @@ use crate::store::Store;
 
 use super::diff_impl::lang_for_ext;
 use super::{
-    classify, env_from_snapshot, fill_self_methods_from_snapshot, ingest_file_prev,
+    classify_entity, env_from_snapshot, fill_self_methods_from_snapshot, ingest_file_prev,
     ingest_file_with_env, parse, render, render_entity,
 };
 
@@ -636,22 +636,7 @@ pub fn edit_def(
         child.file = rec.file.clone();
         next.insert(cid, child)?;
     }
-    let old_c = store.get_content(rec.content)?;
-    let new_c = store.get_content(new_content)?;
-    let (old_r, old_m) = render_entity(snap, store, id, true)?;
-    let (new_r, new_m) = render_entity(&next, store, id, true)?;
-    let class = classify(
-        &old_c,
-        &new_c,
-        rec.bytes,
-        new_bytes,
-        &old_r,
-        &new_r,
-        &Default::default(),
-        &Default::default(),
-        old_m.as_deref().unwrap_or(&[]),
-        new_m.as_deref().unwrap_or(&[]),
-    );
+    let class = classify_entity(store, snap, &next, id)?;
     Ok((next, class))
 }
 

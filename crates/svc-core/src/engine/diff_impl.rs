@@ -6,7 +6,7 @@ use crate::snapshot::Snapshot;
 use crate::store::Store;
 use crate::{JsLang, RustLang};
 
-use super::{classify, render_entity};
+use super::classify_entity;
 
 /// Structural deltas between two snapshots. An edited entity carries the class the
 /// classifier assigns to old → new (rendered from `store`), never a placeholder. Files
@@ -47,21 +47,7 @@ pub fn diff(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<Vec<D
                     }
                 }
                 if old.content != rec.content || old.bytes != rec.bytes {
-                    let (old_r, old_m) = render_entity(prev, store, *id, true)?;
-                    let (new_r, new_m) = render_entity(next, store, *id, true)?;
-                    let class = classify(
-                        &store.get_content(old.content)?,
-                        &store.get_content(rec.content)?,
-                        old.bytes,
-                        rec.bytes,
-                        &old_r,
-                        &new_r,
-                        &Default::default(),
-                        &Default::default(),
-                        old_m.as_deref().unwrap_or(&[]),
-                        new_m.as_deref().unwrap_or(&[]),
-                    );
-                    out.push(Delta::Edited(*id, class));
+                    out.push(Delta::Edited(*id, classify_entity(store, prev, next, *id)?));
                 }
             }
         }
