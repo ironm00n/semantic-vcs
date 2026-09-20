@@ -192,10 +192,25 @@ pub fn delete(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapsh
                 .filter(|r| !tree.contains(r)),
         );
     }
+    outside.sort();
+    outside.dedup();
     if !outside.is_empty() {
+        let named: Vec<String> = outside
+            .iter()
+            .take(5)
+            .map(|r| match snap.entities.get(r) {
+                Some(rec) => format!("{} ({}⟨{}⟩)", rec.name, rec.file, r.short()),
+                None => format!("⟨{}⟩", r.short()),
+            })
+            .collect();
+        let more = if outside.len() > 5 {
+            format!(", and {} more", outside.len() - 5)
+        } else {
+            String::new()
+        };
         return Err(Error::Other(format!(
-            "delete refused: {} referrers outside the subtree",
-            outside.len()
+            "delete refused: still referenced by {}{more}",
+            named.join(", ")
         )));
     }
     let parent = snap.entities.get(&id).and_then(|r| r.parent);

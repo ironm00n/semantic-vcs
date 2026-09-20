@@ -115,3 +115,21 @@ fn snapshot_insert_refuses_a_missing_file() {
     let err = next.insert(EntityId::new(), rec).unwrap_err().to_string();
     assert!(err.contains("no file record"), "{err}");
 }
+
+#[test]
+fn delete_refusal_names_the_referrers() {
+    use svc_core::engine::{delete, lookup_name};
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let mut files = BTreeMap::new();
+    files.insert(
+        RelPath::new("src/lib.rs").unwrap(),
+        b"fn a() {}\nfn b() { a() }\nfn c() { a(); b() }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let a = lookup_name(&snap, "a").unwrap();
+    let err = delete(&snap, &store, a).unwrap_err().to_string();
+    assert!(err.contains("b (src/lib.rs"), "{err}");
+    assert!(err.contains("c (src/lib.rs"), "{err}");
+    assert!(!err.contains("more"), "{err}");
+}
