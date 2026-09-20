@@ -5,7 +5,7 @@
 # bundle. Exits non-zero at the first bundle that does not reproduce its recorded trees.
 #
 #   demo/history/replay.sh <dir> [path/to/svc]      # <dir> is created; .svc lands inside
-set -u
+set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 DIR="${1:?target directory}"
@@ -22,9 +22,18 @@ else
   [ -x "$TOOL" ] || (cd "$ROOT" && cargo build -q -p svc-repo --example history) || exit 2
   import() { "$TOOL" import "$1"; }
 fi
-mkdir -p "$DIR"
-DIR="$(cd "$DIR" && pwd)"
-cd "$DIR"
+if [ -e "$DIR" ] && [ ! -d "$DIR" ]; then
+  echo "refusing replay target that is not a directory: $DIR" >&2
+  exit 2
+fi
+mkdir -p -- "$DIR"
+cd -P -- "$DIR"
+DIR="$(pwd -P)"
+first_entry="$(find . -mindepth 1 -maxdepth 1 -print -quit)"
+if [ -n "$first_entry" ]; then
+  echo "refusing nonempty replay target: $DIR (choose a new or empty directory)" >&2
+  exit 2
+fi
 # Landing order is the base commit's depth in history, not the file name: two agents
 # can pick the same number, and a later base always sits deeper on main.
 ordered="$(for bundle in "$HERE"/[0-9][0-9][0-9][0-9]-*.json; do
@@ -38,9 +47,10 @@ n=0
 for bundle in $ordered; do
   name="$(basename "$bundle" .json)"
   base="$(echo "$name" | cut -d- -f2)"
+  git --git-dir="$GITDIR" cat-file -e "$base^{tree}" || { echo "no git tree for $base"; exit 2; }
   # git's tree at the base: replace every tracked file, drop the ones no longer there.
   find . -mindepth 1 -maxdepth 1 ! -name .svc -exec rm -rf {} +
-  git --git-dir="$GITDIR" archive "$base" | tar -x -C "$DIR" || { echo "no git tree for $base"; exit 2; }
+  git --git-dir="$GITDIR" archive "$base" | tar -xm -C "$DIR" || { echo "no git tree for $base"; exit 2; }
   if [ ! -d .svc ]; then
     "$SVC" init --json >/dev/null || exit 2
   else
