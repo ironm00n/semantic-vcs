@@ -1,0 +1,67 @@
+{
+  "base_tree": "4d5ddfe06f1a7aa9621e104d88100832095532af45429733fd41ba18585b3da6",
+  "entries": [
+    {
+      "ix": 1,
+      "entry": {
+        "op": {
+          "New": {
+            "change": "01a0bd7c-b3cb-76e1-9109-c6dde84fac55"
+          }
+        },
+        "observed": null,
+        "at": 1789885461604,
+        "group": null,
+        "before": {
+          "root": "513ca99d8787a0964304817227318391b87e12e6a94622148f0c07ca51006172",
+          "heads": {
+            "01a0bd7c-aa85-7065-89e8-eedeedeb91bb": "513ca99d8787a0964304817227318391b87e12e6a94622148f0c07ca51006172"
+          }
+        },
+        "after": {
+          "root": "119ea5c6c3d13ceede3cb1c4ae4f849ec0f7736b33d647b3c9ca963628448d22",
+          "heads": {
+            "01a0bd7c-aa85-7065-89e8-eedeedeb91bb": "513ca99d8787a0964304817227318391b87e12e6a94622148f0c07ca51006172",
+            "01a0bd7c-b3cb-76e1-9109-c6dde84fac55": "119ea5c6c3d13ceede3cb1c4ae4f849ec0f7736b33d647b3c9ca963628448d22"
+          }
+        }
+      },
+      "refs": {},
+      "files": {},
+      "after_tree": "4d5ddfe06f1a7aa9621e104d88100832095532af45429733fd41ba18585b3da6",
+      "workspace": null
+    },
+    {
+      "ix": 2,
+      "entry": {
+        "op": "Absorb",
+        "observed": null,
+        "at": 1789885461806,
+        "group": null,
+        "before": {
+          "root": "119ea5c6c3d13ceede3cb1c4ae4f849ec0f7736b33d647b3c9ca963628448d22",
+          "heads": {
+            "01a0bd7c-aa85-7065-89e8-eedeedeb91bb": "513ca99d8787a0964304817227318391b87e12e6a94622148f0c07ca51006172",
+            "01a0bd7c-b3cb-76e1-9109-c6dde84fac55": "119ea5c6c3d13ceede3cb1c4ae4f849ec0f7736b33d647b3c9ca963628448d22"
+          }
+        },
+        "after": {
+          "root": "d0fb5d82d2be319faa3ae9f798d9ca4b0225d8c2222ebc66d06ba31b5bffd45f",
+          "heads": {
+            "01a0bd7c-aa85-7065-89e8-eedeedeb91bb": "513ca99d8787a0964304817227318391b87e12e6a94622148f0c07ca51006172",
+            "01a0bd7c-b3cb-76e1-9109-c6dde84fac55": "d0fb5d82d2be319faa3ae9f798d9ca4b0225d8c2222ebc66d06ba31b5bffd45f"
+          }
+        }
+      },
+      "refs": {},
+      "files": {
+        "README.md": {
+          "Text": "# svc — compiler-grade version control\n\nAgent-generated code is cheap. Understanding it is not.\n\n`svc` is a semantic version-control system. Definitions have stable identities,\na rename is recorded as a rename, and a merge that would silently retarget a\nreference is a conflict — even when git would take both hunks and the crate\nwould still compile.\n\nIt is not a git frontend. The working tree is a *render* of the store. An\nagent on the included DeepSeek Harness overlay can read the tree normally,\nbut its only write tools are `svc` operations: no file editor, no shell.\n\n## What is stored\n\nGit answers \"what does the tree look like\" by reading a commit's tree\nobject. `svc` does the same: a **snapshot** is stored whole and looked up\nby id. Checkout, show, and render never replay operations to reconstruct\nit.\n\nWhat's *inside* that snapshot is not git blobs. A language file is a list\nof **entities** (`fn`, `struct`, `impl`, JS functions and methods, …), each\nwith one `EntityId` for life, plus leftover bytes after the last item.\nRender walks that list in ordinal order. Non-language files (`Cargo.toml`,\nthis README) are those leftover bytes with no entities.\n\nThe snapshot lives under `SnapshotId = blake3(snapshot)`. Unchanged\n*content* is shared by hash; the entity index is copied in full (no\ngit-style subtree sharing yet).\n\n| git | svc |\n|---|---|\n| commit + tree | `SnapshotId` — one immutable map of every entity |\n| blob | `BytesId` (exact source with holes) and `ContentId` (α-normal form) |\n| branch name | a name for a `ChangeId` |\n| `git checkout <commit>` | `get_snapshot(id)` |\n| reflog / `jj evolog` | `predecessors` on a change |\n| `git log -p` | the **op log** — a journal of named operations whose `before`/`after` *point at* snapshots |\n\nA `ChangeId` is not a snapshot. It is a stable name for a logical change\n(jj, not git). Amending moves `head(change)`; old states of that change are\non `predecessors`. Merge ancestry is `parents`. Neither walk answers \"what\ndoes the tree look like.\"\n\nThe op log is how you *review* what happened. A rename is an `Op::Rename`,\nnot a 26-file text diff inferred after the fact. A review, a mail message,\nand a claim are the same object (`Op::Note`); TUI and forge only display it.\n`svc replay` folds that journal onto an empty store only as a check that\nnothing was smuggled around it.\n\nEach entity is stored twice:\n\n- **Content** — locals become slots, callees become entity ids, trivia is\n  gone. Renaming `parse` changes one string in one record; call sites are\n  holes filled at render time.\n- **Bytes** — the original spelling, comments, and layout, with `Name(id)`\n  and `Child(id)` holes so the file round-trips.\n\n## The merge git gets wrong\n\nOne side shadows `raw` with a normalized value. The other adds `log(&raw)`\nintending the original binding. The hunks do not overlap. Git merges clean\nand the crate compiles. The log call now prints the normalized string.\n\n`svc` merges per entity, then re-resolves the result. If a surviving\nreference denotes a different binder than it did on the side that wrote it,\nthat is a `Conflict::Binding` on the snapshot:\n\n```text\n$ svc merge a6\nmerged into change 8230 (snapshot 58f0): 1 conflict(s)\n    [0] binding conflict in load: `raw` at src/main.rs:73 meant the `let raw`\n        at src/main.rs:67, now means the `let raw` at src/main.rs:68 (shadowed)\n```\n\nReproduce the git side without `svc`:\n\n```sh\ndemo/git-twin/build.sh\n```\n\n## Try it\n\n```sh\nnix develop\ncargo build -p svc\ndemo/dogfood.sh --tui  # this repository's own svc-made history, replayed: revisions, oplog, blame\n# demo/dogfood.sh --shell\n# demo/dogfood.sh --agent \"rename describe_op to describe_operation\"\n```\n\nThe full-source script preserves the checkout path it prints, so the same\nhistory can be inspected again without reseeding it. For a smaller fixture,\nuse `demo/play.sh --tui` (or `--agent`). Or by hand:\n\n```sh\ncd demo/config\n../../target/debug/svc init\n../../target/debug/svc list-defs\n../../target/debug/svc show parse\n../../target/debug/svc rename --entity parse --new-name parse_config\n../../target/debug/svc log\n```\n\nEvery verb prints a sentence; add `--json` for the machine form.\n`svc rename` says how many mentions it could not track (method calls on\nuntyped receivers, strings, comments) instead of pretending.\n\nThe acceptance gate is one script:\n\n```sh\ndemo/run.sh target/debug/svc\n```\n\nThat runs the scripted demo (rename, the binding-conflict merge, the JS\ntwin, the agent changeset, evolog/undo, the in-TUI replay, the forge, and\nself-hosting `svc` on this repo's own crates), then a multi-checkout stress\ntest, 32 checkouts publishing at once, renames SIGKILLed at random points\n(the store is never a snapshot ahead of the op log; a killed render is\nfinished by the next open), and two checkouts of this repository making svc\nchanges to one file at once — merged, one conflict resolved, replayed, and the\nmerged crate type-checked. `SVC_SKIP_SELF_HOST=1` skips the self-host line\nand that type-check.\n\nSelf-hosting alone:\n\n```sh\ncargo build -p svc && demo/self-host.sh\n```\n\nThis repository's own history, made through svc: `demo/history/` holds one\nbundle per svc-made landing (the op log with entity paths, absorbed files and\nper-op tree hashes). `demo/history/replay.sh <dir>` rebuilds them into one\nstore from git's trees, in order, refusing any op whose tree does not\nreproduce; `svc tui`, `svc log` and `svc blame` in `<dir>` then answer for\nthis repository's real entities, with the recorded times and checkouts —\n`demo/dogfood.sh --tui` does exactly that (`--story --tui` for the scripted\nstory on svc's crates).\n\n## Agent overlay\n\nRead, glob, and grep stay. `edit` and `write` are removed from the schema;\nshell, web, and subagents are disabled. Writes go through `rename`,\n`add_def`, `edit_def`, and the rest. `edit_def` must be a complete item and\nasks permission. `list_tools` is the proof of the tool set.\n\n```sh\nSVC_BIN=\"$PWD/target/debug/svc\" OPENROUTER_API_KEY=\"…\" \\\n  npx -y @deepseek-ai/dsh@0.1.5-rc.2 \\\n    --profile acp --patch harness/overlay.yml\n```\n\n`svc tui` is the review UI (entity tree, highlighted source, canonical\nstream, op history, review queue): `/` filters the tree, an expanded\nedit-def shows its before→after diff, and the panes follow what any other\nprocess publishes to the store. `svc tui --agent \"<task>\"` runs that task\ninside it; the run is one changeset, so `svc undo` reverts it in one step.\nWithout a model key, `demo/play.sh --agent` hosts a scripted ACP agent\nagainst the real binary. Any ACP-on-stdio agent works the same way.\n\nLive A/B (stock dsh vs overlay) is `demo/ab.sh`. Without a credential it\nchecks identical starting trees and exits 0 with SKIP.\n\n## Forge\n\n`svc forge export` writes `.svc/forge.json` from the store (never contends\nwith a writer). `crates/svc-forge` serves it:\n\n```sh\nsvc forge export\ncargo run -p svc-forge -- --catalog .svc/forge.json   # http://127.0.0.1:7742\n```\n\nHeads and the current root carry their entities. Ancestor snapshots in the\nexport are listed by id only — the store still has the full snapshots;\nthe catalog file does not reconstruct them by replaying operations.\n\n## Scale\n\nDebug build, on a VM under load (the numbers a judge running `cargo build`\ngets, not a benchmark): `svc init` on `syn` (97 files) ingests 7,365 entities\nin 3.0 s; on `tokio` (555 files) 11,786 entities in 3.7 s. `svc status` on\neither is 0.1–0.2 s (the first one after a mutation renders once: 0.5–1.2 s).\nRenaming `tokio`'s `asyncify` (30 call sites across 25 files) is one log\nline, 1.1–1.8 s, and `cargo check --features full` still passes. Git shows\nthe same change as 25 files, 55 insertions, 55 deletions.\n\n## Limits\n\nHackathon prototype. Not a git replacement.\n\n- **Lexical binding only.** `x.parse()` on an unknown receiver is a free\n  mention. Method, field, and trait-item resolution needs types; the store\n  shape does not. `svc rename` reports the misses.\n- **Rust and JavaScript.** JS import/export across files is not modeled.\n- **Macros.** Arguments of a macro call resolve like any other code (`vec![x]`\n  uses the local `x`, as rustc says — the compiler oracle O9 enforces it);\n  `macro_rules!` bodies are not analysed.\n- **Non-language files** (`Cargo.toml`, lockfiles, this README) are stored\n  as opaque byte records so a checkout still builds. They are not entities.\n- **Regular files only.** Symlinks, FIFOs, sockets and devices are not\n  tracked, and a file name that is not UTF-8 is refused by name.\n- **Classifier** checks surviving-reference capture, not \"did the agent do\n  the task.\"\n- **Concurrency:** named checkouts share one store (redb multi-writer: any\n  number of `svc` processes, write transactions serialized on the file). A\n  publish that finds its change's head moved is refused with nothing written\n  (`concurrent update`), not merged. A checkout is one working copy: one\n  `svc` at a time (`checkout busy` after a bounded wait). Each checkout undoes\n  only its own ops and refuses to mutate while behind its change's head.\n- **Live models.** With `deepseek-chat`, a run sometimes stops after the\n  first op; the TUI's `p` continues the same session. The scripted agent\n  is the deterministic gate.\n\n## Built with\n\nHackMIT 2026. Codex, Claude Code, Muse, Cursor, Devin, Warp, and DeepSeek Harness.\nRust, tree-sitter (Rust and JavaScript), redb, postcard, BLAKE3, similar,\nclap, ratatui, agent-client-protocol, axum, Node.js, `@deepseek-ai/dsh@0.1.5-rc.2`.\n\nPrior art: MolhadoRef, Mergiraf, jj, Serena, semedit, CODESTRUCT, IDE\nrefactorings. The experiment is their intersection in a store that is not\ngit, with agents that cannot write files.\n\nLicensed under the GNU Affero General Public License v3.0 or later\n(`LICENSE`).\n"
+        }
+      },
+      "after_tree": "97f6ff0870b628ab9b38da34cf8fc4feb9dccee4930ed18d5b04dc6fbc092da7",
+      "workspace": null
+    }
+  ],
+  "changesets": []
+}

@@ -214,7 +214,7 @@ Hackathon prototype. Not a git replacement.
 
 ## Built with
 
-HackMIT 2026. Codex, Claude Code, Muse, Cursor, and DeepSeek Harness.
+HackMIT 2026. Codex, Claude Code, Muse, Cursor, Devin, Warp, and DeepSeek Harness.
 Rust, tree-sitter (Rust and JavaScript), redb, postcard, BLAKE3, similar,
 clap, ratatui, agent-client-protocol, axum, Node.js, `@deepseek-ai/dsh@0.1.5-rc.2`.
 
