@@ -10,6 +10,7 @@ use crate::op::Intent;
 use crate::snapshot::Snapshot;
 use crate::store::Store;
 
+use super::diff_impl::lang_for_ext;
 use super::{
     classify, env_from_snapshot, fill_self_methods_from_snapshot, ingest_file_prev,
     ingest_file_with_env, parse, render, render_entity,
@@ -747,15 +748,26 @@ pub fn format_tokens(snap: &Snapshot, tokens: &[Token], self_name: &str) -> Stri
     out
 }
 
+/// Layout: alpha/docs-only edits, commutative relocations, and file deltas of source
+/// files (their entities are counted on their own; a tail is trivia, or whitespace).
+/// Semantic: everything else, including any change to a file svc has no language for.
 pub fn status_report(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<StatusReport> {
     let deltas = super::diff(store, prev, next)?;
+    let is_source = |p: &RelPath| lang_for_ext(p.extension()).is_some();
     let mut layout = 0usize;
     let mut semantic = 0usize;
     for d in &deltas {
-        match d {
-            Delta::Edited(_, ObservedClass::Alpha | ObservedClass::DocsOnly) => layout += 1,
-            Delta::Relocated { .. } => layout += 1,
-            _ => semantic += 1,
+        let is_layout = match d {
+            Delta::Edited(_, ObservedClass::Alpha | ObservedClass::DocsOnly) => true,
+            Delta::Relocated { .. } => true,
+            Delta::FileAdded(p) | Delta::FileRemoved(p) => is_source(p),
+            Delta::FileTail { path, whitespace_only } => *whitespace_only || is_source(path),
+            _ => false,
+        };
+        if is_layout {
+            layout += 1;
+        } else {
+            semantic += 1;
         }
     }
     Ok(StatusReport {

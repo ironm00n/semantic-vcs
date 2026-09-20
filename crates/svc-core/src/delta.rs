@@ -13,7 +13,11 @@ pub enum ObservedClass {
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum Delta {
     Added(EntityId),
-    Removed(EntityId),
+    /// Carries the name because the entity is gone from the snapshot the reader has.
+    Removed {
+        id: EntityId,
+        name: String,
+    },
     Renamed {
         id: EntityId,
         from: String,
@@ -30,4 +34,13 @@ pub enum Delta {
         to: (RelPath, u32),
     },
     Edited(EntityId, ObservedClass),
+    /// A file with no language, or a source file's bytes outside every entity.
+    FileAdded(RelPath),
+    FileRemoved(RelPath),
+    /// Bytes after the last entity changed: an opaque file's whole content, or a
+    /// source file's tail. `whitespace_only` when the two tails differ in nothing else.
+    FileTail {
+        path: RelPath,
+        whitespace_only: bool,
+    },
 }
