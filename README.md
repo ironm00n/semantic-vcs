@@ -217,7 +217,7 @@ Hackathon prototype. Not a git replacement.
 - **Lexical binding only.** `x.parse()` on an unknown receiver is a free
   mention. Method, field, and trait-item resolution needs types; the store
   shape does not. `svc rename` reports the misses.
-- **Rust and JavaScript.** JS import/export across files is not modeled.
+- **Rust and JavaScript.** Named ESM `import { x }` follows a unique `export` across files (ambiguous names stay put); default-import aliases stay local, and CJS `require()` / `module.exports` pairs are not modeled.
 - **Macros.** Arguments of a macro call resolve like any other code (`vec![x]`
   uses the local `x`, as rustc says — the compiler oracle O9 enforces it);
   `macro_rules!` bodies are not analysed.
