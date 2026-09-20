@@ -572,39 +572,74 @@ fn changeset_out(repo: &Repo, cs: svc_core::ChangeSet, open: bool) -> Result<Cha
 
 /// Resolve an entity by name in the current snapshot, optionally qualified as
 /// `Parent::name` (one level) to disambiguate methods of the same name.
+/// `svc … --entity X`: an id, a name, `Parent::name` (the parent's name, or for an impl
+/// block the type it is for), or `path/suffix.rs:name`. Ambiguity lists the candidates.
 pub fn resolve_entity(repo: &Repo, arg: &str) -> Result<EntityId> {
-    let snap = repo.current()?;
+    resolve_entity_in(&repo.current()?, arg)
+}
+
+/// [`resolve_entity`] against a chosen snapshot (a historical `--at`). An id or an id
+/// prefix wins outright; names are matched exactly.
+pub fn resolve_entity_in(snap: &Snapshot, arg: &str) -> Result<EntityId> {
     if let Some(id) = parse_entity_id(arg) {
         if snap.entities.contains_key(&id) {
             return Ok(id);
         }
     }
-    let (parent, name) = match arg.rsplit_once("::") {
+    let spec_hits: Vec<EntityId> = snap.entities.keys().copied().filter(|id| id.matches_spec(arg)).collect();
+    let (file, rest) = match arg.rsplit_once(':').filter(|(f, _)| f.contains('/') || f.contains('.')) {
+        Some((f, n)) if !f.ends_with(':') => (Some(f), n),
+        _ => (None, arg),
+    };
+    let (parent, name) = match rest.rsplit_once("::") {
         Some((p, n)) => (Some(p), n),
-        None => (None, arg),
+        None => (None, rest),
     };
     let mut hits: Vec<EntityId> = snap
         .entities
         .iter()
         .filter(|(_, r)| r.name == name)
+        .filter(|(_, r)| file.is_none_or(|f| r.file.as_str().ends_with(f)))
         .filter(|(_, r)| match parent {
             None => true,
             Some(p) => r
                 .parent
                 .and_then(|pid| snap.entities.get(&pid))
-                .is_some_and(|pr| pr.name == p),
+                .is_some_and(|pr| pr.name == p || impl_target(&pr.name) == Some(p)),
         })
         .map(|(id, _)| *id)
         .collect();
     hits.sort();
     match hits.len() {
         1 => Ok(hits[0]),
+        0 if spec_hits.len() == 1 => Ok(spec_hits[0]),
         0 => Err(Error::NotFound(format!("entity {arg:?}"))),
-        _ => Err(Error::Other(format!(
-            "{arg:?} names {} entities; qualify it as Parent::{name} or pass the id",
-            hits.len()
-        ))),
+        _ => {
+            let listed: Vec<String> = hits
+                .iter()
+                .map(|id| {
+                    let r = &snap.entities[id];
+                    let parent = r
+                        .parent
+                        .and_then(|p| snap.entities.get(&p))
+                        .map(|p| format!("{}::", impl_target(&p.name).unwrap_or(&p.name)))
+                        .unwrap_or_default();
+                    format!("{}:{parent}{} ⟨{}⟩", r.file, r.name, id.short())
+                })
+                .collect();
+            Err(Error::Other(format!(
+                "{arg:?} names {} entities — {}; qualify it as Parent::{name} or file.rs:{name}, or pass the id",
+                hits.len(),
+                listed.join(", ")
+            )))
+        }
     }
+}
+
+/// The type an impl block's synthesised name is for: `impl<Foo>` and `impl<Tr for Foo>` → `Foo`.
+fn impl_target(name: &str) -> Option<&str> {
+    let inner = name.strip_prefix("impl<")?.strip_suffix('>')?;
+    Some(inner.rsplit_once(" for ").map_or(inner, |(_, t)| t))
 }
 
 pub fn parse_entity_id(s: &str) -> Option<EntityId> {

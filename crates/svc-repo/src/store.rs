@@ -88,7 +88,7 @@ impl RedbStore {
     /// `MultiWriter`: opens never exclude each other (readers and writers in different
     /// checkouts share one store); each write transaction takes a byte-range lock on the file
     /// and readers follow commits. Linux, macOS and Windows only.
-    fn database(path: &Path, create: bool) -> Result<Database> {
+    fn open_or_create(path: &Path, create: bool) -> Result<Database> {
         let mut builder = Database::builder();
         builder.set_concurrency_mode(ConcurrencyMode::MultiWriter);
         if create {
@@ -101,7 +101,7 @@ impl RedbStore {
 
     /// Creates the file and seeds every table, so readers never see `TableDoesNotExist`.
     pub fn create(path: &Path) -> Result<Self> {
-        let db = Self::database(path, true)?;
+        let db = Self::open_or_create(path, true)?;
         let store = Self { db, workspace: None, staged: Default::default(), decoded: Default::default() };
         store.write(|txn| {
             txn.open_table(OBJECTS).map_err(Error::backend)?;
@@ -171,7 +171,7 @@ impl RedbStore {
     }
 
     pub fn open(path: &Path) -> Result<Self> {
-        let db = Self::database(path, false)?;
+        let db = Self::open_or_create(path, false)?;
         Ok(Self { db, workspace: None, staged: Default::default(), decoded: Default::default() })
     }
 
@@ -454,7 +454,7 @@ impl Store for RedbStore {
                     && self.root_in(txn)? != Some(v.root)
                 {
                     return Err(Error::Other(
-                        "concurrent update: this checkout's root moved under the verb; nothing was written"
+                        "concurrent update: this checkout's root moved under the verb; nothing was written — run the verb again"
                             .into(),
                     ));
                 }
