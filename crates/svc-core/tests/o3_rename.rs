@@ -3641,3 +3641,49 @@ fn rename_follows_cfg_attr_macro_export() {
         "#[cfg_attr(_, macro_export)] must occupy the crate root: {text}"
     );
 }
+
+#[test]
+fn rename_follows_only_the_macros_listed_in_macro_use() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"#[macro_use(parse)]\nmod fs {\n    macro_rules! parse { () => {}; }\n    macro_rules! other { () => {}; }\n}\nmod caller;\n".to_vec(),
+    );
+    files.insert(
+        caller.clone(),
+        b"fn f() { parse!(); other!(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let other = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "other")
+        .map(|(id, _)| *id)
+        .expect("other");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let next = rename(&store, &next, other, "other_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "#[macro_use(parse)] must export parse: {text}"
+    );
+    assert!(
+        text.contains("other!();"),
+        "#[macro_use(parse)] must not export other: {text}"
+    );
+    assert!(
+        !text.contains("other_file"),
+        "other must stay a nested macro: {text}"
+    );
+}

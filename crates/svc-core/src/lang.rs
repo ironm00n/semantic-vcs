@@ -642,6 +642,9 @@ pub struct RawEntity {
     /// `#[macro_use]` on `mod fs` — rustc injects that module's macros at the
     /// crate root, like `#[macro_export]` on each of them.
     pub macro_use: bool,
+    /// `#[macro_use(parse, other)]` — only these names. `None` with `macro_use`
+    /// means every macro in the module.
+    pub macro_use_only: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Default)]

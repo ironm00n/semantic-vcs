@@ -266,13 +266,22 @@ fn is_block_local_raw(raw: &[RawEntity], i: usize) -> bool {
         .is_some_and(|p| hosts_block_items(raw[p].kind))
 }
 
+fn macro_use_allows(only: &Option<Vec<String>>, name: &str) -> bool {
+    match only {
+        None => true,
+        Some(names) => names.iter().any(|n| n == name),
+    }
+}
+
 fn export_macro_raw(env: &mut Env, raw: &[RawEntity], i: usize, id: EntityId) {
     if raw[i].kind != Kind::Macro {
         return;
     }
-    let from_parent = raw[i]
-        .parent_idx
-        .is_some_and(|p| raw[p].kind == Kind::Mod && raw[p].macro_use);
+    let from_parent = raw[i].parent_idx.is_some_and(|p| {
+        raw[p].kind == Kind::Mod
+            && raw[p].macro_use
+            && macro_use_allows(&raw[p].macro_use_only, &raw[i].name)
+    });
     if raw[i].macro_export || from_parent {
         env.export_macro(&raw[i].name, id);
     }
@@ -282,11 +291,11 @@ fn export_file_module_macro_use(
     env: &mut Env,
     files: &[(&RelPath, &[RawEntity], &[EntityId])],
 ) {
-    let mut use_mods = HashSet::new();
+    let mut use_mods = HashMap::new();
     for (_, raw, ids) in files {
         for (i, ent) in raw.iter().enumerate() {
             if ent.kind == Kind::Mod && ent.macro_use {
-                use_mods.insert(ids[i]);
+                use_mods.insert(ids[i], ent.macro_use_only.clone());
             }
         }
     }
@@ -294,11 +303,14 @@ fn export_file_module_macro_use(
         let Some(&mid) = env.file_of_mod.get(*path) else {
             continue;
         };
-        if !use_mods.contains(&mid) {
+        let Some(only) = use_mods.get(&mid) else {
             continue;
-        }
+        };
         for (i, ent) in raw.iter().enumerate() {
-            if ent.kind == Kind::Macro && ent.parent_idx.is_none() {
+            if ent.kind == Kind::Macro
+                && ent.parent_idx.is_none()
+                && macro_use_allows(only, &ent.name)
+            {
                 env.export_macro(&ent.name, ids[i]);
             }
         }

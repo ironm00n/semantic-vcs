@@ -258,12 +258,108 @@ fn mark_macro_export(raw: &mut [RawEntity], export: bool) {
     }
 }
 
-fn mark_macro_use(raw: &mut [RawEntity], use_: bool) {
-    if use_ && let Some(ent) = raw.last_mut() {
+fn mark_macro_use(raw: &mut [RawEntity], spec: Option<Option<Vec<String>>>) {
+    let Some(only) = spec else {
+        return;
+    };
+    if let Some(ent) = raw.last_mut() {
         if ent.kind == Kind::Mod {
             ent.macro_use = true;
+            ent.macro_use_only = only;
         }
     }
+}
+
+fn macro_use_spec(inner: &str) -> Option<Option<Vec<String>>> {
+    let inner = inner.trim();
+    if inner == "macro_use" {
+        return Some(None);
+    }
+    let rest = inner.strip_prefix("macro_use(")?.strip_suffix(')')?;
+    let names: Vec<String> = rest
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    Some(Some(names))
+}
+
+fn macro_use_from_attr_body(inner: &str) -> Option<Option<Vec<String>>> {
+    if let Some(spec) = macro_use_spec(inner) {
+        return Some(spec);
+    }
+    let rest = inner.strip_prefix("cfg_attr(")?.strip_suffix(')')?;
+    for a in cfg_attr_args(rest).iter().skip(1) {
+        if let Some(spec) = macro_use_spec(a.trim()) {
+            return Some(spec);
+        }
+    }
+    None
+}
+
+fn attr_inner<'a>(attr: &'a str) -> &'a str {
+    attr.trim()
+        .strip_prefix("#[")
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(attr.trim())
+        .trim()
+}
+
+fn token_tree_inner<'a>(text: &'a str) -> &'a str {
+    let t = text.trim();
+    t.strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(t)
+}
+
+fn macro_use_from_node(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<Option<Vec<String>>> {
+    let mut prev = node.prev_named_sibling();
+    while let Some(p) = prev {
+        match p.kind() {
+            "attribute_item" => {
+                if let Some(spec) = macro_use_from_attr_body(attr_inner(&node_text(src, p))) {
+                    return Some(spec);
+                }
+            }
+            "visibility_modifier" | "pub" => {}
+            "token_tree" => {
+                let text = node_text(src, p);
+                if let Some(spec) = macro_use_from_attr_body(token_tree_inner(&text)) {
+                    return Some(spec);
+                }
+            }
+            _ => break,
+        }
+        prev = p.prev_named_sibling();
+    }
+    None
+}
+
+fn preceding_macro_use_spec(
+    kids: &[tree_sitter::Node<'_>],
+    f: usize,
+    src: &[u8],
+) -> Option<Option<Vec<String>>> {
+    let mut k = f;
+    while k > 0 {
+        k -= 1;
+        match kids[k].kind() {
+            "pub" | "visibility_modifier" | "!" | "#" => {}
+            "attribute_item" => {
+                if let Some(spec) = macro_use_from_attr_body(attr_inner(&node_text(src, kids[k]))) {
+                    return Some(spec);
+                }
+            }
+            "token_tree" => {
+                let text = node_text(src, kids[k]);
+                if let Some(spec) = macro_use_from_attr_body(token_tree_inner(&text)) {
+                    return Some(spec);
+                }
+            }
+            _ => break,
+        }
+    }
+    None
 }
 
 fn emit<'a>(
@@ -292,13 +388,17 @@ fn emit<'a>(
         path_attr: None,
         macro_export: false,
         macro_use: false,
+        macro_use_only: None,
     });
     nodes.push(node);
     if kind == Kind::Mod {
         if let Some(p) = path_attr_of(node, src) {
             raw[idx].path_attr = Some(p);
         }
-        raw[idx].macro_use = has_attr(node, src, "macro_use");
+        if let Some(only) = macro_use_from_node(node, src) {
+            raw[idx].macro_use = true;
+            raw[idx].macro_use_only = only;
+        }
     }
     if kind == Kind::Macro {
         raw[idx].macro_export = has_macro_export(node, src);
@@ -457,7 +557,7 @@ fn collect_macro_mod_decls<'a>(
                 raw,
                 nodes,
             );
-            mark_macro_use(raw, preceding_attr(&kids, j, src, "macro_use"));
+            mark_macro_use(raw, preceding_macro_use_spec(&kids, j, src));
             i = j + 3;
             continue;
         }
@@ -479,7 +579,7 @@ fn collect_macro_mod_decls<'a>(
                 raw,
                 nodes,
             );
-            mark_macro_use(raw, preceding_attr(&kids, j, src, "macro_use"));
+            mark_macro_use(raw, preceding_macro_use_spec(&kids, j, src));
             let mod_idx = raw.len() - 1;
             collect_macro_mod_decls(kids[j + 2], src, lang, Some(mod_idx), raw, nodes);
             i = j + 3;

@@ -67,3 +67,4 @@
 0072-baaf97e2-tqyukmqultzy cursor
 0073-38cfc451-qmxtktlpowxo cursor
 0074-2ac08337-rymtkuqttyro cursor
+0080-cf629b91-ryqmsrykzskq grok-4.6 cursor
