@@ -2812,3 +2812,25 @@ fn rename_follows_crate_path_through_a_parent_mod_alias() {
         "crate::foo alias path must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_super_path_through_an_enclosing_mod_alias() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod a { pub fn parse() {} }\nmod outer {\n    use super::a as foo;\n    mod b { fn f() { super::foo::parse(); } }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "parse").expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("super::foo::parse_file()"),
+        "super::foo through enclosing-mod use alias must follow: {text}"
+    );
+}

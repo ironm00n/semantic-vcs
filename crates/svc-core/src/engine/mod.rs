@@ -69,6 +69,7 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     link_file_modules_from_snapshot(&mut env, snapshot);
     fill_reexports_from_snapshot(&mut env, snapshot);
     fill_file_imports_from_snapshot(&mut env, snapshot);
+    fill_mod_imports_from_snapshot(&mut env, snapshot);
     env
 }
 
@@ -119,6 +120,41 @@ fn fill_file_imports_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
         env.self_mod = None;
         env.inline_mod = false;
         apply_file_module_env(env);
+        let src = rec.name.as_bytes();
+        if let Ok(tree) = parse(src, &rust) {
+            canon::collect_use_imports(env, tree.root_node(), src);
+        }
+    }
+    env.use_imports.clear();
+    env.use_aliases.clear();
+    env.current_file = None;
+    env.in_nested_mod = false;
+    env.self_mod = None;
+    env.inline_mod = false;
+    env.super_files.clear();
+    env.super_stack.clear();
+}
+
+fn fill_mod_imports_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
+    let rust = crate::RustLang;
+    for rec in snapshot.entities.values() {
+        if rec.kind != Kind::Opaque || !rec.name.contains("use ") {
+            continue;
+        }
+        let Some(p) = rec.parent else {
+            continue;
+        };
+        if !snapshot.entities.get(&p).is_some_and(|r| r.kind == Kind::Mod) {
+            continue;
+        }
+        env.current_file = Some(rec.file.clone());
+        env.in_nested_mod = false;
+        env.self_mod = None;
+        env.inline_mod = false;
+        apply_file_module_env(env);
+        env.self_mod = Some(p);
+        env.in_nested_mod = true;
+        env.inline_mod = true;
         let src = rec.name.as_bytes();
         if let Ok(tree) = parse(src, &rust) {
             canon::collect_use_imports(env, tree.root_node(), src);
@@ -486,6 +522,12 @@ fn fill_mod_env_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: 
                 Env::insert_super_level(&mut map, &ch.name, ch.kind, ids[j]);
             }
         }
+        if let Some(im) = env.mod_imports.get(&ids[pp]) {
+            map.extend(im.clone());
+        }
+        if let Some(re) = env.mod_reexports.get(&ids[pp]) {
+            map.extend(re.clone());
+        }
         env.super_stack.push(map);
         m = pp;
     }
@@ -518,6 +560,12 @@ pub(crate) fn fill_mod_env_from_snapshot(env: &mut Env, snapshot: &Snapshot, id:
             if crec.parent == Some(pp) && is_block_local_rec(snapshot, crec) {
                 Env::insert_super_level(&mut map, &crec.name, crec.kind, *cid);
             }
+        }
+        if let Some(im) = env.mod_imports.get(&pp) {
+            map.extend(im.clone());
+        }
+        if let Some(re) = env.mod_reexports.get(&pp) {
+            map.extend(re.clone());
         }
         env.super_stack.push(map);
         m = pp;
@@ -823,6 +871,30 @@ pub fn snapshot_files_reusing(
             env.use_imports.clear();
             env.use_aliases.clear();
             canon::collect_use_imports(&mut env, p.tree.root_node(), p.src);
+        }
+        for p in &parsed {
+            env.current_file = Some(p.path.clone());
+            apply_file_module_env(&mut env);
+            for ent in p.raw.iter() {
+                if ent.kind != Kind::Opaque || !ent.name.contains("use ") {
+                    continue;
+                }
+                let Some(pi) = ent.parent_idx else {
+                    continue;
+                };
+                if p.raw[pi].kind != Kind::Mod {
+                    continue;
+                }
+                env.self_mod = Some(p.ids[pi]);
+                env.in_nested_mod = true;
+                env.inline_mod = true;
+                env.use_imports.clear();
+                env.use_aliases.clear();
+                let src = ent.name.as_bytes();
+                if let Ok(tree) = parse(src, p.lang) {
+                    canon::collect_use_imports(&mut env, tree.root_node(), src);
+                }
+            }
         }
         env.use_imports.clear();
         env.use_aliases.clear();

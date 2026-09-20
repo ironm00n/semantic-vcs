@@ -67,6 +67,9 @@ pub struct Env {
     pub file_imports: HashMap<RelPath, HashMap<(String, Namespace), EntityId>>,
     /// `pub use` inside a `mod`, for `crate::engine::foo` after `pub use merge::foo`.
     pub mod_reexports: HashMap<EntityId, HashMap<(String, Namespace), EntityId>>,
+    /// Private `use` / `use as` names inside a `mod`, so `super::foo::parse`
+    /// after `mod outer { use a as foo; … }` still binds.
+    pub mod_imports: HashMap<EntityId, HashMap<(String, Namespace), EntityId>>,
     /// When set, [`crate::engine::canon`] records pub uses into the reexport maps.
     pub bind_reexports: bool,
     /// Every `mod` entity, so `use a as b; b::parse` is a module path, not Type::name.
@@ -185,6 +188,7 @@ impl Env {
     fn lookup_in_mod(&self, m: EntityId, name: &str, ns: Namespace) -> Option<EntityId> {
         Self::lookup_in_map(self.mod_items.get(&m), name, ns)
             .or_else(|| Self::lookup_in_map(self.mod_reexports.get(&m), name, ns))
+            .or_else(|| Self::lookup_in_map(self.mod_imports.get(&m), name, ns))
     }
 
     fn walk_mod_path(&self, start: EntityId, rest: &[String], ns: Namespace) -> Option<EntityId> {
