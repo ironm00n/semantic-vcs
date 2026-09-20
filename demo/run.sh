@@ -51,6 +51,12 @@ if [ -z "${SVC_SKIP_O9:-}" ]; then
     echo "FAIL  O9 alpha-renamed svc-core still compiles (run: cargo test -p svc-core --test o9_compiler_oracle -- --ignored --nocapture)"
     fail=$((fail + 1))
   fi
+  if (cd "$HERE/.." && cargo test -q -p svc-core --test o9_js_compiler_oracle -- --ignored >/dev/null 2>&1); then
+    echo "PASS  O9-JS alpha-renamed repo JS still loads"
+  else
+    echo "FAIL  O9-JS alpha-renamed repo JS still loads (run: cargo test -p svc-core --test o9_js_compiler_oracle -- --ignored --nocapture)"
+    fail=$((fail + 1))
+  fi
   echo
 fi
 if [ -z "${SVC_SKIP_SELFHOST_FULL:-}" ] && [ -x "$HERE/selfhost-full.sh" ]; then
