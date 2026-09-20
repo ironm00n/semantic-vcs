@@ -10,8 +10,10 @@ use std::collections::{BTreeSet, VecDeque};
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use svc_core::{Conflict, Error, Op, OpIx, ReviewItem, Result, SnapshotId};
+use svc_core::engine::render_entity;
+use svc_core::{Conflict, EntityId, Error, Op, OpIx, OpLogEntry, ReviewItem, Result, Snapshot, SnapshotId, Store};
 
+use crate::history::{op_entity, touch};
 use crate::repo::Repo;
 
 /// How many ancestor snapshots to list beyond the heads and the root.
@@ -52,6 +54,7 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
                     let mut v = serde_json::to_value(rec).unwrap_or(Value::Null);
                     if let Value::Object(m) = &mut v {
                         m.insert("id".into(), json!(eid));
+                        m.insert("source".into(), json!(source(store, &s, *eid)));
                     }
                     v
                 })
@@ -70,7 +73,7 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
     }
 
     let ops = store.ops(OpIx(0), false)?;
-    let operations: Vec<Value> = ops.iter().map(|(_, e)| serde_json::to_value(e).unwrap_or(Value::Null)).collect();
+    let operations: Vec<Value> = ops.iter().map(|(ix, e)| operation(store, *ix, e)).collect();
 
     // The review queue as the review rules define it: every edit-def, and every binding conflict
     // in the current snapshot. (Changesets' own `queue` is not populated by any verb.)
@@ -104,6 +107,46 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
             "review_queue": review,
         }]
     }))
+}
+
+/// The entity's rendered text, for the browser's entity and change pages.
+fn source(store: &dyn Store, snap: &Snapshot, id: EntityId) -> Option<String> {
+    render_entity(snap, store, id, false)
+        .ok()
+        .map(|(bytes, _)| String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// The raw log entry plus what the browser needs beside it: `ix`, the after-root's `change`,
+/// and for an op about one entity a `subject` with its names, kind, file, both sources and
+/// the touch — so a change page can show a rename or edit without opening the store.
+fn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry) -> Value {
+    let mut v = serde_json::to_value(e).unwrap_or(Value::Null);
+    let Value::Object(m) = &mut v else { return v };
+    m.insert("ix".into(), json!(ix));
+    let after = store.get_snapshot(e.after.root).ok();
+    if let Some(after) = &after {
+        m.insert("change".into(), json!(after.change));
+    }
+    if let (Some(id), Some(after)) = (op_entity(&e.op), &after) {
+        let before = store.get_snapshot(e.before.root).ok();
+        let prev = before.as_ref().and_then(|b| b.entities.get(&id));
+        let next = after.entities.get(&id);
+        let shown = next.or(prev);
+        m.insert(
+            "subject".into(),
+            json!({
+                "id": id,
+                "before_name": prev.map(|r| r.name.clone()),
+                "after_name": next.map(|r| r.name.clone()),
+                "kind": shown.map(|r| r.kind),
+                "file": shown.map(|r| r.file.clone()),
+                "before_source": before.as_ref().and_then(|b| source(store, b, id)),
+                "after_source": source(store, after, id),
+                "touch": touch(prev, next, e.observed),
+            }),
+        );
+    }
+    v
 }
 
 /// Write the catalog; default `.svc/forge.json` under the repository root.
