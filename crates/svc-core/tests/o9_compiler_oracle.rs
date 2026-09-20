@@ -14,28 +14,18 @@
 //! (`parse`, `extract`, `resolve`) plus `Resolution`'s public fields, so it
 //! should not need edits as engine internals move underneath it.
 //!
-//! `#[ignore]`d: this shells out to a *second*, standalone `cargo check` in a
-//! scratch directory outside the workspace, which is slow and would slow
-//! down everyone's `cargo test --workspace` gate for advancing `main`. Run
-//! explicitly:
+//! `#[ignore]`d in the unit suite: it shells out to a *second*, standalone
+//! `cargo check` in a scratch directory, which is too slow for every
+//! `cargo test --workspace`. The acceptance gate `demo/run.sh` runs it and
+//! counts a failure; by hand:
 //!   cargo test -p svc-core --test o9_compiler_oracle -- --ignored --nocapture
 //!
-//! STATUS as of this writing: red on main, on purpose. It has already found
-//! four real resolve_locals/by_name bugs, see the design notes #13 and
-//! inbox/to-cursor.md for full repros and byte-exact evidence:
-//!  a) by_name is flat/last-write-wins with no lexical-position awareness,
-//!     so a later same-name let (sibling-branch redeclaration, or a
-//!     shadowing let-from-itself) hijacks every textually-matching ref.
-//!  b) module/path segments resolve as Local value-refs when an in-scope
-//!     local shares the segment's name; path segments should be Free.
-//!  c) non-shorthand struct-literal field names are not distinguished from
-//!     value refs, so a field key can get renamed if it matches a local.
-//!  d) biggest: `ident_leaves()` recurses through an entire let/parameter
-//!     pattern including nested enum-variant constructor paths (`Some` in
-//!     `Some(node)`), so the variant name itself becomes a slot and every
-//!     later use of that variant name anywhere in the entity gets renamed.
-//! Do not fix this test by routing around those four; they are upstream
-//! engine::canon bugs (claimed by cursor), not scoping choices made here.
+//! History: this oracle found the first four resolver bugs (flat last-write
+//! name lookup with no position; path segments resolving as locals;
+//! struct-literal field keys renamed with a same-named local; enum-variant
+//! constructors in patterns slotted as binders) and, later, macro arguments
+//! made opaque and closure-parameter type names bound as values. All fixed in
+//! engine::canon; none was routed around here.
 //! The self-receiver exclusion, the format-capture heuristic, and the
 //! shorthand-field-init expansion below are this oracle's own scope choices
 //! and are not bugs.
@@ -80,7 +70,7 @@ fn might_be_format_captured(entity_text: &[u8], name: &str) -> bool {
 
 /// α-rename every `Namespace::Value` local in `src` to a fresh `_svc_N` name.
 /// `next_id` is a shared, crate-wide counter so every rewritten name is
-/// globally unique — SPEC's "guaranteed-fresh".
+/// globally unique — "guaranteed-fresh".
 fn alpha_rename_file(src: &str, lang: &RustLang, next_id: &mut u32) -> String {
     let bytes = src.as_bytes();
     let tree = parse(bytes, lang).unwrap();
@@ -96,7 +86,7 @@ fn alpha_rename_file(src: &str, lang: &RustLang, next_id: &mut u32) -> String {
         // calling it on a container entity (impl/mod/trait) re-collects its nested entities'
         // own locals too, producing duplicate slots at the same byte range. Container entities
         // never bind locals directly in Rust, so skipping any entity with children sidesteps
-        // the gap without touching claimed engine code; reported upstream (inbox/to-cursor.md).
+        // the gap without touching claimed engine code; a resolver gap at the time of writing.
         if !ent.children.is_empty() {
             continue;
         }
@@ -132,7 +122,7 @@ fn alpha_rename_file(src: &str, lang: &RustLang, next_id: &mut u32) -> String {
             if let IdentRef::Local(slot, Namespace::Value) = ident {
                 if let Some(name) = slot_names.get(slot) {
                     // The struct-expression shorthand `S { a }` is a `shorthand_field_initializer`
-                    // wrapping a plain identifier (design §9): it is simultaneously the (fixed)
+                    // wrapping a plain identifier: it is simultaneously the (fixed)
                     // field name and a value reference to the local. A straight text swap would
                     // rename the field too (`no field named _svc_N`); expand it to `field: newname`.
                     // `find_node` returns the OUTERMOST node whose span matches `range`, and

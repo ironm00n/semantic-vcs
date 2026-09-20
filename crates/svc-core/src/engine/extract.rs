@@ -40,7 +40,7 @@ fn collect<'a>(
 ) {
     if let Some(rule) = rule_for(lang, node.kind()) {
         // Module-scope `let`/`const`/`var` are entities; nested ones are locals
-        // of the enclosing item (design §9). Extracting them as children made the
+        // of the enclosing item. Extracting them as children made the
         // parent resolver skip their binders.
         if rule.node_kind == "variable_declarator" && parent_idx.is_some() {
             let mut cursor = node.walk();
