@@ -216,10 +216,12 @@ fn nearest_mod_rec(snapshot: &Snapshot, id: EntityId) -> Option<EntityId> {
 fn fill_mod_env_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
     env.in_nested_mod = false;
     env.super_stack.clear();
+    env.self_mod = None;
     let Some(mut m) = nearest_mod_raw(raw, i) else {
         return;
     };
     env.in_nested_mod = true;
+    env.self_mod = Some(ids[m]);
     loop {
         let Some(pp) = raw[m].parent_idx else {
             break;
@@ -241,10 +243,12 @@ fn fill_mod_env_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: 
 pub(crate) fn fill_mod_env_from_snapshot(env: &mut Env, snapshot: &Snapshot, id: EntityId) {
     env.in_nested_mod = false;
     env.super_stack.clear();
+    env.self_mod = None;
     let Some(mut m) = nearest_mod_rec(snapshot, id) else {
         return;
     };
     env.in_nested_mod = true;
+    env.self_mod = Some(m);
     loop {
         let Some(pp) = snapshot.entities.get(&m).and_then(|r| r.parent) else {
             break;

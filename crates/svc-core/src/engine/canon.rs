@@ -395,6 +395,14 @@ fn collect_refs<'a>(
                         None
                     }
                 })
+            } else if let Some(segs) = self_path_segs(node, src, lang) {
+                env.lookup_self_path(&segs, ns).or_else(|| {
+                    if under_use_tree(node) {
+                        env.lookup_module(&name, ns)
+                    } else {
+                        None
+                    }
+                })
             } else {
                 env.lookup(&name, ns)
             } {
@@ -1050,6 +1058,18 @@ fn super_path_parts(
         return None;
     }
     Some((depth, segs[depth..].to_vec()))
+}
+
+fn self_path_segs(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> Option<Vec<String>> {
+    if lang.name() != "rust" {
+        return None;
+    }
+    let mut segs = scoped_path_idents(node, src)?;
+    if segs.first().map(String::as_str) != Some("self") {
+        return None;
+    }
+    segs.remove(0);
+    Some(segs)
 }
 
 fn scoped_path_idents(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<Vec<String>> {

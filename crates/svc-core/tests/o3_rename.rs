@@ -1447,3 +1447,35 @@ fn rename_follows_super_mod_path() {
         "super::inner::parse must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_self_mod_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"mod a {\n    mod inner {\n        fn parse() {}\n    }\n    fn f() { self::inner::parse(); }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let inner_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.parent.is_some_and(|p| {
+                    snap.entities.get(&p).is_some_and(|pr| pr.name == "inner")
+                })
+        })
+        .map(|(id, _)| *id)
+        .expect("inner::parse");
+    let next = rename(&store, &snap, inner_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("self::inner::parse_file()"),
+        "self::inner::parse must follow: {text}"
+    );
+}

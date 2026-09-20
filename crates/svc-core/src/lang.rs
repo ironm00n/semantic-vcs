@@ -44,6 +44,8 @@ pub struct Env {
     pub super_stack: Vec<HashMap<(String, Namespace), EntityId>>,
     /// Children of each `mod` entity, for `crate::outer::parse` / `super::inner::f`.
     pub mod_items: HashMap<EntityId, HashMap<(String, Namespace), EntityId>>,
+    /// Enclosing `mod` entity, for `self::inner::f`.
+    pub self_mod: Option<EntityId>,
 }
 
 impl Env {
@@ -96,6 +98,19 @@ impl Env {
             return self.lookup_super(&segs[0], ns, depth);
         }
         let start = self.lookup_super(&segs[0], Namespace::Type, depth)?;
+        self.walk_mod_path(start, &segs[1..], ns)
+    }
+
+    /// `self::a::b` in the enclosing module.
+    pub fn lookup_self_path(&self, segs: &[String], ns: Namespace) -> Option<EntityId> {
+        if segs.is_empty() {
+            return None;
+        }
+        let start_mod = self.self_mod?;
+        if segs.len() == 1 {
+            return Self::lookup_in_map(self.mod_items.get(&start_mod), &segs[0], ns);
+        }
+        let start = Self::lookup_in_map(self.mod_items.get(&start_mod), &segs[0], Namespace::Type)?;
         self.walk_mod_path(start, &segs[1..], ns)
     }
 
