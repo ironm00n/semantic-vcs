@@ -68,6 +68,7 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     }
     link_file_modules_from_snapshot(&mut env, snapshot);
     fill_reexports_from_snapshot(&mut env, snapshot);
+    fill_file_imports_from_snapshot(&mut env, snapshot);
     env
 }
 
@@ -96,6 +97,35 @@ fn fill_reexports_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
         }
     }
     env.bind_reexports = false;
+    env.current_file = None;
+    env.in_nested_mod = false;
+    env.self_mod = None;
+    env.inline_mod = false;
+    env.super_files.clear();
+    env.super_stack.clear();
+}
+
+fn fill_file_imports_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
+    let rust = crate::RustLang;
+    for rec in snapshot.entities.values() {
+        if rec.kind != Kind::Opaque || !rec.name.contains("use ") {
+            continue;
+        }
+        if rec.parent.is_some() {
+            continue;
+        }
+        env.current_file = Some(rec.file.clone());
+        env.in_nested_mod = false;
+        env.self_mod = None;
+        env.inline_mod = false;
+        apply_file_module_env(env);
+        let src = rec.name.as_bytes();
+        if let Ok(tree) = parse(src, &rust) {
+            canon::collect_use_imports(env, tree.root_node(), src);
+        }
+    }
+    env.use_imports.clear();
+    env.use_aliases.clear();
     env.current_file = None;
     env.in_nested_mod = false;
     env.self_mod = None;
@@ -784,6 +814,18 @@ pub fn snapshot_files_reusing(
             canon::collect_use_imports(&mut env, p.tree.root_node(), p.src);
         }
         env.bind_reexports = false;
+        for p in &parsed {
+            env.current_file = Some(p.path.clone());
+            env.in_nested_mod = false;
+            env.self_mod = None;
+            env.inline_mod = false;
+            apply_file_module_env(&mut env);
+            env.use_imports.clear();
+            env.use_aliases.clear();
+            canon::collect_use_imports(&mut env, p.tree.root_node(), p.src);
+        }
+        env.use_imports.clear();
+        env.use_aliases.clear();
         env.current_file = None;
         env.in_nested_mod = false;
         env.self_mod = None;

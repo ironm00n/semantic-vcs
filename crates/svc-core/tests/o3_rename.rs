@@ -2768,3 +2768,47 @@ fn rename_follows_call_through_a_reexported_mod_alias_from_another_file() {
         "reexport alias as a path qualifier must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_super_path_through_a_parent_mod_alias() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod a { pub fn parse() {} }\nuse a as foo;\nmod b { fn f() { super::foo::parse(); } }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "parse").expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("super::foo::parse_file()"),
+        "super::foo alias path must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_crate_path_through_a_parent_mod_alias() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod a { pub fn parse() {} }\nuse a as foo;\nmod b { fn f() { crate::foo::parse(); } }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "parse").expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::foo::parse_file()"),
+        "crate::foo alias path must follow: {text}"
+    );
+}

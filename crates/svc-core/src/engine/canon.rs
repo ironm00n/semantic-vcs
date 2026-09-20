@@ -1418,6 +1418,7 @@ fn bind_glob(env: &mut Env, prefix: &[String]) {
         if env.bind_reexports {
             insert_reexport(env, k.0, k.1, id);
         } else {
+            insert_file_import(env, k.0.clone(), k.1, id);
             env.use_imports.insert(k, id);
         }
     }
@@ -1430,9 +1431,22 @@ fn insert_reexport(env: &mut Env, name: String, ns: Namespace, id: EntityId) {
             .or_default()
             .insert((name.clone(), ns), id);
     }
+    insert_file_import(env, name.clone(), ns, id);
     if let Some(m) = env.self_mod {
         env.mod_reexports
             .entry(m)
+            .or_default()
+            .insert((name, ns), id);
+    }
+}
+
+fn insert_file_import(env: &mut Env, name: String, ns: Namespace, id: EntityId) {
+    if env.in_nested_mod {
+        return;
+    }
+    if let Some(file) = env.current_file.clone() {
+        env.file_imports
+            .entry(file)
             .or_default()
             .insert((name, ns), id);
     }
@@ -1512,6 +1526,9 @@ fn merge_file_glob(
     if let Some(re) = env.file_reexports.get(file) {
         map.extend(re.clone());
     }
+    if let Some(im) = env.file_imports.get(file) {
+        map.extend(im.clone());
+    }
     if map.is_empty() {
         None
     } else {
@@ -1574,6 +1591,7 @@ fn bind_use(env: &mut Env, segs: &[String], alias: &str) {
             env.use_aliases.insert(alias.to_string());
             continue;
         }
+        insert_file_import(env, alias.to_string(), ns, id);
         env.use_imports.insert((alias.to_string(), ns), id);
     }
 }

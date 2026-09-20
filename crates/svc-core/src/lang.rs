@@ -62,6 +62,9 @@ pub struct Env {
     pub use_aliases: HashSet<String>,
     /// `pub use` names visible as `crate::parse` / `crate::engine::foo`.
     pub file_reexports: HashMap<RelPath, HashMap<(String, Namespace), EntityId>>,
+    /// File-level `use` / `use as` names, including private ones, so
+    /// `super::foo::parse` after `use a as foo` in the parent file still binds.
+    pub file_imports: HashMap<RelPath, HashMap<(String, Namespace), EntityId>>,
     /// `pub use` inside a `mod`, for `crate::engine::foo` after `pub use merge::foo`.
     pub mod_reexports: HashMap<EntityId, HashMap<(String, Namespace), EntityId>>,
     /// When set, [`crate::engine::canon`] records pub uses into the reexport maps.
@@ -106,10 +109,14 @@ impl Env {
         }
         let skip = usize::from(self.inline_mod);
         if i < skip {
-            return self.lookup_module(name, ns);
+            return self
+                .current_file
+                .as_ref()
+                .and_then(|file| self.lookup_file(file, name, ns))
+                .or_else(|| self.lookup_module(name, ns));
         }
         if let Some(file) = self.super_files.get(i - skip) {
-            return Self::lookup_in_map(self.by_file.get(file), name, ns);
+            return self.lookup_file(file, name, ns);
         }
         self.lookup_module(name, ns)
     }
@@ -129,17 +136,20 @@ impl Env {
     /// `crate::parse` is the crate root, not a same-named item in this file module.
     fn lookup_crate_root(&self, name: &str, ns: Namespace) -> Option<EntityId> {
         if let Some(file) = self.super_files.last() {
-            return Self::lookup_in_map(self.by_file.get(file), name, ns)
-                .or_else(|| Self::lookup_in_map(self.file_reexports.get(file), name, ns));
+            return self.lookup_file(file, name, ns);
         }
         if let Some(file) = &self.current_file {
-            if let Some(id) = Self::lookup_in_map(self.by_file.get(file), name, ns).or_else(|| {
-                Self::lookup_in_map(self.file_reexports.get(file), name, ns)
-            }) {
+            if let Some(id) = self.lookup_file(file, name, ns) {
                 return Some(id);
             }
         }
         self.lookup_module(name, ns)
+    }
+
+    fn lookup_file(&self, file: &RelPath, name: &str, ns: Namespace) -> Option<EntityId> {
+        Self::lookup_in_map(self.by_file.get(file), name, ns)
+            .or_else(|| Self::lookup_in_map(self.file_reexports.get(file), name, ns))
+            .or_else(|| Self::lookup_in_map(self.file_imports.get(file), name, ns))
     }
 
     /// `super::a::b` after `depth` `super::` prefixes.
