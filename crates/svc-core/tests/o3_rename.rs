@@ -1511,3 +1511,60 @@ fn rename_follows_crate_mod_mod_path() {
         "crate::a::b::parse must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_crate_path_into_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let outer = RelPath::new("src/outer.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod outer;\nmod inner {\n    fn f() { crate::outer::parse(); }\n}\n"
+            .to_vec(),
+    );
+    files.insert(outer.clone(), b"fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let file_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == outer)
+        .map(|(id, _)| *id)
+        .expect("outer.rs parse");
+    let next = rename(&store, &snap, file_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::outer::parse_file()"),
+        "crate::outer::parse should be the file module item: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_crate_path_into_a_mod_rs_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let outer = RelPath::new("src/outer/mod.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod outer;\nfn f() { crate::outer::parse(); }\n".to_vec(),
+    );
+    files.insert(outer.clone(), b"fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let file_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == outer)
+        .map(|(id, _)| *id)
+        .expect("outer/mod.rs parse");
+    let next = rename(&store, &snap, file_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::outer::parse_file()"),
+        "crate::outer::parse should be the mod.rs item: {text}"
+    );
+}

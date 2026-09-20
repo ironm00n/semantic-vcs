@@ -66,6 +66,7 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
         }
         env.insert_def_in(&rec.name, rec.kind, *id, Some(&rec.file));
     }
+    link_file_modules_from_snapshot(&mut env, snapshot);
     env
 }
 
@@ -186,6 +187,93 @@ fn insert_mod_child_rec(env: &mut Env, snapshot: &Snapshot, id: EntityId, rec: &
         return;
     }
     env.insert_mod_child(p, &rec.name, rec.kind, id);
+}
+
+/// `mod foo;` in `src/lib.rs` loads `src/foo.rs` or `src/foo/mod.rs`.
+fn file_module_paths(parent_file: &RelPath, name: &str) -> Vec<RelPath> {
+    let path = parent_file.as_str();
+    let (dir, file) = match path.rfind('/') {
+        Some(i) => (&path[..i], &path[i + 1..]),
+        None => ("", path),
+    };
+    let stem = file.rsplit_once('.').map(|(s, _)| s).unwrap_or(file);
+    let base = if matches!(stem, "mod" | "lib" | "main") {
+        dir.to_string()
+    } else if dir.is_empty() {
+        stem.to_string()
+    } else {
+        format!("{dir}/{stem}")
+    };
+    let rs = if base.is_empty() {
+        format!("{name}.rs")
+    } else {
+        format!("{base}/{name}.rs")
+    };
+    let modrs = if base.is_empty() {
+        format!("{name}/mod.rs")
+    } else {
+        format!("{base}/{name}/mod.rs")
+    };
+    [&rs, &modrs]
+        .into_iter()
+        .filter_map(|p| RelPath::new(p.to_string()).ok())
+        .collect()
+}
+
+fn link_file_modules(
+    env: &mut Env,
+    files: &[(&RelPath, &[RawEntity], &[EntityId])],
+) {
+    let mut file_of_mod: HashMap<RelPath, EntityId> = HashMap::new();
+    for (path, raw, ids) in files {
+        for (i, ent) in raw.iter().enumerate() {
+            if ent.kind != Kind::Mod || !ent.children.is_empty() {
+                continue;
+            }
+            for cand in file_module_paths(path, &ent.name) {
+                file_of_mod.insert(cand, ids[i]);
+            }
+        }
+    }
+    for (path, raw, ids) in files {
+        let Some(&mod_id) = file_of_mod.get(*path) else {
+            continue;
+        };
+        for (i, ent) in raw.iter().enumerate() {
+            if is_inherent_raw(raw, i) || is_block_local_raw(raw, i) {
+                continue;
+            }
+            env.insert_mod_child(mod_id, &ent.name, ent.kind, ids[i]);
+        }
+    }
+}
+
+fn link_file_modules_from_raw(env: &mut Env, path: &RelPath, raw: &[RawEntity], ids: &[EntityId]) {
+    link_file_modules(env, &[(path, raw, ids)]);
+}
+
+fn link_file_modules_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
+    let mut file_of_mod: HashMap<RelPath, EntityId> = HashMap::new();
+    for (id, rec) in &snapshot.entities {
+        if rec.kind != Kind::Mod {
+            continue;
+        }
+        if snapshot.entities.values().any(|c| c.parent == Some(*id)) {
+            continue;
+        }
+        for cand in file_module_paths(&rec.file, &rec.name) {
+            file_of_mod.insert(cand, *id);
+        }
+    }
+    for (id, rec) in &snapshot.entities {
+        let Some(&mod_id) = file_of_mod.get(&rec.file) else {
+            continue;
+        };
+        if rec.parent.is_some() || is_inherent_rec(snapshot, rec) {
+            continue;
+        }
+        env.insert_mod_child(mod_id, &rec.name, rec.kind, *id);
+    }
 }
 
 fn nearest_mod_raw(raw: &[RawEntity], i: usize) -> Option<usize> {
@@ -497,6 +585,13 @@ pub fn snapshot_files_reusing(
             env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));
         }
     }
+    {
+        let views: Vec<(&RelPath, &[RawEntity], &[EntityId])> = parsed
+            .iter()
+            .map(|p| (&p.path, p.raw.as_slice(), p.ids.as_slice()))
+            .collect();
+        link_file_modules(&mut env, &views);
+    }
     // The definitions this tree declares, as `prev` would list them; equal sets mean an
     // identical name environment.
     let reuse = match prev {
@@ -600,6 +695,7 @@ pub fn ingest_file_prev(
         }
         env.insert_def_in(&ent.name, ent.kind, ids[i], Some(&path));
     }
+    link_file_modules_from_raw(&mut env, &path, &raw, &ids);
     let (entities, file) = materialize(src, path.clone(), lang, store, &tree, &raw, &ids, &env)?;
     let mut files = BTreeMap::new();
     files.insert(path, file);
