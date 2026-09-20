@@ -67,7 +67,41 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
         env.insert_def_in(&rec.name, rec.kind, *id, Some(&rec.file));
     }
     link_file_modules_from_snapshot(&mut env, snapshot);
+    fill_reexports_from_snapshot(&mut env, snapshot);
     env
+}
+
+fn fill_reexports_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
+    env.bind_reexports = true;
+    let rust = crate::RustLang;
+    for rec in snapshot.entities.values() {
+        if rec.kind != Kind::Opaque || !rec.name.contains("pub use") {
+            continue;
+        }
+        env.current_file = Some(rec.file.clone());
+        env.in_nested_mod = false;
+        env.self_mod = None;
+        env.inline_mod = false;
+        apply_file_module_env(env);
+        if let Some(p) = rec.parent {
+            if snapshot.entities.get(&p).is_some_and(|r| r.kind == Kind::Mod) {
+                env.self_mod = Some(p);
+                env.inline_mod = true;
+                env.in_nested_mod = true;
+            }
+        }
+        let src = rec.name.as_bytes();
+        if let Ok(tree) = parse(src, &rust) {
+            canon::collect_use_imports(env, tree.root_node(), src);
+        }
+    }
+    env.bind_reexports = false;
+    env.current_file = None;
+    env.in_nested_mod = false;
+    env.self_mod = None;
+    env.inline_mod = false;
+    env.super_files.clear();
+    env.super_stack.clear();
 }
 
 /// Inherent methods nested under `parent` (an `impl` or class), and associated
@@ -662,6 +696,24 @@ pub fn snapshot_files_reusing(
             .map(|p| (&p.path, p.raw.as_slice(), p.ids.as_slice()))
             .collect();
         link_file_modules(&mut env, &views);
+    }
+    {
+        env.bind_reexports = true;
+        for p in &parsed {
+            env.current_file = Some(p.path.clone());
+            env.in_nested_mod = false;
+            env.self_mod = None;
+            env.inline_mod = false;
+            apply_file_module_env(&mut env);
+            canon::collect_use_imports(&mut env, p.tree.root_node(), p.src);
+        }
+        env.bind_reexports = false;
+        env.current_file = None;
+        env.in_nested_mod = false;
+        env.self_mod = None;
+        env.inline_mod = false;
+        env.super_files.clear();
+        env.super_stack.clear();
     }
     // The definitions this tree declares, as `prev` would list them; equal sets mean an
     // identical name environment.

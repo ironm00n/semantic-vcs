@@ -60,6 +60,12 @@ pub struct Env {
     pub use_imports: HashMap<(String, Namespace), EntityId>,
     /// `use path::h as hh` — `hh` is a local spelling, not an Entity hole.
     pub use_aliases: HashSet<String>,
+    /// `pub use` names visible as `crate::parse` / `crate::engine::foo`.
+    pub file_reexports: HashMap<RelPath, HashMap<(String, Namespace), EntityId>>,
+    /// `pub use` inside a `mod`, for `crate::engine::foo` after `pub use merge::foo`.
+    pub mod_reexports: HashMap<EntityId, HashMap<(String, Namespace), EntityId>>,
+    /// When set, [`crate::engine::canon`] records pub uses into the reexport maps.
+    pub bind_reexports: bool,
 }
 
 impl Env {
@@ -110,10 +116,26 @@ impl Env {
             return None;
         }
         if segs.len() == 1 {
-            return self.lookup_module(&segs[0], ns);
+            return self.lookup_crate_root(&segs[0], ns);
         }
-        let start = self.lookup_module(&segs[0], Namespace::Type)?;
+        let start = self.lookup_crate_root(&segs[0], Namespace::Type)?;
         self.walk_mod_path(start, &segs[1..], ns)
+    }
+
+    /// `crate::parse` is the crate root, not a same-named item in this file module.
+    fn lookup_crate_root(&self, name: &str, ns: Namespace) -> Option<EntityId> {
+        if let Some(file) = self.super_files.last() {
+            return Self::lookup_in_map(self.by_file.get(file), name, ns)
+                .or_else(|| Self::lookup_in_map(self.file_reexports.get(file), name, ns));
+        }
+        if let Some(file) = &self.current_file {
+            if let Some(id) = Self::lookup_in_map(self.by_file.get(file), name, ns).or_else(|| {
+                Self::lookup_in_map(self.file_reexports.get(file), name, ns)
+            }) {
+                return Some(id);
+            }
+        }
+        self.lookup_module(name, ns)
     }
 
     /// `super::a::b` after `depth` `super::` prefixes.
@@ -140,10 +162,15 @@ impl Env {
         }
         let start_mod = self.self_mod?;
         if segs.len() == 1 {
-            return Self::lookup_in_map(self.mod_items.get(&start_mod), &segs[0], ns);
+            return self.lookup_in_mod(start_mod, &segs[0], ns);
         }
-        let start = Self::lookup_in_map(self.mod_items.get(&start_mod), &segs[0], Namespace::Type)?;
+        let start = self.lookup_in_mod(start_mod, &segs[0], Namespace::Type)?;
         self.walk_mod_path(start, &segs[1..], ns)
+    }
+
+    fn lookup_in_mod(&self, m: EntityId, name: &str, ns: Namespace) -> Option<EntityId> {
+        Self::lookup_in_map(self.mod_items.get(&m), name, ns)
+            .or_else(|| Self::lookup_in_map(self.mod_reexports.get(&m), name, ns))
     }
 
     fn walk_mod_path(&self, start: EntityId, rest: &[String], ns: Namespace) -> Option<EntityId> {
@@ -152,9 +179,9 @@ impl Env {
         }
         let mut id = start;
         for s in &rest[..rest.len() - 1] {
-            id = Self::lookup_in_map(self.mod_items.get(&id), s, Namespace::Type)?;
+            id = self.lookup_in_mod(id, s, Namespace::Type)?;
         }
-        Self::lookup_in_map(self.mod_items.get(&id), rest.last()?, ns)
+        self.lookup_in_mod(id, rest.last()?, ns)
     }
 
     /// File / crate / repo names, skipping nested-mod isolation. `crate::f`

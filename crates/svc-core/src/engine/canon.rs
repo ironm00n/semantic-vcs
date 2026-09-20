@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::extract::{byte_range, is_extracted_item};
 use crate::content::{Content, IdentRef, Namespace, Token};
 use crate::error::Result;
-use crate::ids::{ByteRange, EntityId, Slot};
+use crate::ids::{ByteRange, EntityId, RelPath, Slot};
 use crate::lang::{BinderClass, Env, Lang, Locator, Resolution, Role, When};
 
 pub fn canonicalize(
@@ -1175,6 +1175,12 @@ pub(crate) fn collect_use_imports(env: &mut Env, root: tree_sitter::Node<'_>, sr
     loop {
         let n = c.node();
         if n.kind() == "use_declaration" {
+            if env.bind_reexports && !use_is_pub(n, src) {
+                if !c.goto_next_sibling() {
+                    break;
+                }
+                continue;
+            }
             if let Some(arg) = n.child_by_field_name("argument") {
                 import_use_tree(env, arg, src, &[]);
             } else {
@@ -1194,6 +1200,20 @@ pub(crate) fn collect_use_imports(env: &mut Env, root: tree_sitter::Node<'_>, sr
             break;
         }
     }
+}
+
+fn use_is_pub(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    if let Some(v) = node.child_by_field_name("visibility") {
+        return node_text(v, src).contains("pub");
+    }
+    for i in 0..node.named_child_count() {
+        if let Some(ch) = node.named_child(i as u32) {
+            if ch.kind() == "visibility_modifier" {
+                return node_text(ch, src).contains("pub");
+            }
+        }
+    }
+    false
 }
 
 fn import_use_tree(env: &mut Env, node: tree_sitter::Node<'_>, src: &[u8], prefix: &[String]) {
@@ -1272,7 +1292,26 @@ fn bind_glob(env: &mut Env, prefix: &[String]) {
         return;
     };
     for (k, id) in map {
-        env.use_imports.insert(k, id);
+        if env.bind_reexports {
+            insert_reexport(env, k.0, k.1, id);
+        } else {
+            env.use_imports.insert(k, id);
+        }
+    }
+}
+
+fn insert_reexport(env: &mut Env, name: String, ns: Namespace, id: EntityId) {
+    if let Some(file) = env.current_file.clone() {
+        env.file_reexports
+            .entry(file)
+            .or_default()
+            .insert((name.clone(), ns), id);
+    }
+    if let Some(m) = env.self_mod {
+        env.mod_reexports
+            .entry(m)
+            .or_default()
+            .insert((name, ns), id);
     }
 }
 
@@ -1311,7 +1350,7 @@ fn glob_names(
         let depth = prefix.iter().take_while(|s| s.as_str() == "super").count();
         let rest = &prefix[depth..];
         if rest.is_empty() {
-            return super_glob_map(env);
+            return super_glob_at(env, depth);
         }
         let m = env.lookup_super_path(depth, rest, Namespace::Type)?;
         return env.mod_items.get(&m).cloned();
@@ -1320,26 +1359,44 @@ fn glob_names(
 }
 
 fn crate_root_glob(env: &Env) -> Option<HashMap<(String, Namespace), EntityId>> {
-    if let Some(file) = env.super_files.last() {
-        return env.by_file.get(file).cloned();
+    let file = env.super_files.last().or(env.current_file.as_ref())?;
+    merge_file_glob(env, file)
+}
+
+fn merge_file_glob(
+    env: &Env,
+    file: &RelPath,
+) -> Option<HashMap<(String, Namespace), EntityId>> {
+    let mut map = env.by_file.get(file).cloned().unwrap_or_default();
+    if let Some(re) = env.file_reexports.get(file) {
+        map.extend(re.clone());
     }
-    env.current_file
-        .as_ref()
-        .and_then(|f| env.by_file.get(f).cloned())
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
 }
 
 fn super_glob_map(env: &Env) -> Option<HashMap<(String, Namespace), EntityId>> {
-    if let Some(map) = env.super_stack.first() {
+    super_glob_at(env, 1)
+}
+
+fn super_glob_at(env: &Env, depth: usize) -> Option<HashMap<(String, Namespace), EntityId>> {
+    if depth == 0 {
+        return None;
+    }
+    let i = depth - 1;
+    if let Some(map) = env.super_stack.get(i) {
         return Some(map.clone());
     }
-    if env.inline_mod {
+    let skip = usize::from(env.inline_mod);
+    if i < skip {
         let file = env.current_file.as_ref()?;
-        return env.by_file.get(file).cloned();
+        return merge_file_glob(env, file);
     }
-    if let Some(file) = env.super_files.first() {
-        return env.by_file.get(file).cloned();
-    }
-    None
+    let file = env.super_files.get(i - skip)?;
+    merge_file_glob(env, file)
 }
 
 fn bind_use(env: &mut Env, segs: &[String], alias: &str) {
@@ -1354,13 +1411,24 @@ fn bind_use(env: &mut Env, segs: &[String], alias: &str) {
         .unwrap_or("");
     let aliased = !imported.is_empty() && alias != imported;
     for ns in [Namespace::Value, Namespace::Type] {
+        let Some(id) = resolve_use_path(env, segs, ns) else {
+            if env.bind_reexports {
+                continue;
+            }
+            if aliased {
+                env.use_aliases.insert(alias.to_string());
+            }
+            continue;
+        };
+        if env.bind_reexports {
+            insert_reexport(env, alias.to_string(), ns, id);
+            continue;
+        }
         if aliased {
             env.use_aliases.insert(alias.to_string());
             continue;
         }
-        if let Some(id) = resolve_use_path(env, segs, ns) {
-            env.use_imports.insert((alias.to_string(), ns), id);
-        }
+        env.use_imports.insert((alias.to_string(), ns), id);
     }
 }
 
