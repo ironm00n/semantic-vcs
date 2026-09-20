@@ -8,7 +8,7 @@ use std::time::SystemTime;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use svc_core::{Conflict, Kind, Op};
-use svc_repo::{BlameEntry, ConflictOut, OpOut};
+use svc_repo::{BlameEntry, ChangeOut, ConflictOut, EvologEntry, OpOut};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Definition {
@@ -113,6 +113,14 @@ impl Svc {
 
     pub fn log(&self) -> Result<Vec<OpOut>, String> {
         self.json(&["log"])
+    }
+
+    pub fn heads(&self) -> Result<Vec<ChangeOut>, String> {
+        self.json(&["heads"])
+    }
+
+    pub fn evolog(&self, change: &str) -> Result<Vec<EvologEntry>, String> {
+        self.json(&["evolog", change])
     }
 
     /// Whole journal, newest first — the change-log pane, not the current-change review queue.

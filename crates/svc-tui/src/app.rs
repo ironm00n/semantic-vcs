@@ -10,15 +10,22 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wra
 use serde_json::Value;
 use svc_agent::{AgentCommand, AgentEvent, PermissionAsk};
 use svc_core::{Conflict, Op};
-use svc_repo::{BlameEntry, ConflictOut, OpOut, Touch};
+use svc_repo::{BlameEntry, ChangeOut, ConflictOut, EntityTouch, OpOut, Touch};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::data::{Definition, Svc, class_name, conflict_line, describe_op, intent_name, kind_glyph};
 use crate::syntax::source_lines;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ViewMode {
+    Revisions,
+    Entities,
+    Oplog,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Pane {
-    Tree,
+    Browse,
     Queue,
 }
 
@@ -61,9 +68,13 @@ pub struct AgentLink {
 
 pub struct App {
     pub svc: Svc,
+    pub mode: ViewMode,
+    pub changes: Vec<ChangeOut>,
+    pub revision_state: ListState,
     pub defs: Vec<Definition>,
     pub rows: Vec<(usize, usize)>,
     pub tree_state: ListState,
+    pub op_state: ListState,
     pub events: Vec<Line<'static>>,
     pub events_for: Option<String>,
     pub queue: Vec<QueueItem>,
@@ -107,15 +118,19 @@ impl App {
     pub fn new(svc: Svc) -> Self {
         let mut app = Self {
             svc,
+            mode: ViewMode::Revisions,
+            changes: Vec::new(),
+            revision_state: ListState::default(),
             defs: Vec::new(),
             rows: Vec::new(),
             tree_state: ListState::default(),
+            op_state: ListState::default(),
             events: Vec::new(),
             events_for: None,
             queue: Vec::new(),
             queue_state: ListState::default(),
             expanded: HashSet::new(),
-            focus: Pane::Tree,
+            focus: Pane::Browse,
             agent: None,
             touched: HashSet::new(),
             status: String::new(),
@@ -136,16 +151,36 @@ impl App {
             edit_diffs: HashMap::new(),
             typing: false,
         };
+        app.revision_state.select(Some(0));
         app.tree_state.select(Some(0));
+        app.op_state.select(Some(0));
         app
     }
 
     /// Re-read everything from `svc --json`. Pending asks survive; verdict rows replace answered asks.
     pub fn refresh(&mut self) {
         self.dirty = false;
-        match self.svc.list_defs() {
+        let selected_change = self.selected_change().map(|change| change.change);
+        match self.svc.heads() {
             // Another `svc` holds this checkout (a long rename in a second terminal): not an
             // error to show, just try again shortly.
+            Err(e) if e.contains("checkout busy") => {
+                self.dirty = true;
+                self.retry_at = Instant::now() + Duration::from_millis(300);
+                return;
+            }
+            Ok(changes) => {
+                self.changes = changes;
+                let selected = selected_change
+                    .and_then(|id| self.changes.iter().position(|change| change.change == id))
+                    .or_else(|| self.changes.iter().position(|change| change.current))
+                    .or((!self.changes.is_empty()).then_some(0));
+                self.revision_state.select(selected);
+                self.error = None;
+            }
+            Err(e) => self.error = Some(e),
+        }
+        match self.svc.list_defs() {
             Err(e) if e.contains("checkout busy") => {
                 self.dirty = true;
                 self.retry_at = Instant::now() + Duration::from_millis(300);
@@ -160,12 +195,16 @@ impl App {
                 } else if self.tree_state.selected().is_none_or(|s| s >= n) {
                     self.tree_state.select(Some(n.saturating_sub(1)));
                 }
-                self.error = None;
             }
             Err(e) => self.error = Some(e),
         }
         let log = self.svc.log().unwrap_or_default();
         self.ops = self.svc.op_log().unwrap_or_else(|_| log.clone());
+        if self.ops.is_empty() {
+            self.op_state.select(None);
+        } else if self.op_state.selected().is_none_or(|index| index >= self.ops.len()) {
+            self.op_state.select(Some(0));
+        }
         let conflicts = self.svc.conflicts().unwrap_or_default();
         self.roots = log.iter().map(|o| (o.ix.0, o.root_after.to_string())).collect();
         self.edit_diffs.clear();
@@ -332,6 +371,12 @@ impl App {
             .unwrap_or_else(|| id.chars().take(8).collect())
     }
 
+    fn selected_change(&self) -> Option<&ChangeOut> {
+        self.revision_state
+            .selected()
+            .and_then(|index| self.changes.get(index))
+    }
+
     fn selected_def(&self) -> Option<&Definition> {
         self.tree_state
             .selected()
@@ -339,17 +384,69 @@ impl App {
             .map(|(i, _)| &self.defs[*i])
     }
 
+    fn selected_op(&self) -> Option<&OpOut> {
+        self.op_state.selected().and_then(|index| self.ops.get(index))
+    }
+
     pub fn load_events(&mut self) {
-        let Some(def) = self.selected_def().cloned() else {
-            self.events.clear();
-            // Sentinel so pump does not redraw every tick on an empty tree.
-            self.events_for = Some(String::new());
+        match self.mode {
+            ViewMode::Revisions => self.load_change_events(),
+            ViewMode::Entities => self.load_entity_events(),
+            ViewMode::Oplog => self.load_op_events(),
+        }
+    }
+
+    fn load_change_events(&mut self) {
+        let Some(change) = self.selected_change().cloned() else {
+            self.events = vec![Line::from("no revisions")];
+            self.events_for = Some("change:".into());
             return;
         };
-        if self.events_for.as_deref() == Some(def.id.as_str()) {
+        let key = format!("change:{}", change.change);
+        if self.events_for.as_deref() == Some(&key) {
             return;
         }
-        self.events_for = Some(def.id.clone());
+        self.events_for = Some(key);
+        let mut lines = vec![
+            Line::from(change.message.clone()).bold(),
+            Line::from(format!("change {}  snapshot {}", change.short, change.snapshot.short())).dark_gray(),
+        ];
+        if !change.branches.is_empty() {
+            lines.push(Line::from(format!("branches  {}", change.branches.join(", "))).cyan());
+        }
+        lines.push(Line::from(""));
+        match self.svc.evolog(&change.change.to_string()) {
+            Ok(entries) if entries.is_empty() => lines.push(Line::from("no rewrite history").dark_gray()),
+            Ok(entries) => {
+                for entry in entries {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} ", entry.snapshot.short()), Style::default().fg(Color::DarkGray)),
+                        Span::raw(if entry.message.is_empty() { "(no description)".into() } else { entry.message }),
+                    ]));
+                    if entry.deltas.is_empty() {
+                        lines.push(Line::from(format!("  {} entities", entry.entities)).dark_gray());
+                    } else {
+                        lines.extend(entry.deltas.iter().map(entity_touch_line));
+                    }
+                }
+            }
+            Err(e) => lines.push(Line::from(format!("evolog failed: {e}")).red()),
+        }
+        self.events = lines;
+        self.store_seen = self.svc.store_changed_at();
+    }
+
+    fn load_entity_events(&mut self) {
+        let Some(def) = self.selected_def().cloned() else {
+            self.events.clear();
+            self.events_for = Some("entity:".into());
+            return;
+        };
+        let key = format!("entity:{}", def.id);
+        if self.events_for.as_deref() == Some(&key) {
+            return;
+        }
+        self.events_for = Some(key);
         let mut lines: Vec<Line<'static>> = Vec::new();
         match self.svc.show_def(&def.id) {
             Ok(shown) => {
@@ -362,18 +459,14 @@ impl App {
                 let canon = shown.canonical.trim();
                 if !canon.is_empty() {
                     lines.push(Line::from(""));
-                    lines.push(
-                        Line::from(format!("canonical  {canon}")).dark_gray(),
-                    );
+                    lines.push(Line::from(format!("canonical  {canon}")).dark_gray());
                 }
             }
             Err(e) => lines.push(Line::from(format!("show-def failed: {e}")).red()),
         }
         lines.push(Line::from(""));
         match self.svc.blame(&def.id) {
-            Ok(entries) if entries.is_empty() => {
-                lines.push(Line::from("no events yet").dark_gray());
-            }
+            Ok(entries) if entries.is_empty() => lines.push(Line::from("no events yet").dark_gray()),
             Ok(entries) => {
                 lines.push(Line::from("history").dark_gray());
                 lines.extend(entries.iter().map(blame_line));
@@ -384,6 +477,27 @@ impl App {
         // show-def/blame open the store and bump its mtime; if we keep the
         // pre-spawn stamp, the 1 s probe thinks another process published.
         self.store_seen = self.svc.store_changed_at();
+    }
+
+    fn load_op_events(&mut self) {
+        let Some(op) = self.selected_op().cloned() else {
+            self.events = vec![Line::from("no operations")];
+            self.events_for = Some("op:".into());
+            return;
+        };
+        let key = format!("op:{}", op.ix.0);
+        if self.events_for.as_deref() == Some(&key) {
+            return;
+        }
+        self.events_for = Some(key);
+        let group = op
+            .group
+            .map(|id| id.to_string().chars().take(8).collect::<String>())
+            .unwrap_or_else(|| "ungrouped".into());
+        self.events = vec![
+            op_log_line(&op),
+            Line::from(format!("group {group}  root {}  at {}", op.root_after.short(), op.at)).dark_gray(),
+        ];
     }
 
     pub fn handle_key(&mut self, event: &Event) {
@@ -408,16 +522,27 @@ impl App {
             return;
         }
         match key.code {
-            KeyCode::Esc if !self.filter.is_empty() => {
+            KeyCode::Esc if self.mode == ViewMode::Entities && !self.filter.is_empty() => {
                 self.filter.clear();
                 self.apply_filter();
             }
-            KeyCode::Char('/') => self.typing = true,
-            KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+            KeyCode::Char('/') if self.mode == ViewMode::Entities => self.typing = true,
+            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Esc | KeyCode::Char('h') => self.set_mode(ViewMode::Revisions),
+            KeyCode::Char('e') => self.set_mode(if self.mode == ViewMode::Entities {
+                ViewMode::Revisions
+            } else {
+                ViewMode::Entities
+            }),
+            KeyCode::Char('o') => self.set_mode(if self.mode == ViewMode::Oplog {
+                ViewMode::Revisions
+            } else {
+                ViewMode::Oplog
+            }),
             KeyCode::Tab => {
                 self.focus = match self.focus {
-                    Pane::Tree => Pane::Queue,
-                    Pane::Queue => Pane::Tree,
+                    Pane::Browse => Pane::Queue,
+                    Pane::Queue => Pane::Browse,
                 }
             }
             KeyCode::Char('j') | KeyCode::Down => self.move_sel(1),
@@ -491,7 +616,7 @@ impl App {
     fn apply_filter(&mut self) {
         self.rows = self.filtered_rows();
         self.tree_state.select((!self.rows.is_empty()).then_some(0));
-        self.focus = Pane::Tree;
+        self.focus = Pane::Browse;
         self.invalidate_detail();
     }
 
@@ -567,10 +692,27 @@ impl App {
         self.edit_diffs.insert(ix, edit_diff_lines(&before, &after));
     }
 
+    fn set_mode(&mut self, mode: ViewMode) {
+        self.mode = mode;
+        self.focus = Pane::Browse;
+        self.typing = false;
+        self.invalidate_detail();
+        self.status = match mode {
+            ViewMode::Revisions => "revision view".into(),
+            ViewMode::Entities => "entity view — h/Esc returns to revisions".into(),
+            ViewMode::Oplog => "operation log — h/Esc returns to revisions".into(),
+        };
+    }
+
     fn move_sel(&mut self, delta: i32) {
-        let (state, len) = match self.focus {
-            Pane::Tree => (&mut self.tree_state, self.rows.len()),
-            Pane::Queue => (&mut self.queue_state, self.queue.len()),
+        let (state, len) = if self.focus == Pane::Queue {
+            (&mut self.queue_state, self.queue.len())
+        } else {
+            match self.mode {
+                ViewMode::Revisions => (&mut self.revision_state, self.changes.len()),
+                ViewMode::Entities => (&mut self.tree_state, self.rows.len()),
+                ViewMode::Oplog => (&mut self.op_state, self.ops.len()),
+            }
         };
         if len == 0 {
             return;
@@ -578,7 +720,7 @@ impl App {
         let cur = state.selected().unwrap_or(0) as i32;
         let next = (cur + delta).clamp(0, len as i32 - 1) as usize;
         state.select(Some(next));
-        if self.focus == Pane::Tree {
+        if self.focus == Pane::Browse {
             self.invalidate_detail();
         }
     }
@@ -691,8 +833,9 @@ impl App {
     pub fn render(&mut self, frame: &mut Frame) {
         let pending = self.queue.iter().filter(|q| q.pending()).count();
         let title = format!(
-            " svc review — {} — queue {} ({} pending) ",
+            " svc — {} — {:?} — queue {} ({} pending) ",
             self.svc.root.display(),
+            self.mode,
             self.queue.len(),
             pending
         );
@@ -707,8 +850,8 @@ impl App {
             Constraint::Percentage(40),
             Constraint::Percentage(60),
         ]));
-        self.render_tree(frame, left);
-        self.render_events(frame, right);
+        self.render_browser(frame, left);
+        self.render_preview(frame, right);
         self.render_queue(frame, queue_area);
         self.render_status(frame, status_area);
     }
@@ -730,6 +873,43 @@ impl App {
         }
     }
 
+    fn render_browser(&mut self, frame: &mut Frame, area: Rect) {
+        match self.mode {
+            ViewMode::Revisions => self.render_revisions(frame, area),
+            ViewMode::Entities => self.render_tree(frame, area),
+            ViewMode::Oplog => self.render_oplog(frame, area),
+        }
+    }
+
+    fn render_revisions(&mut self, frame: &mut Frame, area: Rect) {
+        let items = self
+            .changes
+            .iter()
+            .map(|change| {
+                let marker = if change.current { "@" } else { "○" };
+                let branches = if change.branches.is_empty() {
+                    String::new()
+                } else {
+                    format!(" {}", change.branches.join(","))
+                };
+                let message = if change.message.is_empty() {
+                    "(no description)"
+                } else {
+                    &change.message
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!("{marker} {}", change.short), Style::default().fg(Color::Cyan)),
+                    Span::styled(branches, Style::default().fg(Color::Yellow)),
+                    Span::raw(format!("  {message}")),
+                ]))
+            })
+            .collect::<Vec<_>>();
+        let list = List::new(items)
+            .block(self.border(Pane::Browse, format!(" revisions ({}) ", self.changes.len())))
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+        frame.render_stateful_widget(list, area, &mut self.revision_state);
+    }
+
     fn render_tree(&mut self, frame: &mut Frame, area: Rect) {
         let items: Vec<ListItem> = self
             .rows
@@ -747,45 +927,47 @@ impl App {
             })
             .collect();
         let list = List::new(items)
-            .block(self.border(Pane::Tree, self.tree_title()))
+            .block(self.border(Pane::Browse, self.tree_title()))
             .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
         frame.render_stateful_widget(list, area, &mut self.tree_state);
     }
 
-    fn render_events(&self, frame: &mut Frame, area: Rect) {
-        let name = self.selected_def().map(|d| d.name.clone()).unwrap_or_default();
+    fn render_oplog(&mut self, frame: &mut Frame, area: Rect) {
+        let items = self.ops.iter().map(op_log_line).map(ListItem::new).collect::<Vec<_>>();
+        let list = List::new(items)
+            .block(self.border(Pane::Browse, format!(" operation log ({}) ", self.ops.len())))
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+        frame.render_stateful_widget(list, area, &mut self.op_state);
+    }
+
+    fn render_preview(&self, frame: &mut Frame, area: Rect) {
         let mut lines = self.events.clone();
         if lines.is_empty() {
             lines.push(Line::from("…").dark_gray());
         }
-        let story: Vec<&OpOut> = self
-            .ops
-            .iter()
-            .filter(|o| !matches!(o.op, Op::New { .. } | Op::Branch { .. }))
-            .take(16)
-            .collect();
-        lines.push(Line::from(""));
-        if story.is_empty() {
-            lines.push(Line::from("change log — no ops on this store yet").dark_gray());
-        } else {
-            lines.push(Line::from("change log").dark_gray());
-            lines.extend(story.into_iter().map(op_log_line));
-        }
         if let Some(agent) = &self.agent {
             lines.push(Line::from(""));
             lines.push(Line::from(format!("agent{}: {}", if agent.running { " (running)" } else { "" }, agent.task)).bold());
-            for l in self.log.iter().rev().take(8).rev() {
-                lines.push(Line::from(l.chars().take(area.width as usize).collect::<String>()).dark_gray());
+            for line in self.log.iter().rev().take(8).rev() {
+                lines.push(Line::from(line.chars().take(area.width as usize).collect::<String>()).dark_gray());
             }
         }
+        let title = match self.mode {
+            ViewMode::Revisions => self
+                .selected_change()
+                .map(|change| format!(" change {} ", change.short))
+                .unwrap_or_else(|| " change details ".into()),
+            ViewMode::Entities => self
+                .selected_def()
+                .map(|def| format!(" {} — {} ", def.name, def.file))
+                .unwrap_or_else(|| " entity details ".into()),
+            ViewMode::Oplog => self
+                .selected_op()
+                .map(|op| format!(" operation #{} ", op.ix.0))
+                .unwrap_or_else(|| " operation details ".into()),
+        };
         let para = Paragraph::new(lines)
-            .block(Block::default().borders(Borders::ALL).title(format!(
-                " {} — {} ",
-                if name.is_empty() { "item".into() } else { name },
-                self.selected_def()
-                    .map(|d| d.file.clone())
-                    .unwrap_or_default()
-            )))
+            .block(Block::default().borders(Borders::ALL).title(title))
             .wrap(Wrap { trim: false });
         frame.render_widget(para, area);
     }
@@ -810,7 +992,7 @@ impl App {
     }
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
-        let keys = "j/k move  / find  tab pane  enter expand  a/r allow/reject  p continue  u undo  c cancel  q quit";
+        let keys = "j/k move  e entities  / find  o oplog  h/Esc revisions  tab queue  a/r allow/reject  u undo  q quit";
         let text = match &self.error {
             _ if self.typing => Line::from(vec![
                 Span::raw(format!("/{}▏", self.filter)),
@@ -862,6 +1044,28 @@ fn tree_rows(defs: &[Definition]) -> Vec<(usize, usize)> {
         }
     }
     out
+}
+
+fn entity_touch_line(entity: &EntityTouch) -> Line<'static> {
+    let (text, style) = match &entity.touch {
+        Touch::Added => ("added".into(), Style::default().fg(Color::Green)),
+        Touch::Removed => ("removed".into(), Style::default().fg(Color::Red)),
+        Touch::Renamed { from, to } => (format!("renamed {from} → {to}"), Style::default().fg(Color::Cyan)),
+        Touch::Moved { .. } => ("moved".into(), Style::default().fg(Color::Cyan)),
+        Touch::Relocated { from, to } => (
+            format!("relocated {}#{} → {}#{}", from.0, from.1, to.0, to.1),
+            Style::default().fg(Color::Cyan),
+        ),
+        Touch::Edited { observed: Some(svc_core::ObservedClass::BindingChanging) } => {
+            ("edited: binding-changing".into(), Style::default().fg(Color::Red))
+        }
+        Touch::Edited { observed } => (format!("edited: {}", class_name(*observed)), Style::default().fg(Color::Green)),
+    };
+    Line::from(vec![
+        Span::raw("  "),
+        Span::styled(text, style),
+        Span::raw(format!("  {}", entity.name)),
+    ])
 }
 
 fn op_log_line(op: &OpOut) -> Line<'static> {
@@ -984,6 +1188,8 @@ fn edit_diff_lines(before: &str, after: &str) -> Vec<Line<'static>> {
 mod tests {
     use super::*;
     use crossterm::event::{KeyEvent, KeyModifiers};
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
     use serde_json::json;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
@@ -1008,6 +1214,18 @@ mod tests {
 
     fn key(c: char) -> Event {
         Event::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE))
+    }
+
+    fn change(message: &str, current: bool) -> ChangeOut {
+        let change = ChangeId::new();
+        ChangeOut {
+            change,
+            short: change.short(),
+            snapshot: SnapshotId::of(&message),
+            message: message.into(),
+            branches: Vec::new(),
+            current,
+        }
     }
 
     fn prompt_text(cmd: AgentCommand) -> String {
@@ -1210,7 +1428,8 @@ mod tests {
         app.defs = vec![def("id-read", "read", 0), def("id-load", "load", 1)];
         app.rows = tree_rows(&app.defs);
         app.tree_state.select(Some(0));
-        app.events_for = Some("id-read".into());
+        app.mode = ViewMode::Entities;
+        app.events_for = Some("entity:id-read".into());
         app.events = vec![Line::from("stale")];
         app.dirty = false;
         app.handle_key(&key('j'));
@@ -1225,6 +1444,55 @@ mod tests {
             app.events_for.is_none(),
             "pump must not shell out in the same millisecond as j"
         );
+    }
+
+    #[test]
+    fn revisions_are_default_and_secondary_views_return_to_them() {
+        let mut app = App::new(Svc::new(PathBuf::from("svc"), PathBuf::from("/nonexistent")));
+
+        assert_eq!(app.mode, ViewMode::Revisions);
+        app.handle_key(&key('e'));
+        assert_eq!(app.mode, ViewMode::Entities);
+        app.handle_key(&key('h'));
+        assert_eq!(app.mode, ViewMode::Revisions);
+        app.handle_key(&key('o'));
+        assert_eq!(app.mode, ViewMode::Oplog);
+        app.handle_key(&Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)));
+        assert_eq!(app.mode, ViewMode::Revisions);
+        assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn default_frame_renders_revision_list_at_eighty_columns() {
+        let mut app = App::new(Svc::new(PathBuf::from("svc"), PathBuf::from("/repo")));
+        app.changes = vec![change("refactor config", true), change("add loader", false)];
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+
+        terminal.draw(|frame| app.render(frame)).unwrap();
+
+        let text = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(text.contains("revisions (2)"), "{text}");
+        assert!(text.contains("refactor config"), "{text}");
+        assert!(text.contains("review queue"), "{text}");
+    }
+
+    #[test]
+    fn moving_revisions_invalidates_the_change_preview() {
+        let mut app = App::new(Svc::new(PathBuf::from("svc"), PathBuf::from("/nonexistent")));
+        app.changes = vec![change("current", true), change("other", false)];
+        app.revision_state.select(Some(0));
+        app.events_for = Some(format!("change:{}", app.changes[0].change));
+
+        app.handle_key(&key('j'));
+
+        assert_eq!(app.revision_state.selected(), Some(1));
+        assert!(app.events_for.is_none());
     }
 
     #[test]
@@ -1314,6 +1582,7 @@ mod tests {
         app.defs[2].file = "src/lib.rs".into();
         app.rows = tree_rows(&app.defs);
         let code = |app: &mut App, c: KeyCode| app.handle_key(&Event::Key(KeyEvent::new(c, KeyModifiers::NONE)));
+        code(&mut app, KeyCode::Char('e')); // the filter is the entity view's
         code(&mut app, KeyCode::Char('/'));
         for c in "PAR".chars() {
             code(&mut app, KeyCode::Char(c));
@@ -1335,8 +1604,11 @@ mod tests {
         assert_eq!(app.rows.len(), 1, "or of the file");
         assert_eq!(app.defs[app.rows[0].0].name, "Config");
         code(&mut app, KeyCode::Esc);
+        assert!(app.filter.is_empty() && app.mode == ViewMode::Entities, "first esc clears the filter");
         code(&mut app, KeyCode::Esc);
-        assert!(app.should_quit, "esc with no filter quits");
+        assert!(app.mode == ViewMode::Revisions && !app.should_quit, "then esc returns to revisions");
+        code(&mut app, KeyCode::Char('q'));
+        assert!(app.should_quit, "q quits");
     }
 
     #[test]
