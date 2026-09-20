@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::extract::byte_range;
+use super::extract::{byte_range, is_extracted_item};
 use crate::content::{Content, IdentRef, Namespace, Token};
 use crate::error::Result;
 use crate::ids::{ByteRange, EntityId, Slot};
@@ -14,16 +14,38 @@ pub fn canonicalize(
     lang: &dyn Lang,
 ) -> Result<Content> {
     let mut tokens = Vec::new();
-    walk(
-        item,
-        item,
-        src,
-        lang,
-        children,
-        res,
-        &binders_from_res(res),
-        &mut tokens,
-    );
+    let binders = binders_from_res(res);
+    let attached = file_attached_nodes(item, lang);
+    let item_start = item.start_byte();
+    for extra in &attached {
+        if extra.start_byte() < item_start {
+            walk(
+                *extra,
+                item,
+                src,
+                lang,
+                children,
+                res,
+                &binders,
+                &mut tokens,
+            );
+        }
+    }
+    walk(item, item, src, lang, children, res, &binders, &mut tokens);
+    for extra in &attached {
+        if extra.start_byte() >= item_start {
+            walk(
+                *extra,
+                item,
+                src,
+                lang,
+                children,
+                res,
+                &binders,
+                &mut tokens,
+            );
+        }
+    }
     Ok(Content { tokens })
 }
 
@@ -71,7 +93,135 @@ pub fn resolve_locals(
         &mut refs,
         item.id(),
     );
+    // File-tail / inter-item statements are not entities. Resolve them as
+    // part of the neighbouring file-root so `rename` rewrites uses there.
+    // Walk extras against their own binders: the file-root's name must stay
+    // an Entity hole (Local would remain a literal in this item's bytes).
+    let mut extra_binders = Vec::new();
+    let extra_binder_start = slots.len();
+    for extra in file_attached_nodes(item, lang) {
+        collect_binders(
+            extra,
+            src,
+            lang,
+            None,
+            &mut slots,
+            &mut extra_binders,
+            &mut next,
+            extra.id(),
+        );
+    }
+    let extra_slot_at: HashMap<(u32, u32), (Slot, Namespace)> = slots[extra_binder_start..]
+        .iter()
+        .map(|(r, s, ns)| ((r.start, r.end), (*s, *ns)))
+        .collect();
+    for extra in file_attached_nodes(item, lang) {
+        collect_refs(
+            extra,
+            src,
+            lang,
+            None,
+            &extra_slot_at,
+            &extra_binders,
+            env,
+            &mut refs,
+            extra.id(),
+        );
+    }
     Resolution { slots, refs }
+}
+
+/// Named file-level statements owned by this file-root but not part of its
+/// item node: preceding kindless statements (in this entity's bytes, which
+/// start where the previous file-root's item ended) and, when this is the
+/// last file-root, following tail statements through EOF.
+fn file_attached_nodes<'a>(
+    item: tree_sitter::Node<'a>,
+    lang: &dyn Lang,
+) -> Vec<tree_sitter::Node<'a>> {
+    if !is_extracted_item(item, lang) || !is_file_root_item(item, lang) {
+        return Vec::new();
+    }
+    let root = syntax_root(item);
+    let stmt = top_level_under(item, root);
+    let mut children = Vec::new();
+    let mut c = root.walk();
+    for ch in root.named_children(&mut c) {
+        children.push(ch);
+    }
+    let Some(idx) = children.iter().position(|ch| ch.id() == stmt.id()) else {
+        return Vec::new();
+    };
+    let prev_entity = (0..idx)
+        .rev()
+        .find(|&i| subtree_has_extracted_entity(children[i], lang));
+    let next_entity =
+        ((idx + 1)..children.len()).find(|&i| subtree_has_extracted_entity(children[i], lang));
+    let start = prev_entity.map(|i| i + 1).unwrap_or(0);
+    let last = next_entity.is_none();
+    let mut out = Vec::new();
+    for (i, ch) in children.into_iter().enumerate() {
+        if i == idx {
+            continue;
+        }
+        if i < start {
+            continue;
+        }
+        if i < idx {
+            out.push(ch);
+            continue;
+        }
+        if last {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+fn is_file_root_item(item: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
+    let mut p = item.parent();
+    while let Some(parent) = p {
+        if is_extracted_item(parent, lang) {
+            return false;
+        }
+        p = parent.parent();
+    }
+    true
+}
+
+fn syntax_root(item: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
+    let mut n = item;
+    while let Some(p) = n.parent() {
+        n = p;
+    }
+    n
+}
+
+fn top_level_under<'a>(
+    item: tree_sitter::Node<'a>,
+    root: tree_sitter::Node<'a>,
+) -> tree_sitter::Node<'a> {
+    let mut n = item;
+    while let Some(p) = n.parent() {
+        if p.id() == root.id() {
+            return n;
+        }
+        n = p;
+    }
+    item
+}
+
+fn subtree_has_extracted_entity(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
+    if is_extracted_item(node, lang) {
+        return true;
+    }
+    let mut c = node.walk();
+    for ch in node.named_children(&mut c) {
+        if subtree_has_extracted_entity(ch, lang) {
+            return true;
+        }
+    }
+    false
 }
 
 #[derive(Clone)]

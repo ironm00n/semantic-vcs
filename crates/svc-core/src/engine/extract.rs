@@ -18,6 +18,21 @@ fn is_class_body_member(node: tree_sitter::Node<'_>) -> bool {
     node.parent().is_some_and(|p| p.kind() == "class_body")
 }
 
+fn is_module_scope_declarator(node: tree_sitter::Node<'_>) -> bool {
+    let mut p = node.parent();
+    while let Some(parent) = p {
+        match parent.kind() {
+            "program" => return true,
+            "export_statement"
+            | "lexical_declaration"
+            | "variable_declaration"
+            | "using_declaration" => p = parent.parent(),
+            _ => return false,
+        }
+    }
+    false
+}
+
 pub fn find_node<'a>(
     node: tree_sitter::Node<'a>,
     range: ByteRange,
@@ -45,8 +60,12 @@ fn collect<'a>(
     if let Some(rule) = rule_for(lang, node.kind()) {
         // Module-scope `let`/`const`/`var` are entities; nested ones are locals
         // of the enclosing item. Extracting them as children made the
-        // parent resolver skip their binders.
-        if rule.node_kind == "variable_declarator" && parent_idx.is_some() {
+        // parent resolver skip their binders. `for (let i …)` is also a local:
+        // `for_statement` is not an entity, so parent_idx is None, but the
+        // declarator is not a file-root.
+        if rule.node_kind == "variable_declarator"
+            && (parent_idx.is_some() || !is_module_scope_declarator(node))
+        {
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
                 collect(child, src, lang, parent_idx, raw, nodes);
@@ -135,12 +154,39 @@ fn fill(
         } else {
             raw[sibs[k - 1]].bytes_range.end
         };
+        // Last file-root owns following kindless statements (`for`, expr
+        // stmts). Stop before trailing whitespace so the close-brace literal
+        // stays `}\n` in FileRecord.trailing — nested add_def splices there.
+        let mut end = raw[i].item_range.end;
+        if g == 0 && k + 1 == sibs.len() {
+            let mut e = src.len();
+            while e > end as usize && src[e - 1].is_ascii_whitespace() {
+                e -= 1;
+            }
+            end = e as u32;
+        }
         raw[i].bytes_range = ByteRange {
             start: start.min(raw[i].item_range.start),
-            end: raw[i].item_range.end,
+            end: end.max(raw[i].item_range.end),
         };
         fill(raw, nodes, groups, i + 1, src);
     }
+}
+
+/// True when `collect` would emit this node as an entity (same skip rules:
+/// nested `variable_declarator` stays a local; object-literal methods are not
+/// class members).
+pub fn is_extracted_item(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
+    let Some(rule) = rule_for(lang, node.kind()) else {
+        return false;
+    };
+    if rule.node_kind == "variable_declarator" {
+        return is_module_scope_declarator(node);
+    }
+    if rule.node_kind == "method_definition" {
+        return is_class_body_member(node);
+    }
+    true
 }
 
 pub fn byte_range(node: tree_sitter::Node<'_>) -> ByteRange {
