@@ -83,6 +83,7 @@ pub struct App {
     /// is another process (or the agent) publishing, and the panes follow it.
     store_seen: Option<SystemTime>,
     store_probe_at: Instant,
+    retry_at: Instant,
     /// Last `Event::Resize` we drew for — `script(1)` and some ptys repeat the
     /// same size, which used to mark every frame dirty and starve input.
     last_size: Option<(u16, u16)>,
@@ -124,6 +125,7 @@ impl App {
             detail_at: Instant::now(),
             store_seen: None,
             store_probe_at: Instant::now() + Duration::from_secs(1),
+            retry_at: Instant::now(),
             last_size: None,
             ops: Vec::new(),
             picked_story: false,
@@ -142,6 +144,13 @@ impl App {
     pub fn refresh(&mut self) {
         self.dirty = false;
         match self.svc.list_defs() {
+            // Another `svc` holds this checkout (a long rename in a second terminal): not an
+            // error to show, just try again shortly.
+            Err(e) if e.contains("checkout busy") => {
+                self.dirty = true;
+                self.retry_at = Instant::now() + Duration::from_millis(300);
+                return;
+            }
             Ok(defs) => {
                 self.defs = defs;
                 self.rows = self.filtered_rows();
@@ -190,7 +199,7 @@ impl App {
                 self.status = "the store changed under another process; re-read".into();
             }
         }
-        if self.dirty {
+        if self.dirty && Instant::now() >= self.retry_at {
             self.refresh();
         }
         if self.events_for.is_none() && Instant::now() >= self.detail_at {
@@ -1345,5 +1354,20 @@ mod tests {
         let cut = edit_diff_lines(&big_before, &big_after);
         assert_eq!(cut.len(), 41);
         assert!(cut.last().unwrap().to_string().contains("more lines"));
+    }
+
+    #[test]
+    fn a_busy_checkout_is_retried_quietly_not_shown_as_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = dir.path().join("svc");
+        std::fs::write(&fake, "#!/bin/sh\necho '{\"error\":\"checkout busy: another svc session held it\"}' >&2\nexit 1\n").unwrap();
+        std::fs::set_permissions(&fake, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        let mut app = App::new(Svc::new(fake, dir.path().to_path_buf()));
+        app.refresh();
+        assert!(app.dirty, "still to be read");
+        assert!(app.error.is_none(), "not an error to show");
+        assert!(app.retry_at > Instant::now(), "and not before a pause");
+        app.pump();
+        assert!(app.dirty, "pump waits out the pause instead of spawning again");
     }
 }
