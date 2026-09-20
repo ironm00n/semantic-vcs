@@ -91,6 +91,10 @@ pub struct App {
     picked_story: bool,
     pub should_quit: bool,
     pub log: Vec<String>,
+    /// `/` filter over the tree: a substring of the name or file, case-insensitive. While
+    /// `typing`, keys go to it; Enter keeps it, Esc clears it. Non-empty = a flat match list.
+    pub filter: String,
+    pub typing: bool,
 }
 
 impl App {
@@ -120,6 +124,8 @@ impl App {
             picked_story: false,
             should_quit: false,
             log: Vec::new(),
+            filter: String::new(),
+            typing: false,
         };
         app.tree_state.select(Some(0));
         app
@@ -131,7 +137,7 @@ impl App {
         match self.svc.list_defs() {
             Ok(defs) => {
                 self.defs = defs;
-                self.rows = tree_rows(&self.defs);
+                self.rows = self.filtered_rows();
                 let n = self.rows.len();
                 if n == 0 {
                     self.tree_state.select(None);
@@ -382,7 +388,15 @@ impl App {
             return;
         }
         self.need_draw = true;
+        if self.filter_key(key.code) {
+            return;
+        }
         match key.code {
+            KeyCode::Esc if !self.filter.is_empty() => {
+                self.filter.clear();
+                self.apply_filter();
+            }
+            KeyCode::Char('/') => self.typing = true,
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             KeyCode::Tab => {
                 self.focus = match self.focus {
@@ -440,6 +454,53 @@ impl App {
             KeyCode::Char('R') => self.dirty = true,
             _ => {}
         }
+    }
+
+    fn filtered_rows(&self) -> Vec<(usize, usize)> {
+        if self.filter.is_empty() {
+            return tree_rows(&self.defs);
+        }
+        let needle = self.filter.to_lowercase();
+        self.defs
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| {
+                d.name.to_lowercase().contains(&needle) || d.file.to_lowercase().contains(&needle)
+            })
+            .map(|(i, _)| (i, 0))
+            .collect()
+    }
+
+    fn apply_filter(&mut self) {
+        self.rows = self.filtered_rows();
+        self.tree_state.select((!self.rows.is_empty()).then_some(0));
+        self.focus = Pane::Tree;
+        self.invalidate_detail();
+    }
+
+    /// Keys while the filter is being typed. Returns false when the key was not for it.
+    fn filter_key(&mut self, code: KeyCode) -> bool {
+        if !self.typing {
+            return false;
+        }
+        match code {
+            KeyCode::Esc => {
+                self.typing = false;
+                self.filter.clear();
+                self.apply_filter();
+            }
+            KeyCode::Enter => self.typing = false,
+            KeyCode::Backspace => {
+                self.filter.pop();
+                self.apply_filter();
+            }
+            KeyCode::Char(c) => {
+                self.filter.push(c);
+                self.apply_filter();
+            }
+            _ => {}
+        }
+        true
     }
 
     fn move_sel(&mut self, delta: i32) {
@@ -597,6 +658,14 @@ impl App {
         Block::default().borders(Borders::ALL).title(title).border_style(style)
     }
 
+    fn tree_title(&self) -> String {
+        if self.filter.is_empty() {
+            format!(" entities ({}) ", self.defs.len())
+        } else {
+            format!(" entities ({}) — /{} ({} match{}) ", self.defs.len(), self.filter, self.rows.len(), if self.rows.len() == 1 { "" } else { "es" })
+        }
+    }
+
     fn render_tree(&mut self, frame: &mut Frame, area: Rect) {
         let items: Vec<ListItem> = self
             .rows
@@ -614,7 +683,7 @@ impl App {
             })
             .collect();
         let list = List::new(items)
-            .block(self.border(Pane::Tree, format!(" entities ({}) ", self.defs.len())))
+            .block(self.border(Pane::Tree, self.tree_title()))
             .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
         frame.render_stateful_widget(list, area, &mut self.tree_state);
     }
@@ -677,8 +746,12 @@ impl App {
     }
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
-        let keys = "j/k move  tab pane  enter expand  a/r allow/reject  p continue  u undo  c cancel  q quit";
+        let keys = "j/k move  / find  tab pane  enter expand  a/r allow/reject  p continue  u undo  c cancel  q quit";
         let text = match &self.error {
+            _ if self.typing => Line::from(vec![
+                Span::raw(format!("/{}▏", self.filter)),
+                Span::styled("   enter keep  esc clear", Style::default().fg(Color::DarkGray)),
+            ]),
             Some(e) => Line::from(format!("error: {e}")).red(),
             None if self.status.is_empty() => Line::from(keys).dark_gray(),
             None => Line::from(vec![
@@ -1155,5 +1228,37 @@ mod tests {
         app.refresh(); // as pump would: the refresh re-records the mtime
         app.store_probe_at = Instant::now();
         assert!(!app.store_moved(), "settled after the refresh");
+    }
+
+    #[test]
+    fn slash_filters_the_tree_by_name_or_file_and_esc_clears_it() {
+        let mut app = App::new(Svc::new(PathBuf::from("svc"), PathBuf::from("/nonexistent")));
+        app.defs = vec![def("a", "read", 0), def("b", "parse", 1), def("c", "Config", 2)];
+        app.defs[2].file = "src/lib.rs".into();
+        app.rows = tree_rows(&app.defs);
+        let code = |app: &mut App, c: KeyCode| app.handle_key(&Event::Key(KeyEvent::new(c, KeyModifiers::NONE)));
+        code(&mut app, KeyCode::Char('/'));
+        for c in "PAR".chars() {
+            code(&mut app, KeyCode::Char(c));
+        }
+        assert!(app.typing);
+        assert_eq!(app.rows.len(), 1, "case-insensitive substring of the name");
+        assert_eq!(app.defs[app.rows[0].0].name, "parse");
+        assert_eq!(app.tree_state.selected(), Some(0));
+        code(&mut app, KeyCode::Enter);
+        assert!(!app.typing && app.rows.len() == 1, "enter keeps the filter");
+        code(&mut app, KeyCode::Char('j'));
+        assert!(!app.should_quit, "keys are the tree's again");
+        code(&mut app, KeyCode::Esc);
+        assert!(app.filter.is_empty() && app.rows.len() == 3 && !app.should_quit, "esc clears the filter first");
+        code(&mut app, KeyCode::Char('/'));
+        for c in "lib".chars() {
+            code(&mut app, KeyCode::Char(c));
+        }
+        assert_eq!(app.rows.len(), 1, "or of the file");
+        assert_eq!(app.defs[app.rows[0].0].name, "Config");
+        code(&mut app, KeyCode::Esc);
+        code(&mut app, KeyCode::Esc);
+        assert!(app.should_quit, "esc with no filter quits");
     }
 }
