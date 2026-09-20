@@ -31,7 +31,7 @@ was built through svc since 02:31 UTC today; the history is checked in and
 replayed, not staged.
 
 1. `demo/dogfood.sh --tui` — the review UI opens on this repository: 2,259
-   entities, 213 operations in 40 bundles, each with who, when and the verdict.
+   entities, 225 operations in 44 bundles, each with who, when and the verdict.
    Walk the revisions (`j`/`k`, `Enter`), open the op log (`o`): renames,
    edit-defs, undos, and the mail the agents sent each other through it.
 2. `q`, then in the shell (`demo/dogfood.sh --shell`): `svc rename --entity
@@ -86,7 +86,7 @@ definition, re-resolves every reference, and refuses that merge with the
 line that moved. Same store: a rename is one operation, not 25 files of diff;
 every agent edit carries `declared refactor, observed binding-changing`; the
 review and the mail between agents are operations too and travel between
-clones. We built the tool's own history inside it — 213 operations,
+clones. We built the tool's own history inside it — 225 operations,
 replayed, and that replay is the demo." Then open `demo/dogfood.sh --tui`
 and scroll the op log.
 

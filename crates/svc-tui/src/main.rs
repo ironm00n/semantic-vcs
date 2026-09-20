@@ -29,24 +29,29 @@ fn main() {
             }
         }
     }
-    let root = root
+    let Some(root) = root
         .or_else(|| std::env::current_dir().ok())
         .and_then(|p| p.canonicalize().ok())
-        .expect("cwd");
+    else {
+        eprintln!("svc-tui: the checkout directory does not exist or cannot be read (pass --root <dir>)");
+        std::process::exit(2);
+    };
     let svc_bin = svc_bin
         .or_else(|| std::env::var_os("SVC_BIN").map(PathBuf::from))
-        .or_else(|| {
-            std::env::current_exe()
-                .ok()
-                .and_then(|p| p.parent().map(|d| d.join("svc")))
-        })
-        .expect("svc binary");
+        .or_else(|| std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("svc"))));
+    let Some(svc_bin) = svc_bin.filter(|p| p.is_file()) else {
+        eprintln!("svc-tui: no svc binary beside this one; pass --svc <path> or set SVC_BIN");
+        std::process::exit(2);
+    };
     let agent = task.map(|task| {
         let cfg = match &agent_cmd {
             // Any ACP-speaking command, e.g. the tests' fake agent.
             Some(cmd) => {
                 let mut parts = cmd.split_whitespace().map(str::to_string);
-                let exe = parts.next().expect("agent command");
+                let Some(exe) = parts.next() else {
+                    eprintln!("svc-tui: --agent-cmd is empty; give the command that speaks ACP on stdio");
+                    std::process::exit(2);
+                };
                 AgentConfig::command(exe, parts.collect(), &root)
             }
             None => AgentConfig::dsh(&root, &overlay.unwrap_or_else(|| root.join("harness/overlay.yml")), &svc_bin),

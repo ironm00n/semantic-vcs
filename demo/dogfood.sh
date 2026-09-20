@@ -47,8 +47,18 @@ command -v jq >/dev/null || { echo "jq is required"; exit 2; }
 # bundles, replayed into one store. The scripted story below is the fallback (--story,
 # or when there are no bundles yet).
 if [ -z "$STORY" ] && [ "$MODE" != check ] && [ "$MODE" != agent ] && ls "$HERE"/history/[0-9]*.json >/dev/null 2>&1; then
-  HIST="$(mktemp -d /tmp/svc-history.XXXXXX)"
-  "$HERE/history/replay.sh" "$HIST" "$SVC" || { echo "history did not replay; scratch at $HIST"; exit 1; }
+  # A replay is a few minutes (every absorbed hand edit re-parses the whole tree), so
+  # the store is kept and reused while the bundles and the binary are the same;
+  # SVC_HISTORY_FRESH=1 forces a new one.
+  key="$( (ls -l "$HERE"/history/[0-9]*.json; ls -l "$SVC") | sha256sum | cut -c1-12)"
+  HIST="${TMPDIR:-/tmp}/svc-history.$key"
+  if [ -n "${SVC_HISTORY_FRESH:-}" ] || [ ! -f "$HIST/.svc/replayed" ]; then
+    rm -rf "$HIST"
+    "$HERE/history/replay.sh" "$HIST" "$SVC" || { echo "history did not replay; scratch at $HIST"; exit 1; }
+    touch "$HIST/.svc/replayed"
+  else
+    echo "reusing the replayed history at $HIST (SVC_HISTORY_FRESH=1 to replay again)"
+  fi
   cd "$HIST"
   echo
   echo "this repository's svc-made history, replayed into $HIST/.svc"
