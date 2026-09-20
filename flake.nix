@@ -25,6 +25,7 @@
           # checkPhase, so Node is a test-time build dependency as well as a
           # development-shell convenience.
           nativeBuildInputs = [ pkgs.pkg-config pkgs.nodejs_24 ];
+          nativeCheckInputs = [ pkgs.gitMinimal ];
           buildInputs = [ pkgs.openssl ];
           meta = {
             description = "Compiler-grade version control";

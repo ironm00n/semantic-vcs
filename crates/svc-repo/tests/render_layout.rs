@@ -11,6 +11,34 @@ fn put(root: &Path, path: &str, bytes: &[u8]) {
 }
 
 #[test]
+fn opaque_files_survive_history_and_a_store_only_checkout() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    put(root, "assets/data.bin", b"\0\xff\x80\r\n");
+    put(root, "assets/empty", b"");
+    put(root, "obsolete.txt", b"remove me");
+    let repo = Repo::init(root, Repo::default_langs()).unwrap();
+    let before = repo.tracked_files().unwrap();
+    put(root, "assets/data.bin", b"\xff\0\x01\x02");
+    put(root, "assets/new-empty", b"");
+    fs::remove_file(root.join("obsolete.txt")).unwrap();
+    let after = repo.tracked_files().unwrap();
+    assert!(svc_repo::status(&repo).unwrap().absorbed);
+    let ix = svc_repo::op_log(&repo).unwrap()[0].ix;
+    svc_repo::undo(&repo).unwrap();
+    assert_eq!(repo.tracked_files().unwrap(), before);
+    assert!(repo.working_copy_clean().unwrap());
+    svc_repo::op_restore(&repo, ix).unwrap();
+    assert_eq!(repo.tracked_files().unwrap(), after);
+    assert!(repo.working_copy_clean().unwrap());
+    assert!(svc_repo::replay(&repo).unwrap().diverged_at.is_none());
+    let checkout = tempfile::tempdir().unwrap();
+    svc_repo::workspace::add(&repo, "copy", checkout.path(), None).unwrap();
+    let copy = Repo::open(checkout.path(), Repo::default_langs()).unwrap();
+    assert_eq!(copy.tracked_files().unwrap(), after);
+}
+
+#[test]
 fn undo_and_restore_handle_both_file_directory_transitions() {
     for start_with_file in [true, false] {
         let dir = tempfile::tempdir().unwrap();

@@ -32,13 +32,6 @@ echo
 "$HERE/crash.sh" "$SVC"
 fail=$((fail + $?))
 echo
-if SVC_BIN="$SVC" node --test "$HERE/../tests/file-lifecycle.mjs" "$HERE/../tests/git-twin.mjs"; then
-  echo "PASS  CLI file lifecycle and git twin regressions"
-else
-  echo "FAIL  CLI file lifecycle and git twin regressions"
-  fail=$((fail + 1))
-fi
-echo
 if [ -z "${SVC_SKIP_O9:-}" ]; then
   if (cd "$HERE/.." && cargo test -q -p svc-core --test o9_compiler_oracle -- --ignored >/dev/null 2>&1); then
     echo "PASS  O9 alpha-renamed svc-core still compiles"

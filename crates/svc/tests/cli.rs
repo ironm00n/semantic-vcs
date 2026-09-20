@@ -701,3 +701,146 @@ fn inline_of_an_unused_fn_is_refused() {
         "{err}"
     );
 }
+
+#[test]
+fn file_layout_history_survives_cli_reopens_and_a_new_checkout() {
+    let dir = fixture();
+    let root = dir.path();
+    fs::write(root.join("payload"), b"before\0\xff").unwrap();
+    json(root, &["init"]);
+    fs::remove_file(root.join("payload")).unwrap();
+    fs::create_dir(root.join("payload")).unwrap();
+    fs::write(root.join("payload/data.bin"), b"after\0\xfe").unwrap();
+    assert_eq!(json(root, &["status"])["absorbed"], true);
+    let ix = json(root, &["op", "log"])[0]["ix"].as_u64().unwrap();
+    json(root, &["undo"]);
+    assert_eq!(fs::read(root.join("payload")).unwrap(), b"before\0\xff");
+    assert_eq!(json(root, &["status"])["absorbed"], false);
+    json(root, &["op", "restore", &ix.to_string()]);
+    assert_eq!(
+        fs::read(root.join("payload/data.bin")).unwrap(),
+        b"after\0\xfe"
+    );
+    let checkout = tempfile::tempdir().unwrap();
+    json(
+        root,
+        &[
+            "workspace",
+            "add",
+            "copy",
+            checkout.path().to_str().unwrap(),
+        ],
+    );
+    assert_eq!(
+        fs::read(checkout.path().join("payload/data.bin")).unwrap(),
+        b"after\0\xfe"
+    );
+    assert_eq!(json(checkout.path(), &["status"])["absorbed"], false);
+    assert_eq!(
+        json(root, &["replay"]).get("diverged_at"),
+        Some(&Value::Null)
+    );
+}
+
+#[test]
+fn git_twin_verifies_fresh_and_cached_merges_without_replacing_invalid_work() {
+    #[derive(Debug, PartialEq)]
+    enum Case {
+        Merged,
+        LoggingBeforeShadow,
+        Unmerged,
+        Dirty,
+    }
+
+    let demo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../demo");
+    for case in [
+        Case::Merged,
+        Case::LoggingBeforeShadow,
+        Case::Unmerged,
+        Case::Dirty,
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        copy_dir(&demo.join("config"), &dir.path().join("config"));
+        let twin = dir.path().join("git-twin");
+        fs::create_dir(&twin).unwrap();
+        for file in ["build.sh", "normalize.patch", "logging.patch"] {
+            fs::copy(demo.join("git-twin").join(file), twin.join(file)).unwrap();
+        }
+        let run = || {
+            Command::new("bash")
+                .arg(twin.join("build.sh"))
+                .env("CARGO_TARGET_DIR", dir.path().join("target"))
+                .output()
+                .unwrap()
+        };
+        let fresh = run();
+        assert!(
+            fresh.status.success(),
+            "{case:?}: {}",
+            String::from_utf8_lossy(&fresh.stderr)
+        );
+        assert!(String::from_utf8_lossy(&fresh.stdout).contains("normalized shadow"));
+        let work = twin.join("work");
+        let git = |args: &[&str]| {
+            let out = Command::new("git")
+                .current_dir(&work)
+                .args(args)
+                .env("GIT_AUTHOR_NAME", "Fixture")
+                .env("GIT_AUTHOR_EMAIL", "fixture@localhost")
+                .env("GIT_COMMITTER_NAME", "Fixture")
+                .env("GIT_COMMITTER_EMAIL", "fixture@localhost")
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "{case:?}: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            String::from_utf8(out.stdout).unwrap().trim().to_owned()
+        };
+        let source = work.join("src/main.rs");
+        let original = fs::read_to_string(&source).unwrap();
+        match case {
+            Case::LoggingBeforeShadow => {
+                let reordered = original.replace("    log(&raw);\n", "").replace(
+                    "    let raw = normalize(&raw);",
+                    "    log(&raw);\n    let raw = normalize(&raw);",
+                );
+                assert_ne!(reordered, original);
+                fs::write(&source, reordered).unwrap();
+                git(&["add", "src/main.rs"]);
+            }
+            Case::Dirty => {
+                fs::write(&source, format!("{original}\nfn unrelated() {{}}\n")).unwrap()
+            }
+            Case::Merged | Case::Unmerged => {}
+        }
+        if matches!(case, Case::LoggingBeforeShadow | Case::Unmerged) {
+            let tree = git(&["write-tree"]);
+            let parents = if case == Case::Unmerged {
+                vec![git(&["rev-parse", "main"])]
+            } else {
+                vec![git(&["rev-parse", "HEAD^1"]), git(&["rev-parse", "HEAD^2"])]
+            };
+            let mut args = vec!["commit-tree", tree.as_str(), "-m", "fixture"];
+            for parent in &parents {
+                args.extend(["-p", parent.as_str()]);
+            }
+            let commit = git(&args);
+            git(&["switch", "-q", "-c", "candidate", &commit]);
+        }
+        let before = fs::read(&source).unwrap();
+        let result = run();
+        assert_eq!(
+            result.status.success(),
+            case == Case::Merged,
+            "{case:?}: {}\n{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+        if case == Case::Merged {
+            assert!(String::from_utf8_lossy(&result.stdout).contains("normalized shadow"));
+        }
+        assert_eq!(fs::read(&source).unwrap(), before, "{case:?}");
+    }
+}
