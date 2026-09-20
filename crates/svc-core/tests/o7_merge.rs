@@ -305,3 +305,46 @@ fn merge_does_not_flag_same_named_calls_in_other_files() {
         "file-local calls must not rebind at merge: {binds:?}"
     );
 }
+
+#[test]
+fn merge_flags_when_one_side_deletes_a_callee_the_other_still_calls() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn helper(x: u32) -> u32 { x + 1 }\nfn other() -> u32 { 7 }\nfn caller() -> u32 { helper(other()) }\n"
+            .to_vec(),
+    );
+    let base = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let caller = lookup_name(&base, "caller").unwrap();
+    let helper = lookup_name(&base, "helper").unwrap();
+    let mut a_files = files.clone();
+    a_files.insert(
+        path,
+        b"fn other() -> u32 { 7 }\nfn caller() -> u32 { helper(other()) }\n".to_vec(),
+    );
+    let a = snapshot_files(&store, &langs, &a_files, Some(&base), ChangeId::new()).unwrap();
+    let b_src = b"fn caller() -> u32 { helper(other()) + 1 }\n";
+    let (b, _) = edit_def(&store, &langs, &base, caller, b_src).unwrap();
+    let merged = merge(
+        &store,
+        &langs,
+        store.put_snapshot(&base).unwrap(),
+        store.put_snapshot(&a).unwrap(),
+        store.put_snapshot(&b).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        merged.conflicts.iter().any(|c| matches!(
+            c,
+            Conflict::Binding { id, was, now, .. }
+            if *id == caller
+                && matches!(was, IdentRef::Entity(h) if *h == helper)
+                && matches!(now, IdentRef::Free(n) if n.as_ref() == "helper")
+        )),
+        "delete+edit of a live call must not merge clean: {:?}",
+        merged.conflicts
+    );
+}

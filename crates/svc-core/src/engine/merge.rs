@@ -472,7 +472,7 @@ fn binding_post(
         fill_self_methods_from_snapshot(&mut env, snap, rec.parent);
         let res = super::resolve(node, &item, lang, &env)?;
         for (i, (r, ident)) in res.refs.iter().enumerate() {
-            if matches!(ident, IdentRef::Free(_)) || own_name == Some(*r) {
+            if own_name == Some(*r) {
                 continue;
             }
             let stored: Vec<_> = [base, a, b]
@@ -489,7 +489,9 @@ fn binding_post(
                 other => other.clone(),
             };
             if let Some((_, was, was_at)) = stored.iter().find(|(_, was, _)| !ref_eq(was, &now, id))
-                && !stored.iter().any(|(_, was, _)| ref_eq(was, &now, id))
+                && !stored
+                    .iter()
+                    .any(|(origin, was, _)| ref_eq(was, &now, id) && ident_still_bound(was, origin))
             {
                 snap.conflicts.push(Conflict::Binding {
                     id,
@@ -541,6 +543,15 @@ fn ident_at(map: &[(ByteRange, IdentRef)], r: ByteRange) -> Option<IdentRef> {
                 .find(|(mr, _)| mr.start < r.end && r.start < mr.end)
         })
         .map(|(_, i)| i.clone())
+}
+
+fn ident_still_bound(was: &IdentRef, origin: &Snapshot) -> bool {
+    match was {
+        IdentRef::Entity(eid) if *eid == EntityId::SELF => true,
+        IdentRef::Entity(eid) => origin.entities.contains_key(eid),
+        IdentRef::Local(_, _) => true,
+        IdentRef::Free(_) => false,
+    }
 }
 
 fn ref_eq(a: &IdentRef, b: &IdentRef, owner: EntityId) -> bool {
