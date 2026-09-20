@@ -580,3 +580,58 @@ fn add_def_to_a_new_file_writes_that_file() {
     let main = fs::read_to_string(dir.path().join("src/main.rs")).unwrap();
     assert!(!main.contains("fn extra"), "{main}");
 }
+
+#[test]
+fn extract_hoists_a_nested_method_to_file_root() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(dir.path(), &["new"]);
+    let defs = json(dir.path(), &["list-defs"]);
+    let nested = defs["definitions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["name"] == "fmt" && !d["parent"].is_null())
+        .unwrap();
+    let id = nested["id"].as_str().unwrap().to_string();
+    json(dir.path(), &["extract", "--entity", &id]);
+    let after = json(dir.path(), &["list-defs"]);
+    let row = after["definitions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["id"] == id)
+        .unwrap();
+    assert!(row["parent"].is_null(), "{row}");
+    let src = fs::read_to_string(dir.path().join("src/main.rs")).unwrap();
+    assert!(src.contains("fn fmt"), "{src}");
+}
+
+#[test]
+fn move_a_fn_into_an_impl_renders_inside_it() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(dir.path(), &["new"]);
+    let defs = json(dir.path(), &["list-defs"]);
+    let imp = defs["definitions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["kind"] == "Impl" && d["name"].as_str().unwrap().contains("Config"))
+        .unwrap();
+    let imp_id = imp["id"].as_str().unwrap().to_string();
+    json(
+        dir.path(),
+        &["move", "--entity", "log", "--new-parent", &imp_id, "--ordinal", "1"],
+    );
+    let src = fs::read_to_string(dir.path().join("src/main.rs")).unwrap();
+    let start = src
+        .find("impl fmt::Display for Config")
+        .expect(&format!("no Config Display impl in {src}"));
+    let block = &src[start..];
+    let end = block.find("\n}\n").unwrap_or(block.len());
+    assert!(
+        block[..end].contains("fn log"),
+        "log should render inside the Config impl:\n{src}"
+    );
+}

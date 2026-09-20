@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::content::{Chunk, IdentRef, Token};
+use crate::content::{Bytes, Chunk, Content, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
 use crate::entity::EntityRecord;
 use crate::error::{Error, Result};
-use crate::ids::{ChangeId, EntityId, RelPath, resolve_spec};
+use crate::ids::{ByteRange, ChangeId, EntityId, RelPath, resolve_spec};
 use crate::lang::Langs;
 use crate::op::Intent;
 use crate::snapshot::Snapshot;
@@ -54,23 +54,61 @@ pub fn relocate(snap: &Snapshot, id: EntityId, file: RelPath, ordinal: u32) -> R
 }
 
 pub fn move_def(
+    store: &dyn Store,
     snap: &Snapshot,
     id: EntityId,
-    parent: Option<EntityId>,
+    new_parent: Option<EntityId>,
     ordinal: Option<u32>,
 ) -> Result<Snapshot> {
+    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?.clone();
+    if let Some(p) = new_parent {
+        if p == id || subtree(snap, id).contains(&p) {
+            return Err(Error::Other("move would create a cycle".into()));
+        }
+        snap.entities.get(&p).ok_or(Error::NoSuchEntity(p))?;
+    }
+    let old_parent = rec.parent;
     let mut next = snap.clone();
-    next.reparent(id, parent, ordinal)?;
+    next.reparent(id, new_parent, ordinal)?;
+    if let Some(p) = new_parent {
+        let file = next.entities[&p].file.clone();
+        next.set_file(id, file, ordinal.unwrap_or(rec.ordinal))?;
+    }
+    if old_parent == new_parent {
+        if let Some(p) = new_parent {
+            let mut kids = child_ids_of(store, &next, p)?;
+            kids.retain(|c| *c != id);
+            let at = ordinal.unwrap_or(kids.len() as u32) as usize;
+            kids.insert(at.min(kids.len()), id);
+            apply_child_holes(store, &mut next, p, &kids)?;
+        }
+        return Ok(next);
+    }
+    if let Some(p) = old_parent {
+        if next.entities.contains_key(&p) {
+            let mut kids = child_ids_of(store, snap, p)?;
+            kids.retain(|c| *c != id);
+            apply_child_holes(store, &mut next, p, &kids)?;
+        }
+    }
+    if let Some(p) = new_parent {
+        let mut kids = child_ids_of(store, &next, p)?;
+        kids.retain(|c| *c != id);
+        let at = ordinal.unwrap_or(kids.len() as u32) as usize;
+        kids.insert(at.min(kids.len()), id);
+        apply_child_holes(store, &mut next, p, &kids)?;
+    }
     Ok(next)
 }
 
 pub fn extract_hoist(
+    store: &dyn Store,
     snap: &Snapshot,
     id: EntityId,
     new_parent: Option<EntityId>,
     ordinal: u32,
 ) -> Result<Snapshot> {
-    move_def(snap, id, new_parent, Some(ordinal))
+    move_def(store, snap, id, new_parent, Some(ordinal))
 }
 
 pub fn delete(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapshot> {
@@ -89,9 +127,17 @@ pub fn delete(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapsh
             outside.len()
         )));
     }
+    let parent = snap.entities.get(&id).and_then(|r| r.parent);
     let mut next = snap.clone();
     for d in tree {
         next.entities.remove(&d);
+    }
+    if let Some(p) = parent {
+        if next.entities.contains_key(&p) {
+            let mut kids = child_ids_of(store, snap, p)?;
+            kids.retain(|c| *c != id);
+            apply_child_holes(store, &mut next, p, &kids)?;
+        }
     }
     Ok(next)
 }
@@ -226,6 +272,13 @@ pub fn add_def_at(
     let mut next = snap.clone();
     next.ensure_file(file);
     next.insert(id, rec)?;
+    if let Some(p) = parent {
+        let mut kids = child_ids_of(store, &next, p)?;
+        kids.retain(|c| *c != id);
+        let at = (ordinal as usize).min(kids.len());
+        kids.insert(at, id);
+        apply_child_holes(store, &mut next, p, &kids)?;
+    }
     Ok(next)
 }
 
@@ -323,7 +376,8 @@ pub fn snapshot_working_copy(
     snapshot_files(store, langs, files, prev, change)
 }
 
-/// Entities whose content or bytes mention `id`. A missing blob is an error, not "no referrer".
+/// Entities whose content or bytes *name* `id`. Child holes are containment,
+/// not uses — counting them made every nested delete refuse.
 pub fn referrers(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Vec<EntityId>> {
     let mut out = Vec::new();
     for (oid, rec) in &snap.entities {
@@ -335,7 +389,7 @@ pub fn referrers(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Vec
             .tokens
             .iter()
             .any(|t| match t {
-                Token::Ident(IdentRef::Entity(e)) | Token::Child(e) => *e == id,
+                Token::Ident(IdentRef::Entity(e)) => *e == id,
                 _ => false,
             });
         let in_bytes = || -> Result<bool> {
@@ -344,7 +398,7 @@ pub fn referrers(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Vec
                 .chunks()
                 .iter()
                 .any(|c| match c {
-                    Chunk::Child(e) | Chunk::Name(e) => *e == id,
+                    Chunk::Name(e) => *e == id,
                     _ => false,
                 }))
         };
@@ -353,6 +407,207 @@ pub fn referrers(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Vec
         }
     }
     Ok(out)
+}
+
+fn child_ids_in_chunks(chunks: &[Chunk]) -> Vec<EntityId> {
+    chunks
+        .iter()
+        .filter_map(|c| match c {
+            Chunk::Child(id) => Some(*id),
+            _ => None,
+        })
+        .collect()
+}
+
+fn child_ids_of(store: &dyn Store, snap: &Snapshot, parent: EntityId) -> Result<Vec<EntityId>> {
+    let rec = snap
+        .entities
+        .get(&parent)
+        .ok_or(Error::NoSuchEntity(parent))?;
+    Ok(child_ids_in_chunks(store.get_bytes_blob(rec.bytes)?.chunks()))
+}
+
+fn apply_child_holes(
+    store: &dyn Store,
+    snap: &mut Snapshot,
+    parent: EntityId,
+    want: &[EntityId],
+) -> Result<()> {
+    let rec = snap
+        .entities
+        .get(&parent)
+        .ok_or(Error::NoSuchEntity(parent))?
+        .clone();
+    let bytes = store.get_bytes_blob(rec.bytes)?;
+    let content = store.get_content(rec.content)?;
+    let new_bytes = rewrite_bytes_children(&bytes, want)?;
+    let new_content = Content {
+        tokens: rewrite_content_children(content.tokens, want),
+    };
+    let bytes_id = store.put_bytes_blob(&new_bytes)?;
+    let content_id = store.put_content(&new_content)?;
+    let rec = snap.entities.get_mut(&parent).unwrap();
+    rec.bytes = bytes_id;
+    rec.content = content_id;
+    Ok(())
+}
+
+fn rewrite_bytes_children(bytes: &Bytes, want: &[EntityId]) -> Result<Bytes> {
+    let have = child_ids_in_chunks(bytes.chunks());
+    if have == want {
+        return Ok(Bytes::new(
+            bytes.src().to_vec(),
+            bytes.chunks().to_vec(),
+            bytes.local_ranges().to_vec(),
+        )?);
+    }
+    let want_set: BTreeSet<EntityId> = want.iter().copied().collect();
+    let mut src = bytes.src().to_vec();
+    let mut chunks: Vec<Chunk> = bytes
+        .chunks()
+        .iter()
+        .cloned()
+        .filter(|c| match c {
+            Chunk::Child(id) => want_set.contains(id),
+            _ => true,
+        })
+        .collect();
+    for (i, id) in want.iter().enumerate() {
+        if child_ids_in_chunks(&chunks).contains(id) {
+            continue;
+        }
+        chunks = insert_child_chunk(&mut src, chunks, *id, i);
+    }
+    let have = child_ids_in_chunks(&chunks);
+    if have != want {
+        let mut iter = want.iter();
+        for c in &mut chunks {
+            if let Chunk::Child(id) = c
+                && let Some(next) = iter.next()
+            {
+                *id = *next;
+            }
+        }
+    }
+    Bytes::new(src, chunks, bytes.local_ranges().to_vec())
+}
+
+fn insert_child_chunk(
+    src: &mut Vec<u8>,
+    mut chunks: Vec<Chunk>,
+    id: EntityId,
+    ordinal: usize,
+) -> Vec<Chunk> {
+    let positions: Vec<usize> = chunks
+        .iter()
+        .enumerate()
+        .filter_map(|(i, c)| matches!(c, Chunk::Child(_)).then_some(i))
+        .collect();
+    let insert_at = if ordinal < positions.len() {
+        positions[ordinal]
+    } else if let Some(&last) = positions.last() {
+        last + 1
+    } else {
+        split_close_brace(src, &mut chunks)
+    };
+    let extra_start = src.len() as u32;
+    src.extend_from_slice(b"\n");
+    let extra = ByteRange {
+        start: extra_start,
+        end: src.len() as u32,
+    };
+    chunks.insert(insert_at, Chunk::Child(id));
+    chunks.insert(insert_at + 1, Chunk::Literal(extra));
+    chunks
+}
+
+fn split_close_brace(src: &[u8], chunks: &mut Vec<Chunk>) -> usize {
+    for i in (0..chunks.len()).rev() {
+        let Chunk::Literal(r) = chunks[i] else {
+            continue;
+        };
+        let slice = &src[r.start as usize..r.end as usize];
+        let Some(rel) = slice.iter().rposition(|&b| b == b'}') else {
+            continue;
+        };
+        let brace = r.start + rel as u32;
+        chunks.remove(i);
+        let mut at = i;
+        if brace > r.start {
+            chunks.insert(
+                at,
+                Chunk::Literal(ByteRange {
+                    start: r.start,
+                    end: brace,
+                }),
+            );
+            at += 1;
+        }
+        chunks.insert(
+            at,
+            Chunk::Literal(ByteRange {
+                start: brace,
+                end: r.end,
+            }),
+        );
+        return at;
+    }
+    chunks.len()
+}
+
+fn rewrite_content_children(tokens: Vec<Token>, want: &[EntityId]) -> Vec<Token> {
+    let content_kids = |tokens: &[Token]| -> Vec<EntityId> {
+        tokens
+            .iter()
+            .filter_map(|t| match t {
+                Token::Child(id) => Some(*id),
+                _ => None,
+            })
+            .collect()
+    };
+    if content_kids(&tokens) == want {
+        return tokens;
+    }
+    let want_set: BTreeSet<EntityId> = want.iter().copied().collect();
+    let mut tokens: Vec<Token> = tokens
+        .into_iter()
+        .filter(|t| match t {
+            Token::Child(id) => want_set.contains(id),
+            _ => true,
+        })
+        .collect();
+    for (i, id) in want.iter().enumerate() {
+        if content_kids(&tokens).contains(id) {
+            continue;
+        }
+        let positions: Vec<usize> = tokens
+            .iter()
+            .enumerate()
+            .filter_map(|(j, t)| matches!(t, Token::Child(_)).then_some(j))
+            .collect();
+        let at = if i < positions.len() {
+            positions[i]
+        } else if let Some(&last) = positions.last() {
+            last + 1
+        } else {
+            tokens
+                .iter()
+                .rposition(|t| matches!(t, Token::Punct(p) if p.as_ref() == "}"))
+                .unwrap_or(tokens.len())
+        };
+        tokens.insert(at, Token::Child(*id));
+    }
+    if content_kids(&tokens) != want {
+        let mut iter = want.iter();
+        for t in &mut tokens {
+            if let Token::Child(id) = t
+                && let Some(next) = iter.next()
+            {
+                *id = *next;
+            }
+        }
+    }
+    tokens
 }
 
 fn subtree(snap: &Snapshot, id: EntityId) -> BTreeSet<EntityId> {
