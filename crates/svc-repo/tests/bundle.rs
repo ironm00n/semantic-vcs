@@ -60,7 +60,9 @@ fn a_bundle_replays_the_whole_story_into_a_fresh_store_over_the_same_tree() {
     assert_eq!(m.conflicts.len(), 1, "{:?}", m.conflicts);
     svc_repo::resolve(&repo, 0, Take::B).unwrap();
     rename_to(&repo, "load", "load_config");
+    let renamed_at = svc_repo::op_log(&repo).unwrap()[0].ix;
     svc_repo::undo(&repo).unwrap();
+    svc_repo::op_restore(&repo, renamed_at).unwrap(); // a redo: logged as Undo, like the undo
     let recorded = svc_repo::op_log(&repo).unwrap().len();
 
     let bundle = bundle::export(&repo, OpIx(1)).unwrap();
@@ -78,7 +80,7 @@ fn a_bundle_replays_the_whole_story_into_a_fresh_store_over_the_same_tree() {
     assert_eq!(report.diverged_at, None, "every tree after every op is the recorded one");
 
     let text = std::fs::read_to_string(b.path().join("src/main.rs")).unwrap();
-    assert!(text.contains("fn parse_config(") && text.contains("to_uppercase") && text.contains("fn load("), "{text}");
+    assert!(text.contains("fn parse_config(") && text.contains("to_uppercase") && text.contains("fn load_config("), "{text}");
     assert_eq!(std::fs::read_to_string(b.path().join("config.txt")).unwrap(), "hand-edited\n");
     let log = svc_repo::op_log(&fresh).unwrap();
     assert_eq!(log.len(), recorded, "same number of ops, init included");
