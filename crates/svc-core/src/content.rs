@@ -94,6 +94,37 @@ impl Bytes {
     pub fn id(&self) -> BytesId {
         BytesId::of(self)
     }
+
+    /// The same bytes with exactly `n` newlines before the first non-newline byte. Root
+    /// items carry the blank line that separates them from the previous item as leading
+    /// text, so one that moves to or from the front of a file needs its run adjusted.
+    /// Nothing is shifted: the old leading newlines are cut out of the first literal's
+    /// range and the new ones are appended to `src` and pointed at.
+    pub fn with_leading_newlines(&self, n: usize) -> crate::error::Result<Self> {
+        let mut chunks = self.chunks.clone();
+        let mut src = self.src.clone();
+        let Some(Chunk::Literal(first)) = chunks.first_mut() else {
+            return Ok(self.clone());
+        };
+        let lead = src[first.start as usize..first.end as usize]
+            .iter()
+            .take_while(|b| **b == b'\n')
+            .count() as u32;
+        if lead as usize == n {
+            return Ok(self.clone());
+        }
+        first.start += lead;
+        let start = src.len() as u32;
+        src.extend(std::iter::repeat_n(b'\n', n));
+        let prefix = Chunk::Literal(ByteRange {
+            start,
+            end: src.len() as u32,
+        });
+        if n > 0 {
+            chunks.insert(0, prefix);
+        }
+        Self::new(src, chunks, self.local_ranges.clone())
+    }
 }
 
 fn coalesce_literals(chunks: Vec<Chunk>) -> Vec<Chunk> {

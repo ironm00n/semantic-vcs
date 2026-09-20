@@ -16,7 +16,7 @@ fn moving_an_entity_to_another_file_is_a_layout_delta() {
     files.insert(RelPath::new("src/b.rs").unwrap(), b"fn b() {}\n".to_vec());
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let a = lookup_name(&snap, "a").unwrap();
-    let next = relocate(&snap, a, RelPath::new("src/b.rs").unwrap(), 1).unwrap();
+    let next = relocate(&snap, &store, a, RelPath::new("src/b.rs").unwrap(), 1).unwrap();
     let rep = status_report(&store, &snap, &next).unwrap();
     assert!(
         rep.deltas.iter().any(|d| matches!(d, Delta::Relocated { id, .. } if *id == a)),
@@ -24,5 +24,6 @@ fn moving_an_entity_to_another_file_is_a_layout_delta() {
         rep.deltas
     );
     assert_eq!(rep.semantic, 0, "{:?}", rep.deltas);
-    assert_eq!(rep.layout, 1, "{:?}", rep.deltas);
+    // Relocated, plus the docs-only edit that gave `a` the blank line its new position needs.
+    assert_eq!(rep.layout, 2, "{:?}", rep.deltas);
 }

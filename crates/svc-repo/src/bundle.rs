@@ -221,7 +221,7 @@ impl Import<'_> {
                 let id = self.entity(&cur, b, *id)?;
                 let op = Op::Relocate { id, file: file.clone(), ordinal: *ordinal };
                 repo.mutate(op, e.observed, |repo, cur| {
-                    repo.amend(cur, relocate(cur, id, file.clone(), *ordinal)?)
+                    repo.amend(cur, relocate(cur, repo.store(), id, file.clone(), *ordinal)?)
                 })?;
             }
             Op::Extract { id, new_parent, ordinal } => {

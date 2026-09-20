@@ -734,7 +734,7 @@ fn relocate_cmd(repo: &Repo, args: &RelocateArgs) -> Result<Value, String> {
     let file = RelPath::new(args.file.clone()).map_err(|p| format!("invalid --file {p}"))?;
     let op = Op::Relocate { id, file: file.clone(), ordinal: args.ordinal };
     let m = repo
-        .mutate(op, None, |repo, cur| repo.amend(cur, relocate(cur, id, file, args.ordinal)?))
+        .mutate(op, None, |repo, cur| repo.amend(cur, relocate(cur, repo.store(), id, file, args.ordinal)?))
         .map_err(|e| e.to_string())?;
     mutation_value(m)
 }

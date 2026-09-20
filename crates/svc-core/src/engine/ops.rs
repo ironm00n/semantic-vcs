@@ -48,13 +48,23 @@ pub fn rename(snap: &Snapshot, id: EntityId, new: &str) -> Result<Snapshot> {
     Ok(next)
 }
 
-pub fn relocate(snap: &Snapshot, id: EntityId, file: RelPath, ordinal: u32) -> Result<Snapshot> {
+pub fn relocate(snap: &Snapshot, store: &dyn Store, id: EntityId, file: RelPath, ordinal: u32) -> Result<Snapshot> {
+    let from = snap
+        .entities
+        .get(&id)
+        .ok_or(Error::NoSuchEntity(id))?
+        .file
+        .clone();
     let mut next = snap.clone();
     // Render iterates `snapshot.files`, not entities. A path that never had a
     // FileRecord would swallow the item on disk even though the entity moved.
     next.ensure_file(file.clone());
     next.make_room_at_root(&file, ordinal, id);
-    next.set_file(id, file, ordinal)?;
+    next.set_file(id, file.clone(), ordinal)?;
+    normalize_root_separators(store, &mut next, &file)?;
+    if from != file {
+        normalize_root_separators(store, &mut next, &from)?;
+    }
     Ok(next)
 }
 
@@ -95,6 +105,9 @@ pub fn move_def(
             kids.insert(at.min(kids.len()), id);
             apply_child_holes(store, &mut next, p, &kids)?;
         }
+        if new_parent.is_none() {
+            normalize_root_separators(store, &mut next, &rec.file)?;
+        }
         return Ok(next);
     }
     if let Some(p) = old_parent {
@@ -112,6 +125,13 @@ pub fn move_def(
         apply_child_holes(store, &mut next, p, &kids)?;
     }
     reresolve_subtree(store, langs, &mut next, id)?;
+    if old_parent.is_none() || new_parent.is_none() {
+        let file = next.entities[&id].file.clone();
+        normalize_root_separators(store, &mut next, &file)?;
+        if rec.file != file {
+            normalize_root_separators(store, &mut next, &rec.file)?;
+        }
+    }
     Ok(next)
 }
 
@@ -1302,6 +1322,39 @@ fn item_text(store: &dyn Store, snap: &Snapshot, id: EntityId, text: &[u8]) -> R
         out.push(b'\n');
     }
     Ok(out)
+}
+
+/// After roots of `file` were reordered: the first root starts at column 0 with no blank
+/// line above it, every later root starts on a fresh line with one blank line before it —
+/// unless it already begins with a newline, in which case its own trivia is kept. The
+/// separator between two items lives in the second one's leading text, so an item moved
+/// to or from the front would otherwise render glued (`}fn`) or leave a blank first line.
+fn normalize_root_separators(store: &dyn Store, snap: &mut Snapshot, file: &RelPath) -> Result<()> {
+    for (i, id) in snap.file_roots(file).into_iter().enumerate() {
+        let rec = &snap.entities[&id];
+        let bytes = store.get_bytes_blob(rec.bytes)?;
+        let lead = bytes
+            .chunks()
+            .first()
+            .and_then(|c| match c {
+                Chunk::Literal(r) => Some(
+                    bytes.src()[r.start as usize..r.end as usize]
+                        .iter()
+                        .take_while(|b| **b == b'\n')
+                        .count(),
+                ),
+                _ => None,
+            });
+        let want = match (i, lead) {
+            (0, Some(l)) if l > 0 => 0,
+            (_, Some(0)) if i > 0 => 2,
+            _ => continue,
+        };
+        let fixed = bytes.with_leading_newlines(want)?;
+        let bytes_id = store.put_bytes_blob(&fixed)?;
+        snap.entities.get_mut(&id).unwrap().bytes = bytes_id;
+    }
+    Ok(())
 }
 
 /// Indentation of `parent`'s existing members (the whitespace after the last newline

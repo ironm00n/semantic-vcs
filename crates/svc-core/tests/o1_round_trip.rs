@@ -85,7 +85,7 @@ fn relocate_to_a_missing_path_is_still_rendered() {
     files.insert(src.clone(), b"fn a() {}\nfn b() {}\n".to_vec());
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let id = lookup_name(&snap, "b").unwrap();
-    let next = relocate(&snap, id, dest.clone(), 0).unwrap();
+    let next = relocate(&snap, &store, id, dest.clone(), 0).unwrap();
     assert!(
         next.files.contains_key(&dest),
         "relocate must create a FileRecord"
