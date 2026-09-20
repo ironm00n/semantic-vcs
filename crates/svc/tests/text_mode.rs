@@ -118,12 +118,52 @@ fn show_def_at_a_past_snapshot_is_the_old_text() {
         dir.path(),
         &["rename", "--entity", "parse", "--new-name", "parse_config"],
     );
-    let old = text(
-        dir.path(),
-        &["show-def", "--entity", "parse", "--at", &at],
-    );
+    let old = text(dir.path(), &["show-def", "--entity", "parse", "--at", &at]);
     assert!(old.contains("fn parse"), "{old}");
     assert!(!old.contains("fn parse_config"), "{old}");
     let now = text(dir.path(), &["show-def", "--entity", "parse_config"]);
     assert!(now.contains("fn parse_config"), "{now}");
+}
+
+fn stderr(dir: &Path, args: &[&str]) -> String {
+    let out = bin().current_dir(dir).args(args).output().unwrap();
+    assert!(
+        !out.status.success(),
+        "svc {} should fail: {}",
+        args.join(" "),
+        String::from_utf8_lossy(&out.stdout)
+    );
+    String::from_utf8_lossy(&out.stderr).into_owned()
+}
+
+#[test]
+fn relocate_rejects_an_escape_path_with_a_reason() {
+    let dir = fixture();
+    text(dir.path(), &["init"]);
+    let parent = stderr(
+        dir.path(),
+        &[
+            "relocate",
+            "--entity",
+            "parse",
+            "--file",
+            "../moved.rs",
+            "--ordinal",
+            "0",
+        ],
+    );
+    assert!(parent.contains("invalid --file ../moved.rs"), "{parent}");
+    let abs = stderr(
+        dir.path(),
+        &[
+            "relocate",
+            "--entity",
+            "parse",
+            "--file",
+            "/tmp/moved.rs",
+            "--ordinal",
+            "0",
+        ],
+    );
+    assert!(abs.contains("invalid --file /tmp/moved.rs"), "{abs}");
 }

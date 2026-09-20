@@ -670,7 +670,7 @@ fn move_cmd(repo: &Repo, args: &MoveArgs) -> Result<Value, String> {
 
 fn relocate_cmd(repo: &Repo, args: &RelocateArgs) -> Result<Value, String> {
     let id = resolve_entity(repo, &args.entity).map_err(|e| e.to_string())?;
-    let file = RelPath::new(args.file.clone()).map_err(|e| e.to_string())?;
+    let file = RelPath::new(args.file.clone()).map_err(|p| format!("invalid --file {p}"))?;
     let op = Op::Relocate { id, file: file.clone(), ordinal: args.ordinal };
     let m = repo
         .mutate(op, None, |repo, cur| repo.amend(cur, relocate(cur, id, file, args.ordinal)?))
