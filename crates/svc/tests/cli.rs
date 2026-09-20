@@ -753,6 +753,7 @@ fn git_twin_verifies_fresh_and_cached_merges_without_replacing_invalid_work() {
     }
 
     let demo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../demo");
+    let nested_target = std::env::current_exe().unwrap().parent().unwrap().join("git-twin-target");
     for case in [
         Case::Merged,
         Case::LoggingBeforeShadow,
@@ -769,7 +770,7 @@ fn git_twin_verifies_fresh_and_cached_merges_without_replacing_invalid_work() {
         let run = || {
             Command::new("bash")
                 .arg(twin.join("build.sh"))
-                .env("CARGO_TARGET_DIR", dir.path().join("target"))
+                .env("CARGO_TARGET_DIR", &nested_target)
                 .output()
                 .unwrap()
         };
