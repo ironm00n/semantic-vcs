@@ -106,6 +106,18 @@ impl Repo {
             )));
         }
         std::fs::create_dir_all(&dir).map_err(Error::backend)?;
+        let made = Self::first_import(root, &dir, langs);
+        if made.is_err() {
+            // Nothing was imported, so leave nothing behind: a half-made `.svc/` would make
+            // every later verb say "no such snapshot" and `init` say "already exists".
+            let _ = std::fs::remove_file(dir.join(STORE_FILE));
+            let _ = std::fs::remove_file(dir.join(CHECKOUT_LOCK));
+            let _ = std::fs::remove_dir(&dir);
+        }
+        made
+    }
+
+    fn first_import(root: &Path, dir: &Path, langs: Langs) -> Result<Self> {
         let checkout_lock = Self::checkout_lock(&dir.join(CHECKOUT_LOCK), lock_timeout())?;
         let store_path = dir.join(STORE_FILE);
         let store = RedbStore::create(&store_path)?;
@@ -302,6 +314,9 @@ impl Repo {
     /// Every file under the root that is not ignored. Language files become entities;
     /// everything else is an opaque `FileRecord` (Cargo.toml, lockfiles, …) so a
     /// render of this repository is still a crate cargo can build.
+    /// Regular files only: symlinks (dangling or not, to files or to directories), FIFOs,
+    /// sockets and devices are not tracked — a store holds bytes, and reading a FIFO would
+    /// block every verb.
     pub fn tracked_files(&self) -> Result<BTreeMap<RelPath, Vec<u8>>> {
         let ignore = self.ignore_patterns()?;
         let mut out = BTreeMap::new();
@@ -318,8 +333,12 @@ impl Repo {
                 if is_ignored(&rel, &ignore) {
                     continue;
                 }
-                if path.is_dir() {
+                let kind = entry.file_type().map_err(Error::backend)?;
+                if kind.is_dir() {
                     stack.push(path);
+                    continue;
+                }
+                if !kind.is_file() {
                     continue;
                 }
                 let rel = RelPath::new(rel).map_err(Error::InvalidPath)?;
