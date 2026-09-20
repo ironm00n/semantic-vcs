@@ -11,7 +11,7 @@ use svc_core::{EntityId, Intent, Op, OpIx, RelPath, Snapshot, SnapshotId};
 use svc_repo::{
     Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_status,
     changesets, checkout, conflicts as list_conflicts, describe, edit, evolog, heads, log,
-    merge as merge_repo, new, op_log, op_restore, replay, resolve as resolve_conflict,
+    merge as merge_repo, new, op_log, op_restore, parse_entity_id, replay, resolve as resolve_conflict,
     resolve_entity, status, undo, untracked_mentions, workspace,
 };
 
@@ -27,7 +27,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Init, Status, Describe { message: String }, New, Branch { name: String }, Edit { change: String }, Heads, Log,
-    Evolog { change: String }, Show { entity: String }, ListDefs, ShowDef(EntityArg),
+    Evolog { change: String }, Show { entity: String }, ListDefs, ShowDef(ShowDefArgs),
     Search { query: String }, Diff { a: String, b: String }, Blame(EntityArg),
     Merge { change: String }, Conflicts,
     Resolve { conflict: usize, #[arg(long)] take: String },
@@ -61,6 +61,7 @@ enum ChangeSetCommand {
     List,
 }
 #[derive(Args)] struct EntityArg { #[arg(long)] entity: String }
+#[derive(Args)] struct ShowDefArgs { #[arg(long)] entity: String, #[arg(long)] at: Option<String> }
 #[derive(Args)] struct RenameArgs { #[arg(long)] entity: String, #[arg(long)] new_name: String }
 #[derive(Args)] struct MoveArgs { #[arg(long)] entity: String, #[arg(long)] new_parent: String, #[arg(long)] ordinal: Option<u32> }
 #[derive(Args)] struct RelocateArgs { #[arg(long)] entity: String, #[arg(long)] file: String, #[arg(long)] ordinal: u32 }
@@ -291,7 +292,7 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
                 .join("\n");
             return Some(Ok(if body.is_empty() { "no definitions".into() } else { body }));
         }
-        Command::ShowDef(arg) => return Some(show_def_text(&repo, &arg.entity)),
+        Command::ShowDef(arg) => return Some(show_def_text(&repo, &arg.entity, arg.at.as_deref())),
         Command::Search { query } => {
             return Some(search(&repo, query).map(|v| {
                 let matches = v["matches"].as_array().cloned().unwrap_or_default();
@@ -484,7 +485,7 @@ fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
         }
         Command::Render => { let snapshot = repo.current().map_err(|e| e.to_string())?; repo.render_to_disk(&snapshot).map_err(|e| e.to_string())?; Ok(json!({"rendered": true})) }
         Command::ListDefs => list_defs(&repo),
-        Command::ShowDef(arg) => show_def(&repo, &arg.entity),
+        Command::ShowDef(arg) => show_def(&repo, &arg.entity, arg.at.as_deref()),
         Command::Show { entity } => show_canonical(&repo, entity),
         Command::Search { query } => search(&repo, query),
         Command::Diff { a, b } => diff(&repo, a, b),
@@ -540,8 +541,8 @@ fn init_text() -> Result<String, String> {
     Ok(format!("initialized {} — {n} entities", repo.root_dir().display()))
 }
 
-fn show_def_text(repo: &Repo, query: &str) -> Result<String, String> {
-    show_def(repo, query).map(|v| {
+fn show_def_text(repo: &Repo, query: &str, at: Option<&str>) -> Result<String, String> {
+    show_def(repo, query, at).map(|v| {
         v["text"].as_str().map(str::to_string).unwrap_or_else(|| serde_json::to_string_pretty(&v).unwrap_or_default())
     })
 }
@@ -554,9 +555,12 @@ fn list_defs(repo: &Repo) -> Result<Value, String> {
     })).collect::<Vec<_>>() }))
 }
 
-fn show_def(repo: &Repo, query: &str) -> Result<Value, String> {
-    let snap = repo.current().map_err(|e| e.to_string())?;
-    let id = resolve_entity(repo, query).map_err(|e| e.to_string())?;
+fn show_def(repo: &Repo, query: &str, at: Option<&str>) -> Result<Value, String> {
+    let snap = match at {
+        Some(spec) => resolve_snapshot(repo, spec)?,
+        None => repo.current().map_err(|e| e.to_string())?,
+    };
+    let id = resolve_entity_in(&snap, query)?;
     let canonical = show(repo.store(), &snap, id).map_err(|e| e.to_string())?;
     let entity = snap.entities.get(&id).cloned().ok_or_else(|| format!("missing {query}"))?;
     let bytes = repo.store().get_bytes_blob(entity.bytes).map_err(|e| e.to_string())?;
@@ -620,6 +624,50 @@ fn resolve_snapshot(repo: &Repo, spec: &str) -> Result<Snapshot, String> {
         .head(change)
         .map_err(|e| e.to_string())?;
     repo.store().get_snapshot(id).map_err(|e| e.to_string())
+}
+
+/// Like `resolve_entity`, but against a chosen snapshot (historical `--at`).
+fn resolve_entity_in(snap: &Snapshot, arg: &str) -> Result<EntityId, String> {
+    if let Some(id) = parse_entity_id(arg) {
+        return snap
+            .entities
+            .contains_key(&id)
+            .then_some(id)
+            .ok_or_else(|| format!("entity {arg:?} is not in that snapshot"));
+    }
+    let spec_hits: Vec<EntityId> = snap
+        .entities
+        .keys()
+        .copied()
+        .filter(|id| id.matches_spec(arg))
+        .collect();
+    let (parent, name) = match arg.rsplit_once("::") {
+        Some((p, n)) => (Some(p), n),
+        None => (None, arg),
+    };
+    let mut hits: Vec<EntityId> = snap
+        .entities
+        .iter()
+        .filter(|(_, r)| r.name == name)
+        .filter(|(_, r)| match parent {
+            None => true,
+            Some(p) => r
+                .parent
+                .and_then(|pid| snap.entities.get(&pid))
+                .is_some_and(|pr| pr.name == p),
+        })
+        .map(|(id, _)| *id)
+        .collect();
+    hits.sort();
+    match hits.len() {
+        1 => Ok(hits[0]),
+        0 if spec_hits.len() == 1 => Ok(spec_hits[0]),
+        0 => Err(format!("entity {arg:?} is not in that snapshot")),
+        _ => Err(format!(
+            "{arg:?} names {} entities; qualify it as Parent::{name} or pass the id",
+            hits.len()
+        )),
+    }
 }
 
 fn diff(repo: &Repo, a: &str, b: &str) -> Result<Value, String> {
@@ -846,5 +894,6 @@ mod tests {
         .unwrap();
         Cli::try_parse_from(["svc", "search", "parse"]).unwrap();
         Cli::try_parse_from(["svc", "diff", "main", "feature"]).unwrap();
+        Cli::try_parse_from(["svc", "show-def", "--entity", "parse", "--at", "deadbeef"]).unwrap();
     }
 }

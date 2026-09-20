@@ -1,6 +1,6 @@
 //! Human (non `--json`) output for verbs that used to dump pretty JSON.
-//! Binary tests live here so we do not touch `cli.rs` while astra appends there.
 
+use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -80,4 +80,50 @@ fn init_list_show_and_workspace_add_are_sentences() {
     );
     assert!(added.contains("added workspace w2"), "{added}");
     assert!(!is_pretty_json(&added), "{added}");
+}
+
+fn json(dir: &Path, args: &[&str]) -> Value {
+    let out = bin()
+        .current_dir(dir)
+        .args(args)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "svc {} failed: {}",
+        args.join(" "),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    serde_json::from_slice(&out.stdout).unwrap_or_else(|e| {
+        panic!(
+            "svc {} bad json ({e}): {}",
+            args.join(" "),
+            String::from_utf8_lossy(&out.stdout)
+        )
+    })
+}
+
+#[test]
+fn show_def_at_a_past_snapshot_is_the_old_text() {
+    let dir = fixture();
+    text(dir.path(), &["init"]);
+    let at = json(dir.path(), &["status"])["snapshot"]
+        .as_str()
+        .expect("snapshot")
+        .to_string();
+    let before = text(dir.path(), &["show-def", "--entity", "parse"]);
+    assert!(before.contains("fn parse"), "{before}");
+    text(
+        dir.path(),
+        &["rename", "--entity", "parse", "--new-name", "parse_config"],
+    );
+    let old = text(
+        dir.path(),
+        &["show-def", "--entity", "parse", "--at", &at],
+    );
+    assert!(old.contains("fn parse"), "{old}");
+    assert!(!old.contains("fn parse_config"), "{old}");
+    let now = text(dir.path(), &["show-def", "--entity", "parse_config"]);
+    assert!(now.contains("fn parse_config"), "{now}");
 }
