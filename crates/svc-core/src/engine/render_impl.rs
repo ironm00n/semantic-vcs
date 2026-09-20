@@ -1,8 +1,9 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use crate::content::{Chunk, IdentRef};
 use crate::error::{Error, Result};
-use crate::ids::{ByteRange, EntityId};
+use crate::ids::{ByteRange, EntityId, RelPath};
 use crate::snapshot::Snapshot;
 use crate::store::Store;
 
@@ -96,6 +97,7 @@ fn expand(
                         .map(|e| e.name.as_str())
                         .unwrap_or("?")
                 };
+                let name = render_ident(&rec.file, name);
                 let start = out.len() as u32;
                 out.extend_from_slice(name.as_bytes());
                 if let Some(map) = map.as_mut() {
@@ -119,8 +121,9 @@ fn expand(
                         .unwrap_or("?")
                 };
                 if name == field.as_ref() {
+                    let shown = render_ident(&rec.file, name);
                     let start = out.len() as u32;
-                    out.extend_from_slice(field.as_bytes());
+                    out.extend_from_slice(shown.as_bytes());
                     if let Some(map) = map.as_mut() {
                         map.push((
                             ByteRange {
@@ -133,8 +136,9 @@ fn expand(
                 } else {
                     out.extend_from_slice(field.as_bytes());
                     out.extend_from_slice(b": ");
+                    let shown = render_ident(&rec.file, name);
                     let start = out.len() as u32;
-                    out.extend_from_slice(name.as_bytes());
+                    out.extend_from_slice(shown.as_bytes());
                     if let Some(map) = map.as_mut() {
                         map.push((
                             ByteRange {
@@ -149,6 +153,70 @@ fn expand(
         }
     }
     Ok((out, map))
+}
+
+fn render_ident<'a>(file: &RelPath, name: &'a str) -> Cow<'a, str> {
+    if !file.as_str().ends_with(".rs") || name.starts_with("r#") || !is_rust_keyword(name) {
+        return Cow::Borrowed(name);
+    }
+    Cow::Owned(format!("r#{name}"))
+}
+
+fn is_rust_keyword(name: &str) -> bool {
+    matches!(
+        name,
+        "as" | "async"
+            | "await"
+            | "break"
+            | "const"
+            | "continue"
+            | "crate"
+            | "dyn"
+            | "else"
+            | "enum"
+            | "extern"
+            | "false"
+            | "fn"
+            | "for"
+            | "if"
+            | "impl"
+            | "in"
+            | "let"
+            | "loop"
+            | "match"
+            | "mod"
+            | "move"
+            | "mut"
+            | "pub"
+            | "ref"
+            | "return"
+            | "self"
+            | "Self"
+            | "static"
+            | "struct"
+            | "super"
+            | "trait"
+            | "true"
+            | "type"
+            | "unsafe"
+            | "use"
+            | "where"
+            | "while"
+            | "abstract"
+            | "become"
+            | "box"
+            | "do"
+            | "final"
+            | "gen"
+            | "macro"
+            | "override"
+            | "priv"
+            | "try"
+            | "typeof"
+            | "unsized"
+            | "virtual"
+            | "yield"
+    )
 }
 
 pub fn trailing_for(src: &[u8], roots: &[crate::lang::RawEntity]) -> Vec<u8> {

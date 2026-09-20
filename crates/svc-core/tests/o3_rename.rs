@@ -2604,3 +2604,30 @@ fn rename_follows_type_path_to_associated_const() {
         "struct path to associated const must follow: {text}"
     );
 }
+
+#[test]
+fn rename_to_raw_keyword() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"fn parse() {}\nfn f() { parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "type").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("fn r#type"),
+        "rename to keyword must render a raw identifier: {text}"
+    );
+    assert!(
+        text.contains("r#type()"),
+        "call site of keyword rename must be raw: {text}"
+    );
+}
