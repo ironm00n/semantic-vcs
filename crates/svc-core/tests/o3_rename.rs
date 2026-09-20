@@ -2670,3 +2670,30 @@ fn rename_does_not_rewrite_attribute_name() {
     assert!(text.contains("parse_file();"), "{text}");
     assert!(text.contains("test_file();"), "{text}");
 }
+
+#[test]
+fn rename_follows_use_inside_a_function() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod a { pub fn parse() {} }\nfn f() { use a::parse; parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("use a::parse_file;"),
+        "inner use must follow: {text}"
+    );
+    assert!(text.contains("parse_file();"), "{text}");
+}

@@ -1200,6 +1200,54 @@ pub(crate) fn fill_use_imports(
         return;
     }
     collect_use_imports(env, use_scope_node(item), src);
+    collect_nested_use_imports(env, item, src);
+}
+
+fn collect_nested_use_imports(env: &mut Env, item: tree_sitter::Node<'_>, src: &[u8]) {
+    walk_nested_uses(env, item, src, item.id());
+}
+
+fn walk_nested_uses(
+    env: &mut Env,
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    item_id: usize,
+) {
+    if node.id() != item_id && is_nested_use_barrier(node.kind()) {
+        return;
+    }
+    if node.kind() == "use_declaration" {
+        bind_use_declaration(env, node, src);
+        return;
+    }
+    let mut c = node.walk();
+    if c.goto_first_child() {
+        loop {
+            walk_nested_uses(env, c.node(), src, item_id);
+            if !c.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
+fn is_nested_use_barrier(kind: &str) -> bool {
+    matches!(
+        kind,
+        "function_item"
+            | "function_signature_item"
+            | "mod_item"
+            | "impl_item"
+            | "trait_item"
+            | "struct_item"
+            | "enum_item"
+            | "union_item"
+            | "const_item"
+            | "static_item"
+            | "type_item"
+            | "macro_definition"
+            | "extern_crate_declaration"
+    )
 }
 
 fn use_scope_node(mut node: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
@@ -1225,30 +1273,31 @@ pub(crate) fn collect_use_imports(env: &mut Env, root: tree_sitter::Node<'_>, sr
     loop {
         let n = c.node();
         if n.kind() == "use_declaration" {
-            if env.bind_reexports && !use_is_pub(n, src) {
-                if !c.goto_next_sibling() {
-                    break;
-                }
-                continue;
-            }
-            if let Some(arg) = n.child_by_field_name("argument") {
-                import_use_tree(env, arg, src, &[]);
-            } else {
-                for i in 0..n.named_child_count() {
-                    let Some(ch) = n.named_child(i as u32) else {
-                        continue;
-                    };
-                    if ch.kind() == "visibility_modifier" {
-                        continue;
-                    }
-                    import_use_tree(env, ch, src, &[]);
-                    break;
-                }
-            }
+            bind_use_declaration(env, n, src);
         }
         if !c.goto_next_sibling() {
             break;
         }
+    }
+}
+
+fn bind_use_declaration(env: &mut Env, n: tree_sitter::Node<'_>, src: &[u8]) {
+    if env.bind_reexports && !use_is_pub(n, src) {
+        return;
+    }
+    if let Some(arg) = n.child_by_field_name("argument") {
+        import_use_tree(env, arg, src, &[]);
+        return;
+    }
+    for i in 0..n.named_child_count() {
+        let Some(ch) = n.named_child(i as u32) else {
+            continue;
+        };
+        if ch.kind() == "visibility_modifier" {
+            continue;
+        }
+        import_use_tree(env, ch, src, &[]);
+        break;
     }
 }
 
