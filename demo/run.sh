@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # The acceptance gate: demo lines 1–12 + the forge + the self-hosting line 14
 # (demo-lines.sh: svc on its own crates, named checkout from the store, replay),
-# then the multi-process stress on one store (store-stress.sh) and 32 checkouts
-# publishing at once (tests/concurrency/workspace_stress.sh). Then O9, the
-# compiler oracle over the binder table (alpha-rename every local in svc-core,
-# cargo check): it is #[ignore]d in the unit suite because it shells out to a
-# second cargo, so this is the only gate that runs it. SVC_SKIP_O9=1 skips it.
+# then the multi-process stress on one store (store-stress.sh), 32 checkouts
+# publishing at once (tests/concurrency/workspace_stress.sh) and renames SIGKILLed
+# at random points (crash.sh: the store is never a snapshot ahead of the log, a killed
+# render is finished by the next open). Then O9, the compiler oracle over the binder
+# table (alpha-rename every local in svc-core, cargo check): it is #[ignore]d in the
+# unit suite because it shells out to a second cargo, so this is the only gate that
+# runs it. SVC_SKIP_O9=1 skips it.
 # Exit status is the total number of failures. Resolves a relative binary path
 # first because the scripts cd away.
 #
@@ -25,6 +27,9 @@ echo
 fail=$((fail + $?))
 echo
 SVC_BIN="$SVC" "$HERE/../tests/concurrency/workspace_stress.sh" 32
+fail=$((fail + $?))
+echo
+"$HERE/crash.sh" "$SVC"
 fail=$((fail + $?))
 echo
 if SVC_BIN="$SVC" node --test "$HERE/../tests/file-lifecycle.mjs" "$HERE/../tests/git-twin.mjs"; then

@@ -112,8 +112,9 @@ demo/run.sh target/debug/svc
 That runs the scripted demo (rename, the binding-conflict merge, the JS
 twin, the agent changeset, evolog/undo, the in-TUI replay, the forge, and
 self-hosting `svc` on this repo's own crates), then a multi-checkout stress
-test and 32 checkouts publishing at once. `SVC_SKIP_SELF_HOST=1` skips the
-self-host line.
+test, 32 checkouts publishing at once, and renames SIGKILLed at random
+points (the store is never a snapshot ahead of the op log; a killed render is
+finished by the next open). `SVC_SKIP_SELF_HOST=1` skips the self-host line.
 
 Self-hosting alone:
 
