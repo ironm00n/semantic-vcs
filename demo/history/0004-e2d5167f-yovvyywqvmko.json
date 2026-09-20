@@ -1,0 +1,109 @@
+{
+  "base_tree": "5e79c1636713d3a3d8d87101243996e0e580dbeba228bfdff7e4b9e7f446a4e5",
+  "entries": [
+    {
+      "ix": 1,
+      "entry": {
+        "op": {
+          "New": {
+            "change": "01a0bcfe-9703-70ca-95e9-235a96cfe93c"
+          }
+        },
+        "observed": null,
+        "at": 1789877196840,
+        "group": null,
+        "before": {
+          "root": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
+          "heads": {
+            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb"
+          }
+        },
+        "after": {
+          "root": "8eb8c7b991c7ef24475ca80cbb6100f58fffda1ae928b48744eeb64a8fc30fa0",
+          "heads": {
+            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
+            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "8eb8c7b991c7ef24475ca80cbb6100f58fffda1ae928b48744eeb64a8fc30fa0"
+          }
+        }
+      },
+      "refs": {},
+      "files": {},
+      "after_tree": "5e79c1636713d3a3d8d87101243996e0e580dbeba228bfdff7e4b9e7f446a4e5",
+      "workspace": null
+    },
+    {
+      "ix": 2,
+      "entry": {
+        "op": {
+          "EditDef": {
+            "id": "01a0bcfe-5403-7516-94bf-8b60f25030b9",
+            "definition": "\n\n/// One event line: `renamed parse → parse_config`, `edit-def validate (declared refactor,\n/// observed binding-changing) ✗`.\npub fn op(snap: &Snapshot, e: &OpOut) -> String {\n    let verdict = match (e.declared.as_ref(), e.observed) {\n        (Some(d), Some(o)) => format!(\n            \" (declared {}, observed {}) {}\",\n            intent(d),\n            class(Some(o)),\n            if e.flagged { \"✗ flagged\" } else { \"✓\" }\n        ),\n        (Some(d), None) => format!(\" (declared {}, unchecked)\", intent(d)),\n        (None, Some(o)) => format!(\" (observed {})\", class(Some(o))),\n        (None, None) => String::new(),\n    };\n    // Prefer the name recorded with the op; the current snapshot may no longer hold it.\n    let subj = |id: EntityId| match &e.subject {\n        Some(n) => format!(\"{n}⟨{}⟩\", id.short()),\n        None => entity_ref(snap, id),\n    };\n    let body = match &e.op {\n        Op::Rename { id, new } => match &e.subject {\n            Some(old) => format!(\"renamed {old} → {new}\"),\n            None => format!(\"renamed {} → {new}\", name_before(snap, *id, new)),\n        },\n        Op::Move { id, parent, .. } => format!(\n            \"moved {} → {}\",\n            subj(*id),\n            parent.map(|p| entity_ref(snap, p)).unwrap_or_else(|| \"top level\".into())\n        ),\n        Op::Relocate { id, file, ordinal } => format!(\"relocated {} → {file}#{ordinal}\", subj(*id)),\n        Op::Extract { id, .. } => format!(\"extracted {}\", subj(*id)),\n        Op::Inline { id } => format!(\"inlined {}\", subj(*id)),\n        Op::AddDef { id, .. } => format!(\"add-def {}\", subj(*id)),\n        Op::Delete { id, .. } => format!(\"deleted {}\", subj(*id)),\n        Op::EditDef { id, .. } => format!(\"edit-def {}\", subj(*id)),\n        Op::Merge { other } => format!(\"merged change {}\", other.short()),\n        Op::Undo => \"undo\".into(),\n        Op::New { change } => format!(\"new change {}\", change.short()),\n        Op::Describe { msg } => format!(\"described: {msg:?}\"),\n        Op::Branch { name } => format!(\"branch {name}\"),\n        Op::Absorb => \"absorbed hand edits\".into(),\n        Op::Resolve { conflict, take } => format!(\"resolved conflict {conflict}: took {take:?}\"),\n    };\n    // An op a named checkout made says so; the default checkout's says nothing.\n    let from = e.workspace.as_deref().map(|w| format!(\"  [{w}]\")).unwrap_or_default();\n    format!(\"#{:<3} {body}{verdict}{from}\", e.ix.0)\n}",
+            "intent": "Refactor"
+          }
+        },
+        "observed": "BindingPreserving",
+        "at": 1789877197693,
+        "group": null,
+        "before": {
+          "root": "8eb8c7b991c7ef24475ca80cbb6100f58fffda1ae928b48744eeb64a8fc30fa0",
+          "heads": {
+            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
+            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "8eb8c7b991c7ef24475ca80cbb6100f58fffda1ae928b48744eeb64a8fc30fa0"
+          }
+        },
+        "after": {
+          "root": "075b90e6a2dcfe1bd0b24c5a0a5670dfaaa677f321d6d6c0e426b6611e63a061",
+          "heads": {
+            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
+            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "075b90e6a2dcfe1bd0b24c5a0a5670dfaaa677f321d6d6c0e426b6611e63a061"
+          }
+        }
+      },
+      "refs": {
+        "01a0bcfe-5403-7516-94bf-8b60f25030b9": {
+          "file": "crates/svc-repo/src/text.rs",
+          "chain": [
+            [
+              "Fn",
+              "op"
+            ]
+          ]
+        }
+      },
+      "files": {},
+      "after_tree": "6aa1e01254166696a147669767377214dd106759dd05f64a2d793ce528eccd29",
+      "workspace": null
+    },
+    {
+      "ix": 3,
+      "entry": {
+        "op": "Absorb",
+        "observed": null,
+        "at": 1789877245624,
+        "group": null,
+        "before": {
+          "root": "075b90e6a2dcfe1bd0b24c5a0a5670dfaaa677f321d6d6c0e426b6611e63a061",
+          "heads": {
+            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
+            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "075b90e6a2dcfe1bd0b24c5a0a5670dfaaa677f321d6d6c0e426b6611e63a061"
+          }
+        },
+        "after": {
+          "root": "4ed922220b873348fd6dbefbe3f32f416f85cea202489bc549f927b9ba14000d",
+          "heads": {
+            "01a0bcfe-5389-7593-8f1e-4b7eefec27ca": "24ffa26cd384706dca888759e472420b85dabe93f3565fe0343e4831562a5bcb",
+            "01a0bcfe-9703-70ca-95e9-235a96cfe93c": "4ed922220b873348fd6dbefbe3f32f416f85cea202489bc549f927b9ba14000d"
+          }
+        }
+      },
+      "refs": {},
+      "files": {
+        ".svcignore": {
+          "Text": "# svc reads this, not .gitignore: a bare name matches that file or directory anywhere;\n# a path with / matches from the root. No globs. Keep in step with .gitignore.\nresult\n.direnv\n.artifacts\n.codex-finalizer\ndemo/git-twin/work\n.DS_Store\n"
+        }
+      },
+      "after_tree": "d6fc92b0c16a64c9e2cd87c31844e4a943d7cbc9b9d0cff5f4fbaca4c657c684",
+      "workspace": null
+    }
+  ]
+}

@@ -75,7 +75,9 @@ pub fn op(snap: &Snapshot, e: &OpOut) -> String {
         Op::Absorb => "absorbed hand edits".into(),
         Op::Resolve { conflict, take } => format!("resolved conflict {conflict}: took {take:?}"),
     };
-    format!("#{:<3} {body}{verdict}", e.ix.0)
+    // An op a named checkout made says so; the default checkout's says nothing.
+    let from = e.workspace.as_deref().map(|w| format!("  [{w}]")).unwrap_or_default();
+    format!("#{:<3} {body}{verdict}{from}", e.ix.0)
 }
 
 fn name_before(snap: &Snapshot, id: EntityId, new: &str) -> String {
