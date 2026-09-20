@@ -80,7 +80,14 @@ for run in $(seq 1 "$RUNS"); do
   }
   step "ab.sh without a credential (SKIP, exit 0)" "$WORK/ab$run.log" ab_skip
   if [ -n "${REHEARSE_LIVE:-}" ] && [ -f "$HOME/.openrouter.key" ]; then
-    live() { OPENROUTER_API_KEY="$(cat "$HOME/.openrouter.key")" SVC_MODEL="${SVC_MODEL:-deepseek/deepseek-chat}" timeout 600 demo/ab.sh "$SVC"; }
+    # A model that narrates its tool calls instead of making them leaves the ours log empty:
+    # that is a FAIL here, not a pass on exit status.
+    live() {
+      OPENROUTER_API_KEY="$(cat "$HOME/.openrouter.key")" SVC_MODEL="${SVC_MODEL:-deepseek/deepseek-chat}" timeout 600 demo/ab.sh "$SVC" | tee "$WORK/live$run.inner" || return 1
+      local ops; ops="$(sed -n '/^ours log:$/,$p' "$WORK/live$run.inner" | sed '1d;/^scratch:/,$d' | jq length 2>/dev/null)"
+      echo "ours log: ${ops:-0} op(s)"
+      [ "${ops:-0}" -ge 1 ]
+    }
     step "ab.sh live (deepseek-chat via OpenRouter)" "$WORK/live$run.log" live
     ls demo/recordings/*.jsonl 2>/dev/null | sed 's/^/       recording: /' | tail -2
   else
@@ -89,5 +96,5 @@ for run in $(seq 1 "$RUNS"); do
   cd "$ROOT"
   echo
 done
-if [ "$red" -eq 0 ]; then echo "rehearse: 0 failures ($RUNS run(s); scratch removed)"; rm -rf "$WORK"; else echo "rehearse: $red failure(s); logs in $WORK"; fi
+if [ "$red" -eq 0 ] && [ -z "${REHEARSE_LIVE:-}" ]; then echo "rehearse: 0 failures ($RUNS run(s); scratch removed)"; rm -rf "$WORK"; else echo "rehearse: $red failure(s); logs in $WORK"; fi
 exit "$red"
