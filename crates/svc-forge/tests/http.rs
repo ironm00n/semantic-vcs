@@ -130,7 +130,7 @@ async fn response(app: axum::Router, path: &str) -> (StatusCode, String) {
     (status, text)
 }
 
-fn write_catalog(path: &std::path::Path, slug: &str, head: &str) {
+fn write_forge_catalog(path: &std::path::Path, slug: &str, head: &str) {
     let mut value = catalog();
     value.repositories[0].slug = slug.into();
     value.repositories[0].name = slug.into();
@@ -224,8 +224,8 @@ async fn file_source_merges_two_catalogs() {
     let dir = TestDir::new();
     let alpha = dir.path().join("alpha.json");
     let beta = dir.path().join("beta.json");
-    write_catalog(&alpha, "alpha", "alpha-head");
-    write_catalog(&beta, "beta", "beta-head");
+    write_forge_catalog(&alpha, "alpha", "alpha-head");
+    write_forge_catalog(&beta, "beta", "beta-head");
 
     let app = svc_forge::app_from_paths(vec![alpha, beta]).unwrap();
     let (_, text) = response(app.clone(), "/api/repositories").await;
@@ -244,8 +244,8 @@ fn file_source_rejects_duplicate_slugs() {
     let dir = TestDir::new();
     let first = dir.path().join("first.json");
     let second = dir.path().join("second.json");
-    write_catalog(&first, "same", "first-head");
-    write_catalog(&second, "same", "second-head");
+    write_forge_catalog(&first, "same", "first-head");
+    write_forge_catalog(&second, "same", "second-head");
 
     match svc_forge::app_from_paths(vec![first.clone(), second.clone()]) {
         Err(svc_forge::Error::DuplicateSlug {
@@ -266,13 +266,13 @@ async fn file_source_observes_atomic_catalog_replacement() {
     let dir = TestDir::new();
     let live = dir.path().join("forge.json");
     let replacement = dir.path().join("forge.next.json");
-    write_catalog(&live, "svc", "old-head");
+    write_forge_catalog(&live, "svc", "old-head");
     let app = svc_forge::app_from_paths(vec![live.clone()]).unwrap();
 
     let (_, before) = response(app.clone(), "/api/repositories/svc").await;
     assert_eq!(serde_json::from_str::<serde_json::Value>(&before).unwrap()["head"], "old-head");
 
-    write_catalog(&replacement, "svc", "new-head");
+    write_forge_catalog(&replacement, "svc", "new-head");
     std::fs::rename(&replacement, &live).unwrap();
     let (_, after) = response(app, "/api/repositories/svc").await;
     assert_eq!(serde_json::from_str::<serde_json::Value>(&after).unwrap()["head"], "new-head");
