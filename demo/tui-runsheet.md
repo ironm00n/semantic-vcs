@@ -7,6 +7,8 @@ footer of the UI lists the same keys.
 | key | in | what happens |
 |---|---|---|
 | `j` / `k`, `↓` / `↑` | any pane | move the selection; the right pane follows (the change's deltas, an entity's source, an op's record) |
+| `J` / `K`, `PageDown` / `PageUp` | any pane | move by 15 |
+| `g` / `G`, `Home` / `End` | any pane | first / last line |
 | `Enter` | revisions / entities / op log | focus the review queue; in the queue: expand the selected edit-def to its before → after diff (again: collapse) |
 | `Tab` | any | switch focus between the browse pane and the review queue |
 | `e` | any | entities view: the tree of definitions (`ƒ` fn, `◇` struct/enum, `⊕` impl, `▸` mod, `·` opaque); `e` again returns to revisions |
@@ -41,7 +43,7 @@ footer of the UI lists the same keys.
    the op log: its top is the latest landings' `new change` / `absorbed hand
    edits` pairs (one per landing made by hand); `j` past them to the renames,
    edit-defs, undos and the agents' mail (`edit-def … [claude]`, `note to
-   checkout supervisor` around #190).
+   checkout supervisor` around #190) — `J` pages by 15, `G` jumps to the oldest op.
 2. `h`, then `e`, `/`, type `bundle`, `Enter` — the entities of
    `crates/svc-repo/src/bundle.rs`; `j` to `import`; the source and blame on
    the right.

@@ -558,6 +558,11 @@ impl App {
             }
             KeyCode::Char('j') | KeyCode::Down => self.move_sel(1),
             KeyCode::Char('k') | KeyCode::Up => self.move_sel(-1),
+            // A 300-op log is 300 presses of j; a page and the ends are one each.
+            KeyCode::PageDown | KeyCode::Char('J') => self.move_sel(15),
+            KeyCode::PageUp | KeyCode::Char('K') => self.move_sel(-15),
+            KeyCode::End | KeyCode::Char('G') => self.move_sel(i32::MAX / 2),
+            KeyCode::Home | KeyCode::Char('g') => self.move_sel(-(i32::MAX / 2)),
             KeyCode::Enter => {
                 if self.focus == Pane::Queue {
                     if let Some(i) = self.queue_state.selected() {
@@ -1012,7 +1017,7 @@ impl App {
     }
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
-        let keys = "j/k move  e entities  / find  o oplog  h/Esc revisions  tab queue  a/r allow/reject  u undo  q quit";
+        let keys = "j/k move  J/K page  g/G ends  e entities  / find  o oplog  h/Esc revisions  tab queue  a/r allow/reject  u undo  q quit";
         let text = match &self.error {
             _ if self.typing => Line::from(vec![
                 Span::raw(format!("/{}▏", self.filter)),

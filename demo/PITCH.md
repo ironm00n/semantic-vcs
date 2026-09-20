@@ -56,8 +56,7 @@ replayed, not staged.
    record. Replay is the proof that nothing was smuggled around the journal.
 
 **3:45 — numbers** (README "Numbers"): `syn`, 7,365 entities in 3.0 s;
-`tokio`, 11,786 entities in 3.7 s, a 30-site rename across 25 files in 1.1–1.8 s
-and `cargo check` still passes; 32 checkouts publishing to one store at once
+`tokio`, 11,786 entities in 3.7 s, a rename across 25 files in 1.1–1.8 s; 32 checkouts publishing to one store at once
 without loss; a rename SIGKILLed at random points 12 times, the store never a
 snapshot ahead of the log; the whole gate, `demo/run.sh`, 0 failures.
 
@@ -114,7 +113,7 @@ list below.
 4. **Other languages?** Rust and JavaScript today (tree-sitter grammars plus a
    per-language binder table); a language is a grammar and that table.
 5. **Does it scale?** `tokio`, 555 files, 11,786 entities, init 3.7 s, status
-   0.1–0.2 s, a 30-site rename under 2 s. Snapshots are stored whole and
+   0.1–0.2 s, a 25-file rename under 2 s. Snapshots are stored whole and
    looked up by hash; nothing replays.
 6. **How do agents use it?** Through an ACP harness (DeepSeek's dsh) whose
    schema has no `edit`/`write`; the only write tools are svc operations, and
