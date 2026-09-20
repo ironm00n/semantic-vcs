@@ -334,6 +334,14 @@ fn collect_refs<'a>(
         let name = String::from_utf8_lossy(&src[r.start as usize..r.end as usize]).into_owned();
         if let Some(id) = env.self_methods.get(&name) {
             refs.push((r, IdentRef::Entity(*id)));
+        } else if let Some(id) = env
+            .nested_items
+            .get(&(name.clone(), Namespace::Type))
+            .or_else(|| env.nested_items.get(&(name.clone(), Namespace::Value)))
+            .copied()
+        {
+            // Soup `Self::Item` is an identifier, not a type_identifier.
+            refs.push((r, IdentRef::Entity(id)));
         } else {
             refs.push((r, IdentRef::Free(name.into())));
         }

@@ -719,6 +719,11 @@ fn collect_macro_mod_decls<'a>(
             i += 1;
             continue;
         }
+        if matches!(kids[i].kind(), "impl_item" | "trait_item") {
+            collect(kids[i], src, lang, parent_idx, raw, nodes);
+            i += 1;
+            continue;
+        }
         let mut j = i;
         while j < kids.len() && kids[j].kind() == "attribute_item" {
             j += 1;

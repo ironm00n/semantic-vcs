@@ -920,31 +920,41 @@ fn fill_associated_types_from_snapshot(env: &mut Env, snapshot: &Snapshot, id: E
     let Some(rec) = snapshot.entities.get(&id) else {
         return;
     };
-    let Some(parent) = rec.parent else {
+    let host = if matches!(rec.kind, Kind::Impl | Kind::Trait) {
+        id
+    } else {
+        let Some(parent) = rec.parent else {
+            return;
+        };
+        parent
+    };
+    let Some(hrec) = snapshot.entities.get(&host) else {
         return;
     };
-    let Some(prec) = snapshot.entities.get(&parent) else {
-        return;
-    };
-    if !matches!(prec.kind, Kind::Impl | Kind::Trait) {
+    if !matches!(hrec.kind, Kind::Impl | Kind::Trait) {
         return;
     }
     for (cid, crec) in &snapshot.entities {
-        if crec.parent == Some(parent) && crec.kind == Kind::TypeAlias {
+        if crec.parent == Some(host) && crec.kind == Kind::TypeAlias {
             env.insert_nested(&crec.name, crec.kind, *cid);
         }
     }
 }
 
 fn fill_associated_types_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
-    let Some(p) = raw[i].parent_idx else {
-        return;
+    let host = if matches!(raw[i].kind, Kind::Impl | Kind::Trait) {
+        i
+    } else {
+        let Some(p) = raw[i].parent_idx else {
+            return;
+        };
+        p
     };
-    if !matches!(raw[p].kind, Kind::Impl | Kind::Trait) {
+    if !matches!(raw[host].kind, Kind::Impl | Kind::Trait) {
         return;
     }
     for (j, ch) in raw.iter().enumerate() {
-        if ch.parent_idx == Some(p) && ch.kind == Kind::TypeAlias {
+        if ch.parent_idx == Some(host) && ch.kind == Kind::TypeAlias {
             env.insert_nested(&ch.name, ch.kind, ids[j]);
         }
     }
