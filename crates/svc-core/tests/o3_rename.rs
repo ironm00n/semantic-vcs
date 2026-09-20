@@ -962,3 +962,29 @@ fn same_impl_type_path_open_is_not_the_free_fn() {
     );
     assert!(!text.contains("S::opened()"), "{text}");
 }
+
+#[test]
+fn type_binding_name_is_not_a_free_type_alias() {
+    // `It<Item = Item>`: the left `Item` names an associated type on `It`
+    // (needs types, SPEC §9), the right `Item` is the file-level alias.
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"type Item = u8;\ntrait It { type Item; }\nfn f() -> impl It<Item = Item> { loop {} }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let alias = named_in_file(&snap, "Item", &path);
+    let next = rename(&store, &snap, alias, "Elem").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("type Elem = u8"), "{text}");
+    assert!(
+        text.contains("It<Item = Elem>"),
+        "type-binding name must stay: {text}"
+    );
+    assert!(!text.contains("It<Elem ="), "{text}");
+}

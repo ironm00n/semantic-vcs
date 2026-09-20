@@ -366,7 +366,7 @@ fn collect_refs<'a>(
                         && !blocked_by_barrier(node, b, ns, src, lang, root_id)
                 })
                 .max_by_key(|b| (b.scope.start, b.range.start));
-            if is_struct_field_key(node) || is_dot_field(node) {
+            if is_struct_field_key(node) || is_dot_field(node) || is_type_binding_name(node) {
                 refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(binder) =
                 local.filter(|_| !is_rust_nonlocal_ident(node, lang))
@@ -793,6 +793,21 @@ fn is_struct_field_key(node: tree_sitter::Node<'_>) -> bool {
     parent.child_by_field_name("field").is_some_and(|f| {
         f.id() == node.id()
             || (f.start_byte() <= node.start_byte() && node.end_byte() <= f.end_byte())
+    })
+}
+
+/// `It<Item = T>`: the left `Item` is an associated-type binding name, not a
+/// reference to a type `Item` in scope (SPEC §9; needs the receiver's type).
+fn is_type_binding_name(node: tree_sitter::Node<'_>) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    if parent.kind() != "type_binding" {
+        return false;
+    }
+    parent.child_by_field_name("name").is_some_and(|n| {
+        n.id() == node.id()
+            || (n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte())
     })
 }
 
