@@ -7,3 +7,4 @@ result
 demo/git-twin/work
 .DS_Store
 demo/history
+artifacts/history-store.tar.xz

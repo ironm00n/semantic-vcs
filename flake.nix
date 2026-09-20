@@ -77,6 +77,7 @@
               rust-analyzer
               nodejs_24
               jq
+              xz
               pkg-config
               openssl
               graphviz

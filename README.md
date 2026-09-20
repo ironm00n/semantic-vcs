@@ -8,22 +8,26 @@ rename is recorded as a rename; a merge that would silently make a reference
 point at a different binder is a conflict, even when git merges clean and the
 crate still compiles. The working tree is a render of the store, and an agent
 on the included overlay can only write through `svc` operations. This
-repository's own history since 02:31 UTC was made with it: 225 operations in
-44 bundles, replayed by the third command below.
+repository's own history since 02:31 UTC was made with it: 230 operations in
+46 bundles, opened by the third command below.
 
 ## Try it
 
 ```sh
-nix develop            # or: a Rust toolchain plus jq and node
+nix develop            # or: a Rust toolchain plus jq, xz and node
 cargo build -p svc
 demo/dogfood.sh --tui  # this repository's own svc-made history, replayed, in the review UI
 ```
 
-The third command rebuilds `demo/history/*.json` into a fresh store from
-git's trees, then opens `svc tui` on it: 6.8 minutes the first time on our
-shared VM (`time demo/history/replay.sh /tmp/x`: 44 bundles, 225 operations, 89
-of them absorbed hand edits that each re-parse the whole tree), reused by later
-runs. `--shell` instead of `--tui` opens a shell in that checkout.
+The third command opens `svc tui` on this repository's history: it unpacks
+`artifacts/history-store.tar.xz` — the replayed checkout, 9.6 MiB — checks it
+against `demo/history` (the bundle list, the op count, a clean tree) and is in
+the UI in a few seconds. The replay itself is the proof: `time
+demo/history/replay.sh /tmp/x` rebuilds the same store from git's trees and
+the bundles in 5.6 minutes on our shared VM (46 bundles, 230 operations, 92 of
+them absorbed hand edits that re-analyse the tree); `SVC_HISTORY_FRESH=1
+demo/dogfood.sh --tui` does that instead of unpacking. `--shell` instead of
+`--tui` opens a shell in that checkout.
 
 ## What you will see
 
@@ -121,7 +125,8 @@ build -p svc` gets:
 | what | number | command |
 |---|---|---|
 | this repository ingested | 2,259 entities in 208 files, 2.6 s | `svc init` at the repo root (`demo/selfhost-full.sh` does it in a copy) |
-| its own history replayed | 44 bundles, 225 operations, every tree as recorded, 6.8 min | `time demo/history/replay.sh <dir>` |
+| its own history replayed | 46 bundles, 230 operations, every tree as recorded, 5.6 min | `time demo/history/replay.sh <dir>` |
+| … or opened from the shipped pack | seconds, verified against the bundles | `demo/dogfood.sh --tui` |
 | the rendered tree still builds | `cargo test --workspace` from an empty checkout: 0 failures | `demo/selfhost-full.sh` |
 | `syn` (97 files) | 7,365 entities in 3.0 s; `status` 0.1–0.2 s | `svc init` in a `syn` checkout |
 | `tokio` (555 files) | 11,786 entities in 3.7 s; rename of `asyncify` (30 sites, 25 files) 1.1–1.8 s, `cargo check --features full` passes; git shows 25 files, 55/55 lines | `svc rename --entity asyncify --new-name …` |
@@ -193,7 +198,7 @@ Hackathon prototype. Not a git replacement.
 ## Built with
 
 svc itself: this repository's changes since 02:31 UTC were made through
-`svc` verbs and are the 44 bundles in `demo/history/` (225 operations), the
+`svc` verbs and are the 46 bundles in `demo/history/` (230 operations), the
 agents' coordination through `svc mail` from 06:33 UTC. HackMIT 2026. Codex,
 Claude Code, Muse, Cursor, Devin, Warp and DeepSeek Harness. Rust,
 tree-sitter (Rust and JavaScript), redb, postcard, BLAKE3, similar, clap,

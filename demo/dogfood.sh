@@ -52,16 +52,36 @@ if [ -z "$STORY" ] && [ "$MODE" != check ] && [ "$MODE" != agent ] && ls "$HERE"
   # SVC_HISTORY_FRESH=1 forces a new one.
   key="$( (ls -l "$HERE"/history/[0-9]*.json; ls -l "$SVC") | sha256sum | cut -c1-12)"
   HIST="${TMPDIR:-/tmp}/svc-history.$key"
-  # demo/rehearse.sh leaves the replayed checkout as artifacts/history-store.tar (tree and
-  # .svc, verified by the replay that made it); opening that is seconds, not minutes.
-  TAR="$HERE/../artifacts/history-store.tar"
+  # artifacts/history-store.tar.xz is the replayed checkout (tree and .svc) as
+  # demo/history/pack.sh made and verified it; opening that is seconds, not minutes. It
+  # is trusted only when its manifest names exactly today's bundles and the unpacked
+  # store holds the op count the manifest records; otherwise the bundles are replayed.
+  TAR="$HERE/../artifacts/history-store.tar.xz"
+  MANIFEST="$HERE/../artifacts/history-store.json"
+  opened=
   if [ -n "${SVC_HISTORY_FRESH:-}" ] || [ ! -f "$HIST/.svc/replayed" ]; then
     rm -rf "$HIST"
-    if [ -z "${SVC_HISTORY_FRESH:-}" ] && [ -f "$TAR" ]; then
-      mkdir -p "$HIST" && tar -xf "$TAR" -C "$HIST" && [ -f "$HIST/.svc/store.redb" ] \
-        || { echo "could not unpack $TAR"; rm -rf "$HIST"; exit 1; }
-      echo "opened the pre-replayed history from $TAR (SVC_HISTORY_FRESH=1 to replay the bundles instead)"
-    else
+    if [ -z "${SVC_HISTORY_FRESH:-}" ] && [ -f "$TAR" ] && [ -f "$MANIFEST" ]; then
+      have="$(ls "$HERE"/history/[0-9]*.json | xargs -n1 basename | sort | tr '\n' ' ')"
+      want="$(jq -r '.bundles[]' "$MANIFEST" | sort | tr '\n' ' ')"
+      if [ "$have" != "$want" ]; then
+        echo "artifacts/history-store.tar.xz was packed for other bundles than demo/history holds; replaying instead"
+      elif mkdir -p "$HIST" && tar -xJf "$TAR" -C "$HIST" && [ -f "$HIST/.svc/store.redb" ]; then
+        ops="$(cd "$HIST" && "$SVC" op log --json | jq length)"
+        clean="$(cd "$HIST" && "$SVC" status --json | jq -r .clean)"
+        if [ "$ops" = "$(jq -r .ops "$MANIFEST")" ] && [ "$clean" = true ]; then
+          echo "from artifacts/history-store (verified: $(jq -r '.bundles|length' "$MANIFEST") bundles, $ops ops, tree clean)"
+          opened=1
+        else
+          echo "artifacts/history-store.tar.xz did not verify (ops $ops vs $(jq -r .ops "$MANIFEST"), clean $clean); replaying instead"
+          rm -rf "$HIST"
+        fi
+      else
+        echo "could not unpack $TAR; replaying instead"
+        rm -rf "$HIST"
+      fi
+    fi
+    if [ -z "$opened" ]; then
       "$HERE/history/replay.sh" "$HIST" "$SVC" || { echo "history did not replay; scratch at $HIST"; exit 1; }
     fi
     touch "$HIST/.svc/replayed"
