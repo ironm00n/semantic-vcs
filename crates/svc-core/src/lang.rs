@@ -19,6 +19,11 @@ pub struct Env {
     pub crate_ambiguous: Arc<HashMap<String, HashSet<(String, Namespace)>>>,
     /// Repo-wide names that appear under more than one definition.
     pub names_ambiguous: Arc<HashSet<(String, Namespace)>>,
+    /// Occupants that own this (name, ns) as their primary namespace (`fn` in
+    /// Value, not `struct` which also sits in Value as a constructor).
+    pub primary: Arc<HashSet<(String, Namespace)>>,
+    /// Per-crate primary occupants; same rule as [`Self::primary`].
+    pub crate_primary: Arc<HashMap<String, HashSet<(String, Namespace)>>>,
     /// Inherent methods of the impl/class this item is being resolved in.
     /// `self.foo()` / `Self::foo()` / `this.foo()` look here, not in `names`
     /// (a free `fn foo` is a different target).
@@ -72,30 +77,57 @@ impl Env {
     }
 
     pub fn insert(&mut self, name: impl Into<String>, ns: Namespace, id: EntityId) {
+        self.insert_ranked(name, ns, id, false);
+    }
+
+    fn insert_ranked(
+        &mut self,
+        name: impl Into<String>,
+        ns: Namespace,
+        id: EntityId,
+        primary: bool,
+    ) {
         let name = name.into();
-        Self::record(
+        Self::occupy(
             Arc::make_mut(&mut self.names),
             Arc::make_mut(&mut self.names_ambiguous),
+            Arc::make_mut(&mut self.primary),
             &name,
             ns,
             id,
+            primary,
         );
     }
 
-    fn record(
+    /// Two primaries (`fn parse` in two files) or two secondaries are
+    /// ambiguous. A primary may replace a secondary (`fn Foo` after
+    /// `struct Foo`) without last-wins Free — they share a spelling, not a
+    /// namespace.
+    fn occupy(
         map: &mut HashMap<(String, Namespace), EntityId>,
         amb: &mut HashSet<(String, Namespace)>,
+        primaries: &mut HashSet<(String, Namespace)>,
         name: &str,
         ns: Namespace,
         id: EntityId,
+        primary: bool,
     ) {
         let key = (name.to_string(), ns);
         if let Some(old) = map.get(&key) {
             if *old != id {
-                amb.insert(key.clone());
+                let old_primary = primaries.contains(&key);
+                if old_primary && !primary {
+                    return;
+                }
+                if old_primary == primary {
+                    amb.insert(key.clone());
+                }
             }
         }
-        map.insert(key, id);
+        map.insert(key.clone(), id);
+        if primary {
+            primaries.insert(key);
+        }
     }
 
     pub fn insert_def(&mut self, name: impl Into<String>, kind: Kind, id: EntityId) {
@@ -117,47 +149,55 @@ impl Env {
             {
                 continue;
             }
-            self.insert(&name, *ns, id);
+            let primary = is_value_primary(kind) && *ns == Namespace::Value;
+            self.insert_ranked(&name, *ns, id, primary);
             if let Some(file) = file {
                 Arc::make_mut(&mut self.by_file)
                     .entry(file.clone())
                     .or_default()
                     .insert((name.clone(), *ns), id);
                 if let Some(krate) = crate_key(file) {
-                    self.insert_crate(krate, &name, *ns, id);
+                    self.insert_crate(krate, &name, *ns, id, primary);
                 }
             }
         }
         if is_value_primary(kind) {
-            self.insert(&name, Namespace::Value, id);
+            self.insert_ranked(&name, Namespace::Value, id, true);
             if let Some(file) = file {
                 Arc::make_mut(&mut self.by_file)
                     .entry(file.clone())
                     .or_default()
                     .insert((name.clone(), Namespace::Value), id);
                 if let Some(krate) = crate_key(file) {
-                    self.insert_crate(krate, &name, Namespace::Value, id);
+                    self.insert_crate(krate, &name, Namespace::Value, id, true);
                 }
             }
         }
     }
 
-    fn insert_crate(&mut self, krate: &str, name: &str, ns: Namespace, id: EntityId) {
-        let key = (name.to_string(), ns);
-        let collision = {
-            let map = Arc::make_mut(&mut self.by_crate)
+    fn insert_crate(
+        &mut self,
+        krate: &str,
+        name: &str,
+        ns: Namespace,
+        id: EntityId,
+        primary: bool,
+    ) {
+        Self::occupy(
+            Arc::make_mut(&mut self.by_crate)
                 .entry(krate.to_string())
-                .or_default();
-            let hit = map.get(&key).copied().filter(|old| *old != id);
-            map.insert(key.clone(), id);
-            hit
-        };
-        if collision.is_some() {
+                .or_default(),
             Arc::make_mut(&mut self.crate_ambiguous)
                 .entry(krate.to_string())
-                .or_default()
-                .insert(key);
-        }
+                .or_default(),
+            Arc::make_mut(&mut self.crate_primary)
+                .entry(krate.to_string())
+                .or_default(),
+            name,
+            ns,
+            id,
+            primary,
+        );
     }
 
     pub fn insert_defs(&mut self, defs: &[(&str, Kind, EntityId)]) {
