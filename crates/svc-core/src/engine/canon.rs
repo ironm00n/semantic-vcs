@@ -384,7 +384,7 @@ fn collect_refs<'a>(
                 || is_type_qualified_ref(node, src, lang, env)
             {
                 refs.push((r, IdentRef::Free(name.into())));
-            } else if env.alias_spellings.contains(&name) {
+            } else if env.alias_spellings.contains(&name) && in_scoped_path(node) {
                 refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(id) = if let Some(segs) = crate_path_segs(node, src, lang) {
                 env.lookup_crate_path(&segs, ns).or_else(|| {
@@ -883,6 +883,21 @@ fn is_use_alias(node: tree_sitter::Node<'_>) -> bool {
     parent.child_by_field_name("alias").is_some_and(|n| {
         n.id() == node.id()
             || (n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte())
+    })
+}
+
+/// `foo` in `foo::parse` / `crate::foo::parse` is a path segment. A module alias
+/// spelling stays Free there. A bare `foo()` is not a path and may be a local fn.
+fn in_scoped_path(node: tree_sitter::Node<'_>) -> bool {
+    node.parent().is_some_and(|p| {
+        matches!(
+            p.kind(),
+            "scoped_identifier"
+                | "scoped_type_identifier"
+                | "scoped_use_list"
+                | "use_as_clause"
+                | "use_wildcard"
+        )
     })
 }
 

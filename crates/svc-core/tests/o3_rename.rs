@@ -2697,3 +2697,29 @@ fn rename_follows_use_inside_a_function() {
     );
     assert!(text.contains("parse_file();"), "{text}");
 }
+
+#[test]
+fn rename_of_a_file_local_fn_is_not_blocked_by_another_files_module_alias() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let b = RelPath::new("src/b.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib, b"mod a; mod b;\npub use a as foo;\n".to_vec());
+    files.insert(a, b"pub fn parse() {}\n".to_vec());
+    files.insert(b.clone(), b"fn foo() {}\nfn f() { foo(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "foo").expect("foo");
+    let next = rename(&store, &snap, id, "foo_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&b].clone()).unwrap();
+    assert!(
+        text.contains("fn foo_file()"),
+        "declaration must rename: {text}"
+    );
+    assert!(
+        text.contains("foo_file();"),
+        "same-file call must follow; other-file module alias must not freeze the name: {text}"
+    );
+}
