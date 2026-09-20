@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use svc_core::engine::{add_def_at, delete, edit_def, inline, move_def, relocate, render, rename};
 use svc_core::{
-    ChangeId, ChangeSet, EntityId, Error, Kind, NoteTo, Op, OpIx, OpLogEntry, RelPath, Result,
+    ChangeId, ChangeSet, ChangeSetId, EntityId, Error, Kind, NoteTo, Op, OpIx, OpLogEntry, RelPath, Result,
     Snapshot, SnapshotId,
 };
 
@@ -129,14 +129,37 @@ pub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {
 
 /// [`export`] stopping before `until` (exclusive), for cutting one landing out of a longer log.
 pub fn export_range(repo: &Repo, since: OpIx, until: Option<OpIx>) -> Result<Bundle> {
-    let store = repo.store();
-    let mut ops = store.ops(since, false)?;
+    let mut ops = repo.store().ops(since, false)?;
     if let Some(end) = until {
         ops.retain(|(ix, _)| *ix < end);
     }
-    let Some((_, first)) = ops.first() else {
+    if ops.is_empty() {
         return Err(Error::Other(format!("no ops at or after {}", since.0)));
-    };
+    }
+    export_ops(repo, ops)
+}
+
+/// Whether an op is part of a changeset's story: stamped with the group, or a note
+/// addressed to it (a review verdict, a claim) — which has no group of its own.
+pub fn belongs(e: &OpLogEntry, group: ChangeSetId) -> bool {
+    e.group == Some(group) || matches!(&e.op, Op::Note { to: NoteTo::Changeset(id), .. } if *id == group)
+}
+
+/// The ops that [`belongs`] to one changeset except those `has` — what a clone that already holds some of the
+/// group's ops still lacks. Empty entries when there is nothing to send.
+pub fn export_changeset(repo: &Repo, group: ChangeSetId, has: impl Fn(&OpLogEntry) -> bool) -> Result<Bundle> {
+    let mut ops = repo.store().ops(OpIx(0), false)?;
+    ops.retain(|(_, e)| belongs(e, group) && !has(e));
+    if ops.is_empty() {
+        let cs = repo.store().get_changeset(group)?;
+        return Ok(Bundle { base_tree: String::new(), entries: Vec::new(), changesets: vec![cs] });
+    }
+    export_ops(repo, ops)
+}
+
+fn export_ops(repo: &Repo, ops: Vec<(OpIx, OpLogEntry)>) -> Result<Bundle> {
+    let store = repo.store();
+    let (_, first) = &ops[0];
     let base = store.get_snapshot(first.before.root)?;
     let base_tree = tree_hash(&rendered(repo, &base)?);
     let mut entries = Vec::with_capacity(ops.len());
@@ -445,8 +468,26 @@ pub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {
         )));
     }
     for cs in &bundle.changesets {
-        if repo.store().get_changeset(cs.id).is_err() {
-            repo.store().put_changeset(cs)?;
+        match repo.store().get_changeset(cs.id) {
+            Ok(mut have) => {
+                // The row this side holds keeps what it has (its own queue entries); the
+                // sender's additions join it.
+                let mut grew = false;
+                for item in &cs.queue {
+                    if !have.queue.contains(item) {
+                        have.queue.push(item.clone());
+                        grew = true;
+                    }
+                }
+                if have.description.is_empty() && !cs.description.is_empty() {
+                    have.description = cs.description.clone();
+                    grew = true;
+                }
+                if grew {
+                    repo.store().put_changeset(&have)?;
+                }
+            }
+            Err(_) => repo.store().put_changeset(cs)?,
         }
     }
     let mut im = Import { repo, changes: BTreeMap::new(), snaps: BTreeMap::new(), from_record: Vec::new() };

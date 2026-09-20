@@ -548,6 +548,23 @@ pub fn changeset_end(repo: &Repo) -> Result<Option<ChangeSetId>> {
     Ok(open)
 }
 
+/// `svc changeset reopen <id>`: make an existing group the open one again, so more ops
+/// (a follow-up, a reviewer's fix) join it. Refuses while another group is open.
+pub fn changeset_reopen(repo: &Repo, id: ChangeSetId) -> Result<ChangeSetOut> {
+    let store = repo.store();
+    let cs = store.get_changeset(id)?;
+    if let (Some(open), _) = repo.open_group()? {
+        if open != id {
+            return Err(Error::Other(format!(
+                "changeset {} is already open; `svc changeset end` it first",
+                open.short()
+            )));
+        }
+    }
+    store.set_open_changeset(Some(svc_core::OpenChangeSet { id, pid: None, opened_at: crate::repo::now() }))?;
+    changeset_out(repo, cs, true)
+}
+
 /// `svc changeset status`: the open group and its ops so far, or `None`.
 pub fn changeset_status(repo: &Repo) -> Result<Option<ChangeSetOut>> {
     match repo.open_group()? {

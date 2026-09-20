@@ -6,7 +6,8 @@
 # at random points (crash.sh: the store is never a snapshot ahead of the log, a killed
 # render is finished by the next open), and two checkouts of this repository itself
 # making svc changes to one file at once, merged, one conflict resolved, replayed, and
-# type-checked (selfhost-concurrent.sh), and this repository's own svc-made history
+# type-checked (selfhost-concurrent.sh), a changeset pushed and pulled between two clones
+# with its review state (sync.sh), and this repository's own svc-made history
 # replayed from demo/history into a fresh store (history/replay.sh). Then O9, the
 # compiler oracle over the binder table (alpha-rename every local in svc-core, cargo
 # check): it is #[ignore]d in the unit suite because it shells out to a second cargo, so
@@ -37,6 +38,9 @@ echo
 fail=$((fail + $?))
 echo
 "$HERE/selfhost-concurrent.sh" "$SVC"
+fail=$((fail + $?))
+echo
+"$HERE/sync.sh" "$SVC"
 fail=$((fail + $?))
 echo
 hist="$(mktemp -d)"

@@ -10,6 +10,7 @@ pub mod merge;
 pub mod repo;
 pub mod replay;
 pub mod store;
+pub mod sync;
 pub mod text;
 pub mod workspace;
 

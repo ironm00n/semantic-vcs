@@ -9,11 +9,11 @@ use svc_core::engine::{
 };
 use svc_core::{EntityId, Intent, NoteKind, Op, OpIx, RelPath, Snapshot, SnapshotId};
 use svc_repo::{
-    Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_show, changeset_status,
-    changesets, checkout, claim, conflicts as list_conflicts, describe, edit, evolog, heads, inbox,
-    log, mail, mail_read, merge as merge_repo, new, notes_about_entity, op_log, op_restore, release,
-    replay, resolve as resolve_conflict, resolve_entity, resolve_entity_in, review, status, undo,
-    untracked_mentions, workspace,
+    Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_reopen, changeset_show,
+    changeset_status, changesets, checkout, claim, conflicts as list_conflicts, describe, edit, evolog,
+    heads, inbox, log, mail, mail_read, merge as merge_repo, new, notes_about_entity, op_log, op_restore,
+    release, replay, resolve as resolve_conflict, resolve_changeset, resolve_entity, resolve_entity_in,
+    review, status, undo, untracked_mentions, workspace,
 };
 
 mod agent;
@@ -38,6 +38,10 @@ enum Command {
     /// The local forge (crates/svc-forge): `export` writes its catalog from this store.
     #[command(subcommand)] Forge(ForgeCommand),
     #[command(subcommand)] History(HistoryCommand),
+    /// Send a changeset (its ops and their verdicts) to the checkout at DIR; a second push sends only what is new.
+    Push { changeset: String, dir: PathBuf },
+    /// Take a changeset from the checkout at DIR into this store.
+    Pull { changeset: String, dir: PathBuf },
     #[command(subcommand)] Workspace(WorkspaceCommand),
     Checkout { snapshot: String }, Render, Replay, Rename(RenameArgs), Move(MoveArgs),
     Relocate(RelocateArgs), Extract(ExtractArgs), Inline(EntityArg), AddDef(AddDefArgs),
@@ -76,6 +80,8 @@ enum WorkspaceCommand {
 enum ChangeSetCommand {
     Begin { name: String, #[arg(long, default_value = "refactor")] intent: String, #[arg(long)] force: bool },
     End,
+    /// Make an existing changeset (id, prefix or name) the open one again.
+    Reopen { changeset: String },
     Status,
     List,
     Show { changeset: String },
@@ -245,6 +251,21 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
                     None => serde_json::to_string_pretty(&b).map_err(|e| e.to_string()),
                 }
             })());
+        }
+        Command::Push { changeset, dir } | Command::Pull { changeset, dir } => {
+            let pushing = matches!(cli.command, Command::Push { .. });
+            return Some(run_with(cli, &repo).map(|v| {
+                let sent = v["sent"].as_u64().unwrap_or(0);
+                let (verb, prep) = if pushing { ("pushed", "to") } else { ("pulled", "from") };
+                match sent {
+                    0 if pushing => format!("nothing to push: {} already has every op of changeset {changeset}", dir.display()),
+                    0 => format!("nothing to pull: every op of changeset {changeset} at {} is already here", dir.display()),
+                    n => format!("{verb} {n} op{} of changeset {changeset} {prep} {}", if n == 1 { "" } else { "s" }, dir.display()),
+                }
+            }));
+        }
+        Command::Changeset(ChangeSetCommand::Reopen { .. }) => {
+            return Some(run_with(cli, &repo).map(|v| format!("changeset {} open again", v["name"].as_str().unwrap_or("?"))));
         }
         Command::History(HistoryCommand::Import { file }) => {
             return Some((|| {
@@ -574,6 +595,20 @@ fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
             value(changeset_begin(&repo, name, parse_intent(intent), None, *force))
         }
         Command::Changeset(ChangeSetCommand::End) => value(changeset_end(&repo)),
+        Command::Changeset(ChangeSetCommand::Reopen { changeset }) => {
+            let id = resolve_changeset(&repo, changeset).map_err(|e| e.to_string())?.id;
+            value(changeset_reopen(&repo, id))
+        }
+        Command::Push { changeset, dir } => {
+            let id = resolve_changeset(&repo, changeset).map_err(|e| e.to_string())?.id;
+            let other = svc_repo::sync::open_checkout(dir).map_err(|e| e.to_string())?;
+            value(svc_repo::sync::transfer(&repo, &other, id))
+        }
+        Command::Pull { changeset, dir } => {
+            let other = svc_repo::sync::open_checkout(dir).map_err(|e| e.to_string())?;
+            let id = resolve_changeset(&other, changeset).map_err(|e| e.to_string())?.id;
+            value(svc_repo::sync::transfer(&other, &repo, id))
+        }
         Command::Forge(ForgeCommand::Export { out }) => svc_repo::forge::export(&repo, out.as_deref()).map(|p| json!({"path": p})).map_err(|e| e.to_string()),
         Command::History(HistoryCommand::Export { since, out }) => {
             let b = svc_repo::bundle::export(repo, OpIx(*since)).map_err(|e| e.to_string())?;

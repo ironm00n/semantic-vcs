@@ -161,6 +161,31 @@ against the real binary. Any ACP-on-stdio agent works the same way.
 Live A/B (stock dsh vs overlay) is `demo/ab.sh`. Without a credential it
 checks identical starting trees and exits 0 with SKIP.
 
+## Review travels with the changeset
+
+A changeset is the unit of review, and it moves between clones with its
+review state, because that state *is* the op log: each op's declared
+intent, the observed class, the flag, the subject, the time and the
+checkout that made it.
+
+```sh
+svc changeset begin reviewed          # every op until `end` joins it
+svc rename --entity read --new-name read_file
+svc edit-def --entity parse --intent refactor --definition "$(cat parse.rs)"
+svc changeset end
+svc push reviewed ../clone            # the ops the clone lacks, from the tree they started on
+(cd ../clone && svc changeset list)   # the same ops, verdicts and subjects
+svc changeset reopen reviewed         # a follow-up joins the same changeset
+svc pull reviewed ../clone            # the reviewer's own ops come back
+```
+
+`push`/`pull` send only what the other side does not have (its newest op of
+that changeset), as a history bundle: the receiving tree must be where those
+ops started — a fresh clone of the same tree, or one that took the previous
+push. No server holds the queue; `demo/sync.sh` is the gate: two clones,
+one changeset, identical `svc changeset list` on both after push, after a
+second push and after a pull.
+
 ## Forge
 
 `svc forge export` writes `.svc/forge.json` from the store (never contends
