@@ -75,7 +75,13 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
     }
 
     let ops = store.ops(OpIx(0), false)?;
-    let operations: Vec<Value> = ops.iter().map(|(ix, e)| operation(store, *ix, e)).collect();
+    let operations: Vec<Value> = ops
+        .iter()
+        .map(|(ix, e)| {
+            let ws = repo.redb().op_workspace(*ix).ok().flatten().filter(|w| !w.is_empty());
+            operation(store, *ix, e, ws.as_deref())
+        })
+        .collect();
 
     // The review queue as the review rules define it: every edit-def, and every binding conflict
     // in the current snapshot. (Changesets' own `queue` is not populated by any verb.)
@@ -94,6 +100,10 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
     let cur = repo.current()?;
     review.extend(cur.conflicts.iter().filter(|c| matches!(c, Conflict::Binding { .. })).map(|c| ReviewItem::BindingConflict { conflict: c.clone() }));
 
+    // What every checkout is on: this one's root plus the named workspaces' — the
+    // forge marks those changes current, not every change that still has a head.
+    let mut checkouts = vec![view.root];
+    checkouts.extend(repo.redb().workspaces()?.into_iter().filter_map(|(_, w)| w.root));
     let root = repo.root_dir();
     let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "repo".into());
     let slug: String = name.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
@@ -104,7 +114,7 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
             "path": root,
             "description": format!("{} entities, {} operations, {} changes", cur.entities.len(), ops.len(), view.heads.len()),
             "head": view.root,
-            "heads": view.heads.values().collect::<Vec<_>>(),
+            "heads": checkouts,
             "snapshots": snapshots,
             "operations": operations,
             "review_queue": review,
@@ -122,7 +132,7 @@ fn source(store: &dyn Store, snap: &Snapshot, id: EntityId) -> Option<String> {
 /// The raw log entry plus what the browser needs beside it: `ix`, the after-root's `change`,
 /// and for an op about one entity a `subject` with its names, kind, file, both sources and
 /// the touch — so a change page can show a rename or edit without opening the store.
-fn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry) -> Value {
+fn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry, workspace: Option<&str>) -> Value {
     let mut v = serde_json::to_value(e).unwrap_or(Value::Null);
     let Value::Object(m) = &mut v else { return v };
     m.insert("ix".into(), json!(ix));
@@ -132,6 +142,9 @@ fn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry) -> Value {
     }
     if let Some(name) = e.group.and_then(|g| store.get_changeset(g).ok()).map(|cs| cs.name) {
         m.insert("group_name".into(), json!(name));
+    }
+    if let Some(w) = workspace {
+        m.insert("workspace".into(), json!(w));
     }
     // Every entity the op touched and every opaque file it changed, so an absorb or a
     // merge — the ops that carry other people's work — has names and paths too.

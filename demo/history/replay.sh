@@ -45,6 +45,8 @@ done | sort | cut -d" " -f2-)"
 [ -n "$ordered" ] || { echo "no bundles in $HERE"; exit 2; }
 n=0
 bad=0
+stamped="$(mktemp "${TMPDIR:-/tmp}/svc-bundle.XXXXXX")"
+trap 'rm -f "$stamped"' EXIT
 for bundle in $ordered; do
   name="$(basename "$bundle" .json)"
   base="$(echo "$name" | cut -d- -f2)"
@@ -56,6 +58,14 @@ for bundle in $ordered; do
     "$SVC" init --json >/dev/null || exit 2
   else
     "$SVC" status --json >/dev/null || exit 2    # everyone else's landings, absorbed
+  fi
+  # Who made these ops: the bundle says nothing (everyone worked in their own primary
+  # checkout) but its landing commit carries an Agent trailer, so the replayed ops are
+  # stamped with the agent's name as their checkout.
+  change="$(echo "$name" | cut -d- -f3-)"
+  agent="$(cd "$ROOT" && jj --ignore-working-copy log -r "$change" --no-graph -T description 2>/dev/null | sed -n 's/^Agent: *//p' | head -1)"
+  if [ -n "$agent" ] && jq --arg w "$agent" '.entries |= map(.workspace //= $w)' "$bundle" > "$stamped"; then
+    bundle="$stamped"
   fi
   if ! report="$(import "$bundle")"; then
     # A bundle that cannot even start (its base tree is not git's) is skipped; the store

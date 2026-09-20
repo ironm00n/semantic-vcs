@@ -119,6 +119,15 @@ pub struct OperationSubject {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TouchView {
+    pub entity: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub touch: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OperationView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ix: Option<u64>,
@@ -128,6 +137,15 @@ pub struct OperationView {
     pub subject: Option<OperationSubject>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group_name: Option<String>,
+    /// The checkout that made the op, when the store knows it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace: Option<String>,
+    /// Every entity the op touched (an absorb or merge has many, a rename one).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subjects: Vec<TouchView>,
+    /// Opaque files the op changed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<String>,
     #[serde(flatten)]
     pub entry: OpLogEntry,
 }
@@ -139,6 +157,9 @@ impl From<OpLogEntry> for OperationView {
             change: None,
             subject: None,
             group_name: None,
+            workspace: None,
+            subjects: Vec::new(),
+            files: Vec::new(),
             entry,
         }
     }

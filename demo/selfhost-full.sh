@@ -90,6 +90,12 @@ fi
 check "3d tree matches the pre-init copy except .svc/.git/.jj" 'diff -rq --exclude .svc --exclude .git --exclude .jj "$ORIG" "$REPO"'
 FROM_STORE="$WORK/from-store"
 svcj workspace add full-tree "$FROM_STORE" >"$WORK/workspace.json"
+# What .svcignore names never entered the store, so an empty checkout cannot render it.
+if [ -f "$ORIG/.svcignore" ]; then
+  sed -e 's/#.*//' -e 's/ *$//' -e '/^$/d' "$ORIG/.svcignore" | while read -r p; do
+    case "$p" in */*) rm -rf "$ORIG/$p" ;; *) find "$ORIG" -name "$p" -prune -exec rm -rf {} + ;; esac
+  done
+fi
 check "3e empty checkout reproduces every source file" 'diff -rq --exclude .svc --exclude .svc-workspace "$ORIG" "$FROM_STORE"'
 [ "$fail" -eq 0 ] || exit "$fail"
 cd "$FROM_STORE"
