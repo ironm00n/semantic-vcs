@@ -179,8 +179,12 @@ pub fn render_entity(
     render_impl::render_entity(snapshot, store, id, with_map)
 }
 
-pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<crate::delta::Delta> {
-    diff_impl::diff(prev, next)
+pub fn diff(
+    store: &dyn Store,
+    prev: &Snapshot,
+    next: &Snapshot,
+) -> Result<Vec<crate::delta::Delta>> {
+    diff_impl::diff(store, prev, next)
 }
 
 /// Bytes-in → snapshot-out. Does not write the snapshot, set root/heads, or append an op.

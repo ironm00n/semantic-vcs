@@ -17,7 +17,7 @@ fn moving_an_entity_to_another_file_is_a_layout_delta() {
     let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let a = lookup_name(&snap, "a").unwrap();
     let next = relocate(&snap, a, RelPath::new("src/b.rs").unwrap(), 1).unwrap();
-    let rep = status_report(&snap, &next);
+    let rep = status_report(&store, &snap, &next).unwrap();
     assert!(
         rep.deltas.iter().any(|d| matches!(d, Delta::Relocated { id, .. } if *id == a)),
         "{:?}",

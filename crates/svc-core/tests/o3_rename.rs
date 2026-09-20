@@ -53,7 +53,7 @@ fn snapshot_files_matches_ingest_and_status_is_clean() {
     assert!(snap.entities.values().any(|e| e.name == "parse"));
     assert!(snap.entities.values().any(|e| e.name == "load"));
     let again = snapshot_files(&store, &langs, &files, Some(&snap), change).unwrap();
-    let report = status_report(&snap, &again);
+    let report = status_report(&store, &snap, &again).unwrap();
     assert_eq!(
         report.summary(),
         format!("{} entities, 0 changes", snap.entities.len())
@@ -99,7 +99,7 @@ fn layout_local_rename_is_not_semantic() {
     );
     files.insert(path, edited.into_bytes());
     let next = snapshot_files(&store, &langs, &files, Some(&snap), change).unwrap();
-    let report = status_report(&snap, &next);
+    let report = status_report(&store, &snap, &next).unwrap();
     assert_eq!(report.semantic, 0, "{:?}", report.deltas);
     assert_eq!(report.layout, 1, "{:?}", report.deltas);
 }

@@ -47,7 +47,7 @@ fn use_lines_keep_identity_when_text_above_them_changes() {
     for (id, _) in &uses {
         assert!(n.entities.contains_key(id), "use line lost its id");
     }
-    let rep = status_report(&s, &n);
+    let rep = status_report(&store, &s, &n).unwrap();
     assert_eq!(rep.semantic, 0, "{:?}", rep.deltas);
 }
 

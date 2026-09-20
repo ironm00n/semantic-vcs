@@ -156,11 +156,11 @@ pub fn status(repo: &Repo) -> Result<StatusOut> {
     let (report, snap, absorbed) = match repo.absorb()? {
         Some((prev, id)) => {
             let next = repo.store().get_snapshot(id)?;
-            (status_report(&prev, &next), next, true)
+            (status_report(repo.store(), &prev, &next)?, next, true)
         }
         None => {
             let cur = repo.current()?;
-            (status_report(&cur, &cur), cur, false)
+            (status_report(repo.store(), &cur, &cur)?, cur, false)
         }
     };
     Ok(StatusOut {

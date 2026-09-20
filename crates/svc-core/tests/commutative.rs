@@ -19,7 +19,7 @@ fn adding_a_fn_does_not_relocate_sibling_fns() {
     let prev = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     files.insert(path, b"fn c() {}\nfn a() {}\nfn b() {}\n".to_vec());
     let next = snapshot_files(&store, &langs, &files, Some(&prev), ChangeId::new()).unwrap();
-    let deltas = diff(&prev, &next);
+    let deltas = diff(&store, &prev, &next).unwrap();
     assert!(
         deltas.iter().any(|d| matches!(d, Delta::Added(_))),
         "c should be added: {deltas:?}"
@@ -46,7 +46,7 @@ fn adding_a_fn_still_relocates_a_macro_sibling() {
         b"fn b() {}\nmacro_rules! m { () => {} }\nfn a() {}\n".to_vec(),
     );
     let next = snapshot_files(&store, &langs, &files, Some(&prev), ChangeId::new()).unwrap();
-    let deltas = diff(&prev, &next);
+    let deltas = diff(&store, &prev, &next).unwrap();
     assert!(
         deltas.iter().any(|d| matches!(d, Delta::Relocated { .. })),
         "macros are excepted from file-root commutativity: {deltas:?}"

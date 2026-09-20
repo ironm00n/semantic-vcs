@@ -747,8 +747,8 @@ pub fn format_tokens(snap: &Snapshot, tokens: &[Token], self_name: &str) -> Stri
     out
 }
 
-pub fn status_report(prev: &Snapshot, next: &Snapshot) -> StatusReport {
-    let deltas = super::diff(prev, next);
+pub fn status_report(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<StatusReport> {
+    let deltas = super::diff(store, prev, next)?;
     let mut layout = 0usize;
     let mut semantic = 0usize;
     for d in &deltas {
@@ -758,12 +758,12 @@ pub fn status_report(prev: &Snapshot, next: &Snapshot) -> StatusReport {
             _ => semantic += 1,
         }
     }
-    StatusReport {
+    Ok(StatusReport {
         entities: next.entities.len(),
         deltas,
         layout,
         semantic,
-    }
+    })
 }
 
 #[derive(Clone, Debug)]

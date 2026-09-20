@@ -364,7 +364,7 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
             return Some((|| {
                 let left = resolve_snapshot(&repo, a)?;
                 let right = resolve_snapshot(&repo, b)?;
-                let deltas = diff_snapshots(&left, &right);
+                let deltas = diff_snapshots(repo.store(), &left, &right).map_err(|e| e.to_string())?;
                 if deltas.is_empty() {
                     Ok("no differences".into())
                 } else {
@@ -673,7 +673,7 @@ fn resolve_entity_in(snap: &Snapshot, arg: &str) -> Result<EntityId, String> {
 fn diff(repo: &Repo, a: &str, b: &str) -> Result<Value, String> {
     let a = resolve_snapshot(repo, a)?;
     let b = resolve_snapshot(repo, b)?;
-    Ok(json!({"deltas": diff_snapshots(&a, &b)}))
+    Ok(json!({"deltas": diff_snapshots(repo.store(), &a, &b).map_err(|e| e.to_string())?}))
 }
 
 fn resolve_parent(repo: &Repo, parent: &str) -> Result<Option<EntityId>, String> {

@@ -1,10 +1,16 @@
 use crate::delta::Delta;
 use crate::entity::Kind;
+use crate::error::Result;
 use crate::lang::Lang;
 use crate::snapshot::Snapshot;
+use crate::store::Store;
 use crate::{JsLang, RustLang};
 
-pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<Delta> {
+use super::{classify, render_entity};
+
+/// Structural deltas between two snapshots. An edited entity carries the class the
+/// classifier assigns to old → new (rendered from `store`), never a placeholder.
+pub fn diff(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<Vec<Delta>> {
     let mut out = Vec::new();
     for (id, rec) in &next.entities {
         match prev.entities.get(id) {
@@ -39,13 +45,22 @@ pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<Delta> {
                         });
                     }
                 }
-                if old.content != rec.content {
-                    out.push(Delta::Edited(
-                        *id,
-                        crate::delta::ObservedClass::BindingPreserving,
-                    ));
-                } else if old.bytes != rec.bytes {
-                    out.push(Delta::Edited(*id, crate::delta::ObservedClass::Alpha));
+                if old.content != rec.content || old.bytes != rec.bytes {
+                    let (old_r, old_m) = render_entity(prev, store, *id, true)?;
+                    let (new_r, new_m) = render_entity(next, store, *id, true)?;
+                    let class = classify(
+                        &store.get_content(old.content)?,
+                        &store.get_content(rec.content)?,
+                        old.bytes,
+                        rec.bytes,
+                        &old_r,
+                        &new_r,
+                        &Default::default(),
+                        &Default::default(),
+                        old_m.as_deref().unwrap_or(&[]),
+                        new_m.as_deref().unwrap_or(&[]),
+                    );
+                    out.push(Delta::Edited(*id, class));
                 }
             }
         }
@@ -55,7 +70,7 @@ pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<Delta> {
             out.push(Delta::Removed(*id));
         }
     }
-    out
+    Ok(out)
 }
 
 pub(crate) fn commutative_layout(ext: Option<&str>, parent: Option<Kind>, child: Kind) -> bool {
