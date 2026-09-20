@@ -8,12 +8,16 @@
 //!
 //! Scope: `Namespace::Value` locals (params, `let`/`const` bindings,
 //! arrow params, catch params, import bindings) across the repo's whole
-//! `.mjs` tree (`harness/svc-tools.mjs`,
+//! `.mjs` tree (`harness/svc-tools.mjs`, `demo/replay-agent.mjs`,
 //! `crates/svc-agent/tests/fake_agent.mjs` — that is all of it today; the
-//! walk below picks up any new `.mjs` under those roots). Property keys,
+//! walk below picks up any new `.mjs` under those roots, plus a future
+//! root-level `tests/` dir if one appears). Property keys,
 //! method names, and `this` are never renameable spellings: `this` is
 //! skipped by literal text, and shorthand properties are expanded
 //! (`{a}` -> `{a: _svc_N}`) so the key stays put while the value renames.
+//! There are no `node:test` suites in the repo yet, so the `node --test`
+//! discovery pass below succeeds vacuously today — and starts exercising
+//! real suites the day a `*.test.mjs` lands under a walked root.
 //!
 //! Built only against the frozen top-level `svc_core::engine::*` functions
 //! (`parse`, `extract`, `resolve`) plus `Resolution`'s public fields, so it
@@ -172,12 +176,16 @@ fn o9_js_alpha_renamed_tree_still_loads() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let workspace_root = manifest_dir.parent().unwrap().parent().unwrap();
 
-    // The repo's whole `.mjs` tree: the harness plugin and the fake ACP
-    // agent. (There is no `tests/*.mjs` suite; when one appears under
-    // these roots the walk below picks it up.)
+    // The repo's whole `.mjs` tree: the harness plugin, the demo agent
+    // stand-in, and the fake ACP agent. Roots that do not exist yet
+    // (a future root-level `tests/` dir) are skipped, not walked.
     let mut files = Vec::new();
-    visit(&workspace_root.join("harness"), &mut files);
-    visit(&workspace_root.join("crates/svc-agent/tests"), &mut files);
+    for root in ["harness", "demo", "crates/svc-agent/tests", "tests"] {
+        let dir = workspace_root.join(root);
+        if dir.is_dir() {
+            visit(&dir, &mut files);
+        }
+    }
     assert!(!files.is_empty(), "expected at least one .mjs file");
 
     let scratch = std::env::temp_dir().join(format!("svc-o9-js-check-{}", std::process::id()));
@@ -243,4 +251,22 @@ fn o9_js_alpha_renamed_tree_still_loads() {
             output.status,
         );
     }
+
+    // 4. `node --test` discovery over the renamed tree, run with the
+    // scratch as the working directory (a bare path argument would be
+    // executed as a module instead of discovered). There are no
+    // `node:test` suites in the repo today, so this succeeds with zero
+    // tests — the assertion that matters is the exit code the day a
+    // `*.test.mjs` lands: renamed tests then exercise the renamed code,
+    // and a failure names the file that the binder table broke.
+    let output = node()
+        .arg("--test")
+        .current_dir(&scratch)
+        .output()
+        .expect("node must be on PATH for the JS oracle");
+    assert!(
+        output.status.success(),
+        "node --test failed on the renamed tree:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
 }

@@ -366,14 +366,20 @@ fn identifier_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Rol
             binder(Namespace::Value, Visibility::Whole, Locator::Itself)
         }
         (Some("import_specifier"), Some("name")) => {
-            // Binder is `alias ?? name`; `name` with an alias present is the
-            // other module's export-table name, never local (T4).
+            // `import { foo } from './a.js'` (no alias): `foo` is the other
+            // module's export, not a local binding — a plain reference so a
+            // unique `foo` entity resolves across the file boundary and
+            // `svc rename` of the export follows its importers (the JS twin
+            // of Rust `use`). With an alias present, `alias` is the local
+            // name and this export-table spelling stays silent (T4).
             if node
                 .parent()
                 .and_then(|p| p.child_by_field_name("alias"))
                 .is_none()
             {
-                binder(Namespace::Value, Visibility::Whole, Locator::Itself)
+                vec![Role::Reference {
+                    namespace: Namespace::Value,
+                }]
             } else {
                 vec![]
             }

@@ -239,12 +239,16 @@ fn js_roles_import_export_mirror() {
     ));
     let x = find_text(tree.root_node(), "identifier", "x", s);
     assert_eq!(JsLang.roles(x, Some("name"), s, &env), vec![]);
-    // Bare `name:` (no alias) binds.
+    // Bare `name:` (no alias) is the other module's export, not a local
+    // binding: a reference so a unique export resolves across the file
+    // boundary and rename follows importers (JS twin of Rust `use`).
     let z = find_text(tree.root_node(), "identifier", "z", s);
-    assert!(matches!(
-        JsLang.roles(z, Some("name"), s, &env)[..],
-        [Role::Binder { .. }]
-    ));
+    assert_eq!(
+        JsLang.roles(z, Some("name"), s, &env),
+        vec![Role::Reference {
+            namespace: Namespace::Value
+        }]
+    );
     // Export `name:` is a reference; `alias:` is nothing (T4).
     let a = find_text(tree.root_node(), "identifier", "a", s);
     assert_eq!(
@@ -752,6 +756,126 @@ fn js_trap_kindless_for_of_assigns_outer() {
         free_ref_names(src),
         ["h".to_string(), "h".to_string(), "list".to_string(), "log".to_string()]
     );
+}
+
+/// Named import across files: renaming the export follows the import
+/// statement and the importer's body uses (JS twin of Rust `use`).
+/// An ambiguous export name stays unresolved and nothing follows.
+#[test]
+fn js_rename_follows_named_import_across_files() {
+    let store = MemStore::new();
+    let langs = Langs::new(vec![Box::new(JsLang)]);
+    let mut files = BTreeMap::new();
+    files.insert(
+        RelPath::new("src/a.js").unwrap(),
+        "export function foo(x) {\n  return x + 1;\n}\nexport const bar = 2;\n"
+            .as_bytes()
+            .to_vec(),
+    );
+    files.insert(
+        RelPath::new("src/b.js").unwrap(),
+        "import { foo, bar } from './a.js';\nconsole.log(foo(bar));\n"
+            .as_bytes()
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let foo_id = lookup_name(&snap, "foo").unwrap();
+    let snap = rename(&snap, foo_id, "foo2").unwrap();
+    let rendered = render(&snap, &store, &langs, false).unwrap();
+    let text = |name: &str| {
+        String::from_utf8(
+            rendered.files[&RelPath::new(name).unwrap()].clone(),
+        )
+        .unwrap()
+    };
+    let b = text("src/b.js");
+    assert!(
+        b.contains("import { foo2, bar }"),
+        "import follows the rename:\n{b}"
+    );
+    assert!(b.contains("foo2(bar)"), "body use follows:\n{b}");
+    assert!(!b.contains("foo("), "no stale use left:\n{b}");
+    let a = text("src/a.js");
+    assert!(a.contains("function foo2("), "export renamed:\n{a}");
+
+    // Ambiguous export: a second `foo` elsewhere leaves the import
+    // unresolved, so renaming one export follows nothing.
+    let mut files2 = files.clone();
+    files2.insert(
+        RelPath::new("src/c.js").unwrap(),
+        "export function foo() {\n  return 0;\n}\n".as_bytes().to_vec(),
+    );
+    let snap2 = snapshot_files(&store, &langs, &files2, None, ChangeId::new()).unwrap();
+    let a_foo = snap2
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "foo" && r.file == RelPath::new("src/a.js").unwrap())
+        .map(|(id, _)| *id)
+        .expect("a.js foo entity");
+    let snap2 = rename(&snap2, a_foo, "foo2").unwrap();
+    let rendered2 = render(&snap2, &store, &langs, false).unwrap();
+    let b2 = String::from_utf8(
+        rendered2.files[&RelPath::new("src/b.js").unwrap()].clone(),
+    )
+    .unwrap();
+    assert!(
+        b2.contains("import { foo, bar }") && b2.contains("foo(bar)"),
+        "ambiguous import left alone:\n{b2}"
+    );
+}
+
+/// Arrow and function-expression values assigned to `const`, and class fields
+/// holding function values, are entities (not offset-named) and keep their
+/// ids when text above them moves. `export default () => …` is an expression
+/// with no declaration node, so it is not extracted at all.
+#[test]
+fn js_arrow_and_fn_valued_entities_are_stable() {
+    let src = "export const handler = async (req) => req.url;\nexport class S {\n  field = (y) => y * 2;\n}\n";
+    let store = MemStore::new();
+    let langs = Langs::new(vec![Box::new(JsLang)]);
+    let path = RelPath::new("src/a.js").unwrap();
+    let snap_of = |src: &[u8], prev: Option<&svc_core::Snapshot>| {
+        let mut files = BTreeMap::new();
+        files.insert(path.clone(), src.to_vec());
+        snapshot_files(&store, &langs, &files, prev, ChangeId::new()).unwrap()
+    };
+    let id_of = |snap: &svc_core::Snapshot, kind: Kind, name: &str| {
+        snap.entities
+            .iter()
+            .find(|(_, r)| r.kind == kind && r.name == name)
+            .map(|(id, _)| *id)
+            .unwrap_or_else(|| panic!("a {kind:?} entity named {name}"))
+    };
+    let before = snap_of(src.as_bytes(), None);
+    for (kind, name) in [
+        (Kind::JsFunction, "handler"),
+        (Kind::JsClass, "S"),
+        (Kind::JsField, "field"),
+    ] {
+        let rec = before
+            .entities
+            .values()
+            .find(|r| r.kind == kind && r.name == name)
+            .unwrap_or_else(|| panic!("a {kind:?} entity named {name}"));
+        assert!(
+            !rec.name.contains('«'),
+            "no offset-fallback name: {}",
+            rec.name
+        );
+    }
+    let after_src = "// a comment line\n".to_owned() + src;
+    let after = snap_of(after_src.as_bytes(), Some(&before));
+    for (kind, name) in [
+        (Kind::JsFunction, "handler"),
+        (Kind::JsClass, "S"),
+        (Kind::JsField, "field"),
+    ] {
+        assert_eq!(
+            id_of(&before, kind, name),
+            id_of(&after, kind, name),
+            "{kind:?} {name} must keep its id when text above it moves"
+        );
+    }
 }
 
 /// C-style `for (let i …)` scopes its counter: inner uses (including the
