@@ -14,6 +14,26 @@ pub enum Intent {
     Other(String),
 }
 
+/// Who a [`Op::Note`] is hung on. Review, mail, and claims share this one op
+/// (DEBATE §19): a message about a changeset *is* a review note.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum NoteTo {
+    Checkout(String),
+    All,
+    Changeset(ChangeSetId),
+    Entity(EntityId),
+}
+
+/// What kind of coordination a [`Op::Note`] is.
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum NoteKind {
+    Note,
+    Approve,
+    RequestChanges,
+    Claim,
+    Release,
+}
+
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum Op {
     Rename {
@@ -83,12 +103,16 @@ pub enum Op {
     },
     /// `svc op restore <n>`: return to the view as it stood right after op `n`.
     /// Distinct from `Undo` so the log names the verb.
-    ///
-    /// Last on purpose: postcard writes a variant as its index, so a variant added
-    /// anywhere but the end re-labels every op already in every store (a `New` read
-    /// back as `Restore`). `op_wire_format` pins the order.
     Restore {
         at: u64,
+    },
+    /// Review, mail, and claims. Last on purpose: postcard writes a variant as its
+    /// index, so a variant added anywhere but the end re-labels every op already in
+    /// every store. `op_wire_format` pins the order.
+    Note {
+        to: NoteTo,
+        kind: NoteKind,
+        text: String,
     },
 }
 
@@ -147,6 +171,29 @@ mod tests {
         assert_eq!(v, serde_json::json!({"Restore":{"at":3}}));
         let back: Op = serde_json::from_value(v).unwrap();
         assert!(matches!(back, Op::Restore { at: 3 }));
+    }
+
+    #[test]
+    fn note_json_round_trips_the_three_fields() {
+        let op = Op::Note {
+            to: NoteTo::All,
+            kind: NoteKind::Approve,
+            text: "ship it".into(),
+        };
+        let v = serde_json::to_value(&op).unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({"Note":{"to":"All","kind":"Approve","text":"ship it"}})
+        );
+        let back: Op = serde_json::from_value(v).unwrap();
+        assert!(matches!(
+            back,
+            Op::Note {
+                to: NoteTo::All,
+                kind: NoteKind::Approve,
+                text
+            } if text == "ship it"
+        ));
     }
 }
 

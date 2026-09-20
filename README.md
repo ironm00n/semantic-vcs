@@ -43,9 +43,10 @@ on `predecessors`. Merge ancestry is `parents`. Neither walk answers "what
 does the tree look like."
 
 The op log is how you *review* what happened. A rename is an `Op::Rename`,
-not a 26-file text diff inferred after the fact. `svc replay` folds that
-journal onto an empty store only as a check that nothing was smuggled
-around it.
+not a 26-file text diff inferred after the fact. A review, a mail message,
+and a claim are the same object (`Op::Note`); TUI and forge only display it.
+`svc replay` folds that journal onto an empty store only as a check that
+nothing was smuggled around it.
 
 Each entity is stored twice:
 

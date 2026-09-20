@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::delta::ObservedClass;
 use crate::ids::{ChangeSetId, OpIx, Timestamp, ToolCallId};
-use crate::op::Intent;
+use crate::op::{Intent, NoteKind, NoteTo};
 use crate::snapshot::Conflict;
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
@@ -15,6 +15,13 @@ pub enum ReviewItem {
     },
     BindingConflict {
         conflict: Conflict,
+    },
+    /// A review note, mail message, or (not queued) claim — the same `Op::Note`.
+    Note {
+        op: OpIx,
+        to: NoteTo,
+        kind: NoteKind,
+        text: String,
     },
 }
 

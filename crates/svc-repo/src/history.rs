@@ -10,11 +10,12 @@ use serde::{Deserialize, Serialize};
 use svc_core::delta::Delta;
 use svc_core::engine::status_report;
 use svc_core::{
-    ChangeId, ChangeSetId, EntityId, EntityRecord, Error, Intent, ObservedClass, Op, OpIx,
-    OpLogEntry, RelPath, Result, Snapshot, SnapshotId, Timestamp, View,
+    ChangeId, ChangeSetId, EntityId, EntityRecord, Error, Intent, NoteKind, NoteTo, ObservedClass,
+    Op, OpIx, OpLogEntry, RelPath, Result, Snapshot, SnapshotId, Timestamp, View,
 };
 
 use crate::repo::{Mutation, Repo};
+use crate::workspace::DEFAULT_WORKSPACE;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChangeOut {
@@ -153,6 +154,12 @@ pub struct StatusOut {
     pub absorbed: bool,
     /// Unresolved merge conflicts on the current snapshot (`svc conflicts` lists them).
     pub conflicts: usize,
+    /// Other checkouts' live claims on entities in this tree (`svc claim`).
+    #[serde(default)]
+    pub claims: Vec<ClaimOut>,
+    /// Unread mail/review notes addressed here or `@all`.
+    #[serde(default)]
+    pub inbox: usize,
 }
 
 /// `svc status`: absorb hand edits into the current change (recording an `Absorb` op) and
@@ -179,6 +186,8 @@ pub fn status(repo: &Repo) -> Result<StatusOut> {
         deltas: report.deltas,
         absorbed,
         conflicts: snap.conflicts.len(),
+        claims: active_claims(repo)?,
+        inbox: inbox(repo)?.unread.len(),
     })
 }
 
@@ -493,6 +502,9 @@ pub struct ChangeSetOut {
     pub description: String,
     pub open: bool,
     pub ops: Vec<OpOut>,
+    /// Review/mail notes hung on this changeset (the other half of a PR).
+    #[serde(default)]
+    pub reviews: Vec<OpOut>,
 }
 
 /// `svc changeset begin <name>`: open a group that every following op is stamped with.
@@ -558,13 +570,25 @@ pub fn changesets(repo: &Repo) -> Result<Vec<ChangeSetOut>> {
 }
 
 fn changeset_out(repo: &Repo, cs: svc_core::ChangeSet, open: bool) -> Result<ChangeSetOut> {
-    let ops = repo
-        .store()
-        .ops(OpIx(0), true)?
-        .iter()
-        .filter(|(_, e)| e.group == Some(cs.id))
-        .map(|(ix, e)| op_out(repo, *ix, e))
-        .collect();
+    let mut ops = Vec::new();
+    let mut reviews = Vec::new();
+    for (ix, e) in repo.store().ops(OpIx(0), true)? {
+        let about = matches!(
+            &e.op,
+            Op::Note {
+                to: NoteTo::Changeset(id),
+                kind,
+                ..
+            } if *id == cs.id && !matches!(kind, NoteKind::Claim | NoteKind::Release)
+        );
+        if e.group == Some(cs.id) || about {
+            let out = op_out(repo, ix, &e);
+            if about {
+                reviews.push(out.clone());
+            }
+            ops.push(out);
+        }
+    }
     Ok(ChangeSetOut {
         id: cs.id,
         name: cs.name,
@@ -572,6 +596,7 @@ fn changeset_out(repo: &Repo, cs: svc_core::ChangeSet, open: bool) -> Result<Cha
         description: cs.description,
         open,
         ops,
+        reviews,
     })
 }
 
@@ -662,6 +687,10 @@ pub fn op_entity(op: &Op) -> Option<EntityId> {
         | Op::AddDef { id, .. }
         | Op::Delete { id, .. }
         | Op::EditDef { id, .. } => Some(*id),
+        Op::Note {
+            to: NoteTo::Entity(id),
+            ..
+        } => Some(*id),
         _ => None,
     }
 }
@@ -704,4 +733,286 @@ pub fn untracked_mentions(repo: &Repo, word: &str) -> Result<Mentions> {
         }
     }
     Ok(m)
+}
+
+/// The checkout name stamped on notes (`default` when this is the `.svc/` tree).
+pub fn checkout_name(repo: &Repo) -> String {
+    repo.workspace()
+        .unwrap_or(DEFAULT_WORKSPACE)
+        .to_string()
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ClaimOut {
+    pub entity: EntityId,
+    pub name: String,
+    pub by: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InboxOut {
+    pub unread: Vec<OpOut>,
+    pub cursor: u64,
+}
+
+/// Append a coordination op. Snapshot is unchanged; the log is the mailbox.
+pub fn note(repo: &Repo, to: NoteTo, kind: NoteKind, text: impl Into<String>) -> Result<MutationOut> {
+    let text = text.into();
+    if matches!(kind, NoteKind::Note) && text.trim().is_empty() {
+        return Err(Error::Other("note text is empty".into()));
+    }
+    let m = repo.mutate(
+        Op::Note { to, kind, text },
+        None,
+        |_, cur| Ok(cur.id()),
+    )?;
+    MutationOut::of(repo, m)
+}
+
+pub fn resolve_changeset(repo: &Repo, spec: &str) -> Result<svc_core::ChangeSet> {
+    let all = repo.store().changesets()?;
+    let named: Vec<_> = all.iter().filter(|c| c.name == spec).cloned().collect();
+    match named.len() {
+        1 => return Ok(named.into_iter().next().unwrap()),
+        n if n > 1 => {
+            return Err(Error::Other(format!(
+                "changeset {spec:?} names {n} groups — pass the id"
+            )));
+        }
+        _ => {}
+    }
+    match svc_core::ids::resolve_spec(all.iter().map(|c| c.id), |id| {
+        id.matches_spec(spec) || id.to_string() == spec
+    }) {
+        Ok(id) => all
+            .into_iter()
+            .find(|c| c.id == id)
+            .ok_or_else(|| Error::NotFound(format!("changeset {spec:?}"))),
+        Err(hits) if hits.is_empty() => Err(Error::NotFound(format!("changeset {spec:?}"))),
+        Err(_) => Err(Error::Other(format!(
+            "changeset {spec:?} is ambiguous — pass more of the id"
+        ))),
+    }
+}
+
+pub fn changeset_show(repo: &Repo, spec: &str) -> Result<ChangeSetOut> {
+    let cs = resolve_changeset(repo, spec)?;
+    let open = repo.open_group()?.0 == Some(cs.id);
+    changeset_out(repo, cs, open)
+}
+
+/// `svc review <changeset> --approve|--request-changes|--note`.
+pub fn review(
+    repo: &Repo,
+    spec: &str,
+    kind: NoteKind,
+    text: &str,
+) -> Result<MutationOut> {
+    if !matches!(
+        kind,
+        NoteKind::Approve | NoteKind::RequestChanges | NoteKind::Note
+    ) {
+        return Err(Error::Other("review kind must be approve, request-changes, or note".into()));
+    }
+    let cs = resolve_changeset(repo, spec)?;
+    note(repo, NoteTo::Changeset(cs.id), kind, text)
+}
+
+/// `svc mail <checkout|@all> "<text>" [--about entity|changeset]`.
+pub fn mail(
+    repo: &Repo,
+    to: &str,
+    text: &str,
+    about: Option<&str>,
+) -> Result<MutationOut> {
+    let dest = resolve_mail_to(repo, to, about)?;
+    note(repo, dest, NoteKind::Note, text)
+}
+
+fn resolve_mail_to(repo: &Repo, to: &str, about: Option<&str>) -> Result<NoteTo> {
+    if let Some(about) = about {
+        if let Ok(id) = resolve_entity(repo, about) {
+            return Ok(NoteTo::Entity(id));
+        }
+        if let Ok(cs) = resolve_changeset(repo, about) {
+            return Ok(NoteTo::Changeset(cs.id));
+        }
+        return Err(Error::NotFound(format!(
+            "--about {about:?} is not an entity or a changeset"
+        )));
+    }
+    if to == "@all" {
+        Ok(NoteTo::All)
+    } else {
+        Ok(NoteTo::Checkout(to.into()))
+    }
+}
+
+fn note_is_mail(op: &Op) -> bool {
+    match op {
+        Op::Note { kind, .. } => !matches!(kind, NoteKind::Claim | NoteKind::Release),
+        _ => false,
+    }
+}
+
+fn note_addressed_to(op: &Op, me: &str) -> bool {
+    match op {
+        Op::Note { to, .. } => match to {
+            NoteTo::All => true,
+            NoteTo::Checkout(name) => name == me,
+            NoteTo::Changeset(_) | NoteTo::Entity(_) => true,
+        },
+        _ => false,
+    }
+}
+
+pub fn inbox(repo: &Repo) -> Result<InboxOut> {
+    let me = checkout_name(repo);
+    let cursor = repo.redb().inbox_read_ix()?;
+    let unread = repo
+        .store()
+        .ops(OpIx(0), false)?
+        .into_iter()
+        .filter(|(ix, e)| {
+            ix.0 > cursor && note_is_mail(&e.op) && note_addressed_to(&e.op, &me)
+        })
+        .map(|(ix, e)| op_out(repo, ix, &e))
+        .collect();
+    Ok(InboxOut { unread, cursor })
+}
+
+/// `svc mail --read <n>`: mark notes through op `n` as read.
+pub fn mail_read(repo: &Repo, ix: u64) -> Result<InboxOut> {
+    repo.redb().set_inbox_read_ix(ix)?;
+    inbox(repo)
+}
+
+fn claim_ids(repo: &Repo, spec: &str) -> Result<Vec<EntityId>> {
+    if let Ok(id) = resolve_entity(repo, spec) {
+        return Ok(vec![id]);
+    }
+    let snap = repo.current()?;
+    let ids: Vec<EntityId> = snap
+        .entities
+        .iter()
+        .filter(|(_, r)| r.file.as_str() == spec || r.file.as_str().ends_with(&format!("/{spec}")))
+        .map(|(id, _)| *id)
+        .collect();
+    if ids.is_empty() {
+        Err(Error::NotFound(format!(
+            "{spec:?} is not an entity or a tracked file"
+        )))
+    } else {
+        Ok(ids)
+    }
+}
+
+pub fn claim(repo: &Repo, specs: &[String]) -> Result<Vec<MutationOut>> {
+    if specs.is_empty() {
+        return Err(Error::Other("claim: pass an entity or a file".into()));
+    }
+    let me = checkout_name(repo);
+    let mut out = Vec::new();
+    for spec in specs {
+        for id in claim_ids(repo, spec)? {
+            out.push(note(
+                repo,
+                NoteTo::Entity(id),
+                NoteKind::Claim,
+                me.clone(),
+            )?);
+        }
+    }
+    Ok(out)
+}
+
+pub fn release(repo: &Repo, specs: &[String]) -> Result<Vec<MutationOut>> {
+    let me = checkout_name(repo);
+    let ids = if specs.is_empty() {
+        active_claims(repo)?
+            .into_iter()
+            .filter(|c| c.by == me)
+            .map(|c| c.entity)
+            .collect()
+    } else {
+        let mut ids = Vec::new();
+        for spec in specs {
+            ids.extend(claim_ids(repo, spec)?);
+        }
+        ids
+    };
+    let mut out = Vec::new();
+    for id in ids {
+        out.push(note(
+            repo,
+            NoteTo::Entity(id),
+            NoteKind::Release,
+            me.clone(),
+        )?);
+    }
+    Ok(out)
+}
+
+/// Latest Claim/Release per entity; only live Claims remain.
+pub fn active_claims(repo: &Repo) -> Result<Vec<ClaimOut>> {
+    let mut last: BTreeMap<EntityId, (NoteKind, String)> = BTreeMap::new();
+    for (ix, e) in repo.store().ops(OpIx(0), false)? {
+        if let Op::Note {
+            to: NoteTo::Entity(id),
+            kind,
+            ..
+        } = &e.op
+        {
+            if matches!(kind, NoteKind::Claim | NoteKind::Release) {
+                let by = repo
+                    .redb()
+                    .op_workspace(ix)
+                    .ok()
+                    .flatten()
+                    .filter(|w| !w.is_empty())
+                    .unwrap_or_else(|| DEFAULT_WORKSPACE.to_string());
+                last.insert(*id, (kind.clone(), by));
+            }
+        }
+    }
+    let snap = repo.current()?;
+    let mut out: Vec<ClaimOut> = last
+        .into_iter()
+        .filter_map(|(id, (kind, by))| {
+            if kind != NoteKind::Claim {
+                return None;
+            }
+            let name = snap
+                .entities
+                .get(&id)
+                .map(|r| r.name.clone())
+                .unwrap_or_else(|| id.short());
+            Some(ClaimOut {
+                entity: id,
+                name,
+                by,
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.cmp(&b.name).then(a.by.cmp(&b.by)));
+    Ok(out)
+}
+
+/// Notes hung on an entity (show-def / the other half of a review thread).
+pub fn notes_about_entity(repo: &Repo, id: EntityId) -> Result<Vec<OpOut>> {
+    Ok(repo
+        .store()
+        .ops(OpIx(0), true)?
+        .into_iter()
+        .filter(|(_, e)| {
+            matches!(
+                &e.op,
+                Op::Note {
+                    to: NoteTo::Entity(eid),
+                    ..
+                } if *eid == id
+            )
+        })
+        .map(|(ix, e)| op_out(repo, ix, &e))
+        .collect())
 }

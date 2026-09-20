@@ -2,7 +2,7 @@
 //! without it the expo reads sentences). Entity references print as `name⟨short⟩`, never
 //! a bare UUID.
 
-use svc_core::{Conflict, EntityId, IdentRef, Intent, ObservedClass, Op, Snapshot};
+use svc_core::{Conflict, EntityId, IdentRef, Intent, NoteKind, NoteTo, ObservedClass, Op, Snapshot};
 
 use crate::history::{BlameEntry, ChangeOut, EvologEntry, OpOut, StatusOut, Touch};
 use crate::merge::{ConflictOut, MergeOut};
@@ -74,10 +74,35 @@ pub fn op(snap: &Snapshot, e: &OpOut) -> String {
         Op::Branch { name } => format!("branch {name}"),
         Op::Absorb => "absorbed hand edits".into(),
         Op::Resolve { conflict, take } => format!("resolved conflict {conflict}: took {take:?}"),
+        Op::Note { to, kind, text } => note_line(snap, to, kind, text, e.subject.as_deref()),
     };
     // An op a named checkout made says so; the default checkout's says nothing.
     let from = e.workspace.as_deref().map(|w| format!("  [{w}]")).unwrap_or_default();
     format!("#{:<3} {body}{verdict}{from}", e.ix.0)
+}
+
+fn note_line(snap: &Snapshot, to: &NoteTo, kind: &NoteKind, text: &str, subject: Option<&str>) -> String {
+    let dest = match to {
+        NoteTo::All => "@all".into(),
+        NoteTo::Checkout(name) => format!("checkout {name}"),
+        NoteTo::Changeset(id) => format!("changeset {}", id.short()),
+        NoteTo::Entity(id) => match subject {
+            Some(n) => format!("{n}⟨{}⟩", id.short()),
+            None => entity_ref(snap, *id),
+        },
+    };
+    let body = match kind {
+        NoteKind::Approve => format!("approved {dest}"),
+        NoteKind::RequestChanges => format!("requested changes on {dest}"),
+        NoteKind::Note => format!("note to {dest}"),
+        NoteKind::Claim => format!("claimed {dest}"),
+        NoteKind::Release => format!("released {dest}"),
+    };
+    if text.is_empty() || matches!(kind, NoteKind::Claim | NoteKind::Release) {
+        body
+    } else {
+        format!("{body}: {text:?}")
+    }
 }
 
 fn name_before(snap: &Snapshot, id: EntityId, new: &str) -> String {
@@ -192,6 +217,16 @@ pub fn status(snap: &Snapshot, s: &StatusOut) -> String {
     }];
     for d in &s.deltas {
         lines.push(format!("    {}", delta(snap, d)));
+    }
+    for c in &s.claims {
+        let mark = if c.by == "default" { "claimed" } else { "claimed by" };
+        lines.push(format!("    {mark} {}  {}⟨{}⟩", c.by, c.name, c.entity.short()));
+    }
+    if s.inbox > 0 {
+        lines.push(format!(
+            "    {} unread — svc inbox",
+            s.inbox
+        ));
     }
     lines.join("\n")
 }

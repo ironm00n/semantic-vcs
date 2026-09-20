@@ -325,7 +325,69 @@ fn add_def_delete_and_changeset() {
     );
 }
 
-#[cfg(unix)]
+#[test]
+fn review_mail_claim_are_one_note_op() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(dir.path(), &["new"]);
+    json(dir.path(), &["changeset", "begin", "run"]);
+    json(dir.path(), &["changeset", "end"]);
+    let approved = json(dir.path(), &["review", "run", "--approve"]);
+    assert!(approved["ix"].is_number(), "{approved}");
+    let shown = json(dir.path(), &["changeset", "show", "run"]);
+    assert_eq!(shown["reviews"].as_array().unwrap().len(), 1, "{shown}");
+    assert_eq!(shown["reviews"][0]["op"]["Note"]["kind"], "Approve", "{shown}");
+
+    json(dir.path(), &["mail", "@all", "pushing main"]);
+    let box_ = json(dir.path(), &["inbox"]);
+    assert!(
+        box_["unread"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["op"]["Note"]["text"] == "pushing main"),
+        "{box_}"
+    );
+    let ix = box_["unread"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["op"]["Note"]["text"] == "pushing main")
+        .unwrap()["ix"]
+        .as_u64()
+        .unwrap();
+    json(dir.path(), &["mail", "--read", &ix.to_string()]);
+    let after = json(dir.path(), &["inbox"]);
+    assert!(
+        after["unread"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|n| n["op"]["Note"]["text"] != "pushing main"),
+        "{after}"
+    );
+
+    json(dir.path(), &["claim", "parse"]);
+    let st = json(dir.path(), &["status"]);
+    assert!(
+        st["claims"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["name"] == "parse"),
+        "{st}"
+    );
+    json(dir.path(), &["release", "parse"]);
+    let st = json(dir.path(), &["status"]);
+    assert!(
+        st["claims"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|c| c["name"] != "parse"),
+        "{st}"
+    );
+}
 #[test]
 fn list_defs_json_survives_a_closed_pipe() {
     let dir = fixture();

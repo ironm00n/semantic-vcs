@@ -7,7 +7,7 @@ use std::time::SystemTime;
 
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
-use svc_core::{Conflict, Kind, Op};
+use svc_core::{Conflict, Kind, NoteKind, NoteTo, Op};
 use svc_repo::{BlameEntry, ChangeOut, ConflictOut, EvologEntry, OpOut};
 
 #[derive(Clone, Debug, Deserialize)]
@@ -189,6 +189,26 @@ pub fn describe_op(op: &Op) -> String {
         Op::Branch { name } => format!("branch {name}"),
         Op::Absorb => "absorbed hand edits".into(),
         Op::Resolve { conflict, take } => format!("resolved conflict {conflict}: took {take:?}"),
+        Op::Note { to, kind, text } => {
+            let dest = match to {
+                NoteTo::All => "@all".into(),
+                NoteTo::Checkout(name) => name.clone(),
+                NoteTo::Changeset(id) => format!("changeset {}", id.short()),
+                NoteTo::Entity(id) => id.short(),
+            };
+            let head = match kind {
+                NoteKind::Approve => format!("approved {dest}"),
+                NoteKind::RequestChanges => format!("requested changes on {dest}"),
+                NoteKind::Note => format!("note to {dest}"),
+                NoteKind::Claim => format!("claimed {dest}"),
+                NoteKind::Release => format!("released {dest}"),
+            };
+            if text.is_empty() {
+                head
+            } else {
+                format!("{head}: {text}")
+            }
+        }
     }
 }
 

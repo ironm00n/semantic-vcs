@@ -7,12 +7,13 @@ use svc_core::engine::{
     add_def_at, classify_def, delete, diff as diff_snapshots, edit_def, extract_hoist, inline,
     move_def, relocate, rename, render_entity, resolve_add_def_file, show,
 };
-use svc_core::{EntityId, Intent, Op, OpIx, RelPath, Snapshot, SnapshotId};
+use svc_core::{EntityId, Intent, NoteKind, Op, OpIx, RelPath, Snapshot, SnapshotId};
 use svc_repo::{
-    Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_status,
-    changesets, checkout, conflicts as list_conflicts, describe, edit, evolog, heads, log,
-    merge as merge_repo, new, op_log, op_restore, replay, resolve as resolve_conflict,
-    resolve_entity, resolve_entity_in, status, undo, untracked_mentions, workspace,
+    Repo, Take, blame, branch, changeset_begin, changeset_end, changeset_show, changeset_status,
+    changesets, checkout, claim, conflicts as list_conflicts, describe, edit, evolog, heads, inbox,
+    log, mail, mail_read, merge as merge_repo, new, notes_about_entity, op_log, op_restore, release,
+    replay, resolve as resolve_conflict, resolve_entity, resolve_entity_in, review, status, undo,
+    untracked_mentions, workspace,
 };
 
 mod agent;
@@ -41,6 +42,16 @@ enum Command {
     Checkout { snapshot: String }, Render, Replay, Rename(RenameArgs), Move(MoveArgs),
     Relocate(RelocateArgs), Extract(ExtractArgs), Inline(EntityArg), AddDef(AddDefArgs),
     Delete(DeleteArgs), EditDef(EditDefArgs), Classify(ClassifyArgs), Agent { task: String },
+    /// Review a changeset: the mailbox half of a PR, stored as `Op::Note`.
+    Review(ReviewArgs),
+    /// Mail another checkout, or `@all`. `--about` hangs it on an entity or changeset.
+    Mail(MailArgs),
+    /// Unread notes addressed to this checkout or `@all`.
+    Inbox,
+    /// Record that this checkout is editing an entity or every entity in a file.
+    Claim { targets: Vec<String> },
+    /// Drop a claim (`svc release` drops this checkout's claims).
+    Release { targets: Vec<String> },
     /// Open the review UI; with `--agent <task>`, run that task under dsh inside it (demo line 12).
     Tui { #[arg(long)] agent: Option<String>, #[arg(long)] wire_log: bool },
 }
@@ -67,6 +78,7 @@ enum ChangeSetCommand {
     End,
     Status,
     List,
+    Show { changeset: String },
 }
 #[derive(Args)] struct EntityArg { #[arg(long)] entity: String }
 #[derive(Args)] struct ShowDefArgs { #[arg(long)] entity: String, #[arg(long)] at: Option<String> }
@@ -78,6 +90,28 @@ enum ChangeSetCommand {
 #[derive(Args)] struct DeleteArgs { #[arg(long)] entity: String, #[arg(long)] intent: String }
 #[derive(Args)] struct EditDefArgs { #[arg(long)] entity: String, #[arg(long)] definition: String, #[arg(long)] intent: String }
 #[derive(Args)] struct ClassifyArgs { #[arg(long)] entity: String, #[arg(long)] definition: String }
+#[derive(Args)]
+struct ReviewArgs {
+    changeset: String,
+    #[arg(long, group = "verdict")]
+    approve: bool,
+    #[arg(long, group = "verdict")]
+    request_changes: bool,
+    #[arg(long, group = "verdict")]
+    note: Option<String>,
+}
+#[derive(Args)]
+struct MailArgs {
+    /// Checkout name, or `@all`. Omitted with `--read`.
+    to: Option<String>,
+    /// Message body. Omitted with `--read`.
+    message: Option<String>,
+    #[arg(long)]
+    about: Option<String>,
+    /// Mark notes through this op index as read.
+    #[arg(long)]
+    read: Option<u64>,
+}
 
 fn main() -> ExitCode {
     // `svc list-defs --json | head` must not panic with "failed printing to stdout: Broken
@@ -447,6 +481,58 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
                     .map_err(|e| e.to_string()),
             );
         }
+        Command::Changeset(ChangeSetCommand::Show { changeset }) => {
+            return Some(changeset_show(&repo, changeset).map(|c| {
+                let mut lines = vec![format!(
+                    "changeset {} ({:?}, {} ops, {} reviews)",
+                    c.name,
+                    c.intent,
+                    c.ops.len(),
+                    c.reviews.len()
+                )];
+                for r in &c.reviews {
+                    lines.push(format!("  {}", text::op(&snap, r)));
+                }
+                lines.join("\n")
+            }).map_err(|e| e.to_string()));
+        }
+        Command::Review(_) | Command::Claim { .. } | Command::Release { .. } => {
+            return Some(run_with(cli, &repo).and_then(|v| {
+                if let Some(arr) = v.as_array() {
+                    let snap = repo.current().map_err(|e| e.to_string())?;
+                    let log = op_log(&repo).map_err(|e| e.to_string())?;
+                    Ok(arr
+                        .iter()
+                        .filter_map(|item| {
+                            let ix = item["ix"].as_u64().or_else(|| item["op"].as_u64())?;
+                            log.iter().find(|e| e.ix.0 == ix).map(|e| text::op(&snap, e))
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n"))
+                } else {
+                    text_of_this_op(&repo, &v)
+                }
+            }));
+        }
+        Command::Mail(args) if args.read.is_some() => {
+            return Some(run_with(cli, &repo).map(|v| inbox_text(&v)));
+        }
+        Command::Mail(_) => {
+            return Some(run_with(cli, &repo).and_then(|v| text_of_this_op(&repo, &v)));
+        }
+        Command::Inbox => {
+            return Some(inbox(&repo).map(|box_| {
+                if box_.unread.is_empty() {
+                    "inbox empty".into()
+                } else {
+                    box_.unread
+                        .iter()
+                        .map(|e| text::op(&snap, e))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                }
+            }).map_err(|e| e.to_string()));
+        }
         _ => return None,
     };
     Some(out.map_err(|e| e.to_string()))
@@ -508,6 +594,25 @@ fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
         }
         Command::Changeset(ChangeSetCommand::Status) => value(changeset_status(&repo)),
         Command::Changeset(ChangeSetCommand::List) => value(changesets(&repo)),
+        Command::Changeset(ChangeSetCommand::Show { changeset }) => {
+            value(changeset_show(&repo, changeset))
+        }
+        Command::Review(args) => {
+            let (kind, text) = review_kind(args)?;
+            value(review(&repo, &args.changeset, kind, &text))
+        }
+        Command::Mail(args) => {
+            if let Some(ix) = args.read {
+                value(mail_read(&repo, ix))
+            } else {
+                let to = args.to.as_deref().ok_or("mail: pass a checkout name or @all")?;
+                let message = args.message.as_deref().ok_or("mail: pass a message")?;
+                value(mail(&repo, to, message, args.about.as_deref()))
+            }
+        }
+        Command::Inbox => value(inbox(&repo)),
+        Command::Claim { targets } => value(claim(&repo, targets)),
+        Command::Release { targets } => value(release(&repo, targets)),
         Command::Workspace(WorkspaceCommand::Add { name, path, at }) => {
             let change = at
                 .as_deref()
@@ -574,6 +679,27 @@ fn parse_take(value: &str) -> Result<Take, String> {
     }
 }
 
+fn review_kind(args: &ReviewArgs) -> Result<(NoteKind, String), String> {
+    match (args.approve, args.request_changes, args.note.as_deref()) {
+        (true, false, None) => Ok((NoteKind::Approve, String::new())),
+        (false, true, None) => Ok((NoteKind::RequestChanges, String::new())),
+        (false, false, Some(text)) => Ok((NoteKind::Note, text.into())),
+        (false, false, None) => {
+            Err("review: pass --approve, --request-changes, or --note <text>".into())
+        }
+        _ => Err("review: pass exactly one of --approve, --request-changes, --note".into()),
+    }
+}
+
+fn inbox_text(v: &Value) -> String {
+    let unread = v["unread"].as_array();
+    match unread {
+        Some(items) if items.is_empty() => "inbox empty".into(),
+        Some(items) => format!("{} unread", items.len()),
+        None => "inbox empty".into(),
+    }
+}
+
 fn definition_bytes(definition: &str) -> Vec<u8> {
     let mut bytes = definition.as_bytes().to_vec();
     if !bytes.ends_with(b"\n") {
@@ -615,7 +741,8 @@ fn show_def(repo: &Repo, query: &str, at: Option<&str>) -> Result<Value, String>
     let content = repo.store().get_content(entity.content).map_err(|e| e.to_string())?;
     let (src, _) = render_entity(&snap, repo.store(), id, false).map_err(|e| e.to_string())?;
     let text = String::from_utf8_lossy(&src);
-    Ok(json!({"id": id, "entity": entity, "canonical": canonical, "bytes": bytes, "content": content, "text": text}))
+    let notes = notes_about_entity(repo, id).map_err(|e| e.to_string())?;
+    Ok(json!({"id": id, "entity": entity, "canonical": canonical, "bytes": bytes, "content": content, "text": text, "notes": notes}))
 }
 
 fn show_canonical(repo: &Repo, query: &str) -> Result<Value, String> {
@@ -915,6 +1042,15 @@ mod tests {
         Cli::try_parse_from(["svc", "show-def", "--entity", "parse", "--at", "deadbeef"]).unwrap();
         Cli::try_parse_from(["svc", "history", "export", "--since", "1", "--out", "/tmp/h.json"]).unwrap();
         Cli::try_parse_from(["svc", "history", "import", "/tmp/h.json"]).unwrap();
+        Cli::try_parse_from(["svc", "review", "run", "--approve"]).unwrap();
+        Cli::try_parse_from(["svc", "review", "run", "--request-changes"]).unwrap();
+        Cli::try_parse_from(["svc", "review", "run", "--note", "split this"]).unwrap();
+        Cli::try_parse_from(["svc", "mail", "@all", "pushing main"]).unwrap();
+        Cli::try_parse_from(["svc", "mail", "--read", "3"]).unwrap();
+        Cli::try_parse_from(["svc", "inbox"]).unwrap();
+        Cli::try_parse_from(["svc", "claim", "parse"]).unwrap();
+        Cli::try_parse_from(["svc", "release"]).unwrap();
+        Cli::try_parse_from(["svc", "changeset", "show", "run"]).unwrap();
     }
 
     #[test]

@@ -163,6 +163,7 @@ impl Replay<'_> {
             Op::Absorb => {
                 self.import(e.after.root)?;
             }
+            Op::Note { .. } => {}
         }
         Ok(())
     }

@@ -30,6 +30,6 @@ pub use lang::{
 };
 pub use lang_js::{JsLang, js_kind};
 pub use lang_rust::RustLang;
-pub use op::{Intent, Op, OpLogEntry, Take, View};
+pub use op::{Intent, NoteKind, NoteTo, Op, OpLogEntry, Take, View};
 pub use snapshot::{AtomLocal, Conflict, Hunk, Merge, Side, Snapshot};
 pub use store::{MemStore, Store};

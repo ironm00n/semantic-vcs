@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use svc_core::engine::render_entity;
-use svc_core::{Conflict, EntityId, Error, Op, OpIx, OpLogEntry, RelPath, ReviewItem, Result, Snapshot, SnapshotId, Store};
+use svc_core::{Conflict, EntityId, Error, NoteKind, Op, OpIx, OpLogEntry, RelPath, ReviewItem, Result, Snapshot, SnapshotId, Store};
 
 use crate::history::{op_entity, touch, touches};
 use crate::repo::Repo;
@@ -94,6 +94,14 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
                 observed: e.observed,
                 ask_id: None,
             }),
+            Op::Note { to, kind, text } if !matches!(kind, NoteKind::Claim | NoteKind::Release) => {
+                Some(ReviewItem::Note {
+                    op: *ix,
+                    to: to.clone(),
+                    kind: kind.clone(),
+                    text: text.clone(),
+                })
+            }
             _ => None,
         })
         .collect();

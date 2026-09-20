@@ -13,7 +13,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use svc_core::engine::{add_def_at, delete, edit_def, inline, move_def, relocate, render, rename};
 use svc_core::{
-    ChangeId, ChangeSet, EntityId, Error, Kind, Op, OpIx, OpLogEntry, RelPath, Result, Snapshot, SnapshotId,
+    ChangeId, ChangeSet, EntityId, Error, Kind, NoteTo, Op, OpIx, OpLogEntry, RelPath, Result,
+    Snapshot, SnapshotId,
 };
 
 use crate::history::{self, op_entity};
@@ -161,7 +162,15 @@ pub fn export_range(repo: &Repo, since: OpIx, until: Option<OpIx>) -> Result<Bun
         });
     }
     let mut changesets = Vec::new();
-    for g in entries.iter().filter_map(|b| b.entry.group) {
+    for g in entries.iter().filter_map(|b| {
+        b.entry.group.or(match &b.entry.op {
+            Op::Note {
+                to: NoteTo::Changeset(id),
+                ..
+            } => Some(*id),
+            _ => None,
+        })
+    }) {
         if !changesets.iter().any(|cs: &ChangeSet| cs.id == g)
             && let Ok(cs) = store.get_changeset(g)
         {
@@ -377,6 +386,21 @@ impl Import<'_> {
             Op::Absorb => {
                 write_changes(repo.root_dir(), &b.files)?;
                 repo.absorb()?;
+            }
+            Op::Note { to, kind, text } => {
+                let to = match to {
+                    NoteTo::Entity(id) => NoteTo::Entity(self.entity(&cur, b, *id)?),
+                    other => other.clone(),
+                };
+                repo.mutate(
+                    Op::Note {
+                        to,
+                        kind: kind.clone(),
+                        text: text.clone(),
+                    },
+                    e.observed,
+                    |_, cur| Ok(cur.id()),
+                )?;
             }
         }
         Ok(())

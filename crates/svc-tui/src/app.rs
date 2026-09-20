@@ -9,7 +9,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
 use serde_json::Value;
 use svc_agent::{AgentCommand, AgentEvent, PermissionAsk};
-use svc_core::{Conflict, Op};
+use svc_core::{Conflict, NoteKind, Op};
 use svc_repo::{BlameEntry, ChangeOut, ConflictOut, EntityTouch, OpOut, Touch};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -47,6 +47,9 @@ pub enum QueueItem {
     },
     Binding {
         line: String,
+    },
+    Note {
+        op: OpOut,
     },
 }
 
@@ -340,6 +343,14 @@ impl App {
                 queue.push(QueueItem::Binding {
                     line: conflict_line(c),
                 });
+            }
+        }
+        for op in self.ops.iter().rev() {
+            if let Op::Note { kind, .. } = &op.op {
+                if matches!(kind, NoteKind::Claim | NoteKind::Release) {
+                    continue;
+                }
+                queue.push(QueueItem::Note { op: op.clone() });
             }
         }
         self.queue = queue;
@@ -666,6 +677,15 @@ impl App {
                 v
             }
             QueueItem::Binding { .. } => vec![Line::from("      fix the code, or `svc resolve <n> --accept`").dark_gray()],
+            QueueItem::Note { op } => {
+                let mut v = vec![Line::from(format!("      op #{}  at {}", op.ix.0, op.at)).dark_gray()];
+                if let Op::Note { text, .. } = &op.op {
+                    if !text.is_empty() {
+                        v.push(Line::from(format!("      {text}")).dark_gray());
+                    }
+                }
+                v
+            }
         }
     }
 
@@ -986,7 +1006,7 @@ impl App {
             })
             .collect();
         let list = List::new(items)
-            .block(self.border(Pane::Queue, " review queue — edit-defs and binding conflicts ".into()))
+            .block(self.border(Pane::Queue, " review queue — edits, notes, binding conflicts ".into()))
             .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
         frame.render_stateful_widget(list, area, &mut self.queue_state);
     }
@@ -1153,6 +1173,17 @@ fn queue_line(q: &QueueItem) -> Line<'static> {
             Span::styled("[!] ".to_string(), Style::default().fg(Color::Red).bold()),
             Span::raw(line.clone()),
         ]),
+        QueueItem::Note { op } => {
+            let (tag, style) = match &op.op {
+                Op::Note { kind: NoteKind::RequestChanges, .. } => ("✗", Style::default().fg(Color::Red).bold()),
+                Op::Note { kind: NoteKind::Approve, .. } => ("✓", Style::default().fg(Color::Green).bold()),
+                _ => ("✉", Style::default().fg(Color::Cyan).bold()),
+            };
+            Line::from(vec![
+                Span::styled(format!("[{tag}] "), style),
+                Span::raw(describe_op(&op.op)),
+            ])
+        }
     }
 }
 

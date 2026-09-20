@@ -44,6 +44,13 @@ const META_ROOT: &str = "root";
 const META_OPEN_CHANGESET: &str = "open_changeset";
 const META_RENDER_PENDING: &str = "render_pending";
 
+fn inbox_meta_key(workspace: Option<&str>) -> String {
+    match workspace {
+        None | Some("") => "inbox_read".into(),
+        Some(name) => format!("inbox_read:{name}"),
+    }
+}
+
 /// Everything a named checkout keeps that the default checkout keeps in `META`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceRow {
@@ -353,6 +360,15 @@ impl RedbStore {
     /// The checkout this handle's `root`/`render_pending`/`open_changeset` refer to.
     pub fn workspace(&self) -> Option<&str> {
         self.workspace.as_deref()
+    }
+
+    /// Last `svc mail --read` op index for this checkout (0 = nothing marked).
+    pub fn inbox_read_ix(&self) -> Result<u64> {
+        Ok(self.get_meta::<u64>(&inbox_meta_key(self.workspace.as_deref()))?.unwrap_or(0))
+    }
+
+    pub fn set_inbox_read_ix(&self, ix: u64) -> Result<()> {
+        self.set_meta(&inbox_meta_key(self.workspace.as_deref()), &ix)
     }
 
     /// Every named checkout, sorted by name. Stores created before the table existed read
