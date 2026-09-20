@@ -155,60 +155,76 @@ fn path_eq_literal(attr: &str) -> Option<String> {
     parse_path_lit(rest)
 }
 
-fn attr_is_macro_export(attr: &str) -> bool {
+fn attr_is(attr: &str, name: &str) -> bool {
     let inner = attr
         .trim()
         .strip_prefix("#[")
         .and_then(|s| s.strip_suffix(']'))
         .unwrap_or(attr.trim())
         .trim();
-    inner == "macro_export" || inner.starts_with("macro_export(")
+    inner == name || inner.starts_with(&format!("{name}("))
 }
 
-fn token_tree_is_macro_export(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+fn token_tree_is_attr(node: tree_sitter::Node<'_>, src: &[u8], name: &str) -> bool {
     let text = node_text(src, node);
     let t = text.trim();
-    t == "[macro_export]" || t.starts_with("[macro_export(")
+    t == format!("[{name}]") || t.starts_with(&format!("[{name}("))
 }
 
-fn has_macro_export(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+fn has_attr(node: tree_sitter::Node<'_>, src: &[u8], name: &str) -> bool {
     let mut prev = node.prev_named_sibling();
     while let Some(p) = prev {
         match p.kind() {
-            "attribute_item" if attr_is_macro_export(&node_text(src, p)) => return true,
+            "attribute_item" if attr_is(&node_text(src, p), name) => return true,
             "visibility_modifier" | "pub" => {}
-            "token_tree" if token_tree_is_macro_export(p, src) => return true,
+            "token_tree" if token_tree_is_attr(p, src, name) => return true,
             _ => break,
         }
         prev = p.prev_named_sibling();
     }
     let mut c = node.walk();
     for ch in node.named_children(&mut c) {
-        if ch.kind() == "attribute_item" && attr_is_macro_export(&node_text(src, ch)) {
+        if ch.kind() == "attribute_item" && attr_is(&node_text(src, ch), name) {
             return true;
         }
     }
     false
 }
 
-fn preceding_macro_export(kids: &[tree_sitter::Node<'_>], f: usize, src: &[u8]) -> bool {
+fn preceding_attr(kids: &[tree_sitter::Node<'_>], f: usize, src: &[u8], name: &str) -> bool {
     let mut k = f;
     while k > 0 {
         k -= 1;
         match kids[k].kind() {
             "pub" | "visibility_modifier" | "!" | "#" => {}
-            "attribute_item" if attr_is_macro_export(&node_text(src, kids[k])) => return true,
-            "token_tree" if token_tree_is_macro_export(kids[k], src) => return true,
+            "attribute_item" if attr_is(&node_text(src, kids[k]), name) => return true,
+            "token_tree" if token_tree_is_attr(kids[k], src, name) => return true,
             _ => break,
         }
     }
     false
 }
 
+fn has_macro_export(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    has_attr(node, src, "macro_export")
+}
+
+fn preceding_macro_export(kids: &[tree_sitter::Node<'_>], f: usize, src: &[u8]) -> bool {
+    preceding_attr(kids, f, src, "macro_export")
+}
+
 fn mark_macro_export(raw: &mut [RawEntity], export: bool) {
     if export && let Some(ent) = raw.last_mut() {
         if ent.kind == Kind::Macro {
             ent.macro_export = true;
+        }
+    }
+}
+
+fn mark_macro_use(raw: &mut [RawEntity], use_: bool) {
+    if use_ && let Some(ent) = raw.last_mut() {
+        if ent.kind == Kind::Mod {
+            ent.macro_use = true;
         }
     }
 }
@@ -238,12 +254,14 @@ fn emit<'a>(
         children: Vec::new(),
         path_attr: None,
         macro_export: false,
+        macro_use: false,
     });
     nodes.push(node);
     if kind == Kind::Mod {
         if let Some(p) = path_attr_of(node, src) {
             raw[idx].path_attr = Some(p);
         }
+        raw[idx].macro_use = has_attr(node, src, "macro_use");
     }
     if kind == Kind::Macro {
         raw[idx].macro_export = has_macro_export(node, src);
@@ -402,6 +420,7 @@ fn collect_macro_mod_decls<'a>(
                 raw,
                 nodes,
             );
+            mark_macro_use(raw, preceding_attr(&kids, j, src, "macro_use"));
             i = j + 3;
             continue;
         }
@@ -423,6 +442,7 @@ fn collect_macro_mod_decls<'a>(
                 raw,
                 nodes,
             );
+            mark_macro_use(raw, preceding_attr(&kids, j, src, "macro_use"));
             let mod_idx = raw.len() - 1;
             collect_macro_mod_decls(kids[j + 2], src, lang, Some(mod_idx), raw, nodes);
             i = j + 3;

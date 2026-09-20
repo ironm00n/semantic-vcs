@@ -3558,3 +3558,58 @@ fn rename_follows_macro_export_macros_2_at_crate_root() {
         "crate-root macros 2.0 with #[macro_export] must occupy: {text}"
     );
 }
+
+#[test]
+fn rename_follows_macro_use_on_an_inline_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"#[macro_use]\nmod fs {\n    macro_rules! parse { () => {}; }\n}\nmod caller;\n".to_vec(),
+    );
+    files.insert(caller.clone(), b"fn f() { parse!(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "#[macro_use] on a mod must export its macros: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_macro_use_on_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let fs = RelPath::new("src/fs.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib, b"#[macro_use]\nmod fs;\nmod caller;\n".to_vec());
+    files.insert(fs, b"macro_rules! parse { () => {}; }\n".to_vec());
+    files.insert(caller.clone(), b"fn f() { parse!(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "#[macro_use] mod fs; must export macros from fs.rs: {text}"
+    );
+}

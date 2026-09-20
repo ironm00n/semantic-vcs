@@ -639,6 +639,9 @@ pub struct RawEntity {
     /// `#[macro_export]` — rustc puts the macro at the crate root even when
     /// the definition sits in a nested module.
     pub macro_export: bool,
+    /// `#[macro_use]` on `mod fs` — rustc injects that module's macros at the
+    /// crate root, like `#[macro_export]` on each of them.
+    pub macro_use: bool,
 }
 
 #[derive(Clone, Debug, Default)]

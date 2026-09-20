@@ -266,6 +266,45 @@ fn is_block_local_raw(raw: &[RawEntity], i: usize) -> bool {
         .is_some_and(|p| hosts_block_items(raw[p].kind))
 }
 
+fn export_macro_raw(env: &mut Env, raw: &[RawEntity], i: usize, id: EntityId) {
+    if raw[i].kind != Kind::Macro {
+        return;
+    }
+    let from_parent = raw[i]
+        .parent_idx
+        .is_some_and(|p| raw[p].kind == Kind::Mod && raw[p].macro_use);
+    if raw[i].macro_export || from_parent {
+        env.export_macro(&raw[i].name, id);
+    }
+}
+
+fn export_file_module_macro_use(
+    env: &mut Env,
+    files: &[(&RelPath, &[RawEntity], &[EntityId])],
+) {
+    let mut use_mods = HashSet::new();
+    for (_, raw, ids) in files {
+        for (i, ent) in raw.iter().enumerate() {
+            if ent.kind == Kind::Mod && ent.macro_use {
+                use_mods.insert(ids[i]);
+            }
+        }
+    }
+    for (path, raw, ids) in files {
+        let Some(&mid) = env.file_of_mod.get(*path) else {
+            continue;
+        };
+        if !use_mods.contains(&mid) {
+            continue;
+        }
+        for (i, ent) in raw.iter().enumerate() {
+            if ent.kind == Kind::Macro && ent.parent_idx.is_none() {
+                env.export_macro(&ent.name, ids[i]);
+            }
+        }
+    }
+}
+
 fn skip_crate_occupy_raw(raw: &[RawEntity], i: usize) -> bool {
     if is_inherent_raw(raw, i) {
         return true;
@@ -923,13 +962,11 @@ pub fn snapshot_files_reusing(
     for p in &parsed {
         for (i, ent) in p.raw.iter().enumerate() {
             insert_mod_child_raw(&mut env, &p.raw, &p.ids, i);
+            export_macro_raw(&mut env, &p.raw, i, p.ids[i]);
             if skip_crate_occupy_raw(&p.raw, i) {
                 continue;
             }
             env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));
-            if ent.kind == Kind::Macro && ent.macro_export {
-                env.export_macro(&ent.name, p.ids[i]);
-            }
         }
     }
     {
@@ -938,6 +975,7 @@ pub fn snapshot_files_reusing(
             .map(|p| (&p.path, p.raw.as_slice(), p.ids.as_slice()))
             .collect();
         link_file_modules(&mut env, &views);
+        export_file_module_macro_use(&mut env, &views);
     }
     {
         env.bind_reexports = true;
@@ -1091,15 +1129,14 @@ pub fn ingest_file_prev(
     let mut env = extra.clone();
     for (i, ent) in raw.iter().enumerate() {
         insert_mod_child_raw(&mut env, &raw, &ids, i);
+        export_macro_raw(&mut env, &raw, i, ids[i]);
         if skip_crate_occupy_raw(&raw, i) {
             continue;
         }
         env.insert_def_in(&ent.name, ent.kind, ids[i], Some(&path));
-        if ent.kind == Kind::Macro && ent.macro_export {
-            env.export_macro(&ent.name, ids[i]);
-        }
     }
     link_file_modules_from_raw(&mut env, &path, &raw, &ids);
+    export_file_module_macro_use(&mut env, &[(&path, raw.as_slice(), ids.as_slice())]);
     let (entities, file) = materialize(src, path.clone(), lang, store, &tree, &raw, &ids, &env)?;
     let mut files = BTreeMap::new();
     files.insert(path, file);
