@@ -1136,21 +1136,35 @@ fn node_text(node: tree_sitter::Node<'_>, src: &[u8]) -> String {
         .to_string()
 }
 
-/// File-level `use` names for the module being resolved. Call after
-/// [`Env`] super/self/file-module fields are filled. Nested inline mods
-/// do not inherit the outer file's imports.
+/// `use` names in the same module as `item`. Nested inline mods keep their
+/// own imports; they do not inherit the outer file's.
 pub(crate) fn fill_use_imports(
     env: &mut Env,
-    root: tree_sitter::Node<'_>,
+    item: tree_sitter::Node<'_>,
     src: &[u8],
     lang: &dyn Lang,
 ) {
     env.use_imports.clear();
     env.use_aliases.clear();
-    if lang.name() != "rust" || env.inline_mod {
+    if lang.name() != "rust" {
         return;
     }
-    collect_use_imports(env, root, src);
+    collect_use_imports(env, use_scope_node(item), src);
+}
+
+fn use_scope_node(mut node: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
+    loop {
+        let Some(parent) = node.parent() else {
+            return node;
+        };
+        if node.kind() == "declaration_list" && parent.kind() == "mod_item" {
+            return node;
+        }
+        if parent.kind() == "source_file" {
+            return parent;
+        }
+        node = parent;
+    }
 }
 
 pub(crate) fn collect_use_imports(env: &mut Env, root: tree_sitter::Node<'_>, src: &[u8]) {
@@ -1221,7 +1235,18 @@ fn import_use_tree(env: &mut Env, node: tree_sitter::Node<'_>, src: &[u8], prefi
                 }
             }
         }
-        "use_wildcard" => {}
+        "use_wildcard" => {
+            let mut segs = prefix.to_vec();
+            for i in 0..node.named_child_count() {
+                if let Some(ch) = node.named_child(i as u32) {
+                    if ch.kind() == "*" || node_text(ch, src) == "*" {
+                        continue;
+                    }
+                    segs.extend(path_idents(ch, src));
+                }
+            }
+            bind_glob(env, &segs);
+        }
         _ => {
             let mut segs = prefix.to_vec();
             segs.extend(path_idents(node, src));
@@ -1234,11 +1259,48 @@ fn import_use_tree(env: &mut Env, node: tree_sitter::Node<'_>, src: &[u8], prefi
                 return;
             };
             if name == "*" {
+                bind_glob(env, &segs[..segs.len() - 1]);
                 return;
             }
             bind_use(env, &segs, &name);
         }
     }
+}
+
+fn bind_glob(env: &mut Env, prefix: &[String]) {
+    let Some(map) = glob_names(env, prefix) else {
+        return;
+    };
+    for (k, id) in map {
+        env.use_imports.insert(k, id);
+    }
+}
+
+fn glob_names(
+    env: &Env,
+    prefix: &[String],
+) -> Option<HashMap<(String, Namespace), EntityId>> {
+    if prefix.len() == 1 && prefix[0] == "super" {
+        return super_glob_map(env);
+    }
+    if prefix.is_empty() {
+        return None;
+    }
+    None
+}
+
+fn super_glob_map(env: &Env) -> Option<HashMap<(String, Namespace), EntityId>> {
+    if let Some(map) = env.super_stack.first() {
+        return Some(map.clone());
+    }
+    if env.inline_mod {
+        let file = env.current_file.as_ref()?;
+        return env.by_file.get(file).cloned();
+    }
+    if let Some(file) = env.super_files.first() {
+        return env.by_file.get(file).cloned();
+    }
+    None
 }
 
 fn bind_use(env: &mut Env, segs: &[String], alias: &str) {

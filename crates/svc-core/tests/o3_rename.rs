@@ -1808,3 +1808,59 @@ fn rename_follows_use_super_from_a_file_module() {
     );
     assert!(text.contains("parse_file();"), "{text}");
 }
+
+#[test]
+fn rename_follows_use_super_glob_from_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"fn parse() {}\nmod foo;\n".to_vec());
+    files.insert(foo.clone(), b"use super::*;\nfn f() { parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let lib_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == lib)
+        .map(|(id, _)| *id)
+        .expect("lib parse");
+    let next = rename(&store, &snap, lib_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&foo].clone()).unwrap();
+    assert!(
+        text.contains("parse_file();"),
+        "use super::* from a file module must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_use_super_inside_an_inline_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"fn parse() {}\nmod inner {\n    use super::parse;\n    fn f() { parse(); }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("use super::parse_file;"),
+        "use line inside inline mod must follow: {text}"
+    );
+    assert!(
+        text.contains("parse_file();"),
+        "body inside inline mod must follow the use: {text}"
+    );
+}

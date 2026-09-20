@@ -404,9 +404,6 @@ pub(crate) fn fill_use_imports_from_snapshot(
 ) {
     env.use_imports.clear();
     env.use_aliases.clear();
-    if env.inline_mod {
-        return;
-    }
     let Some(lang) = langs.for_path(file) else {
         return;
     };
@@ -415,6 +412,13 @@ pub(crate) fn fill_use_imports_from_snapshot(
             continue;
         }
         if !rec.name.contains("use ") {
+            continue;
+        }
+        if env.inline_mod {
+            if rec.parent != env.self_mod {
+                continue;
+            }
+        } else if rec.parent.is_some() {
             continue;
         }
         let src = rec.name.as_bytes();
@@ -817,7 +821,7 @@ fn materialize(
         }
         fill_nested_items_from_raw(&mut local_env, raw, ids, i);
         fill_mod_env_from_raw(&mut local_env, raw, ids, i);
-        canon::fill_use_imports(&mut local_env, tree.root_node(), src, lang);
+        canon::fill_use_imports(&mut local_env, node, src, lang);
         let res = resolve(node, src, lang, &local_env)?;
         let children: Vec<(ByteRange, EntityId)> = ent
             .children
