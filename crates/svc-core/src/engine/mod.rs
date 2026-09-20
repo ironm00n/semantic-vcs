@@ -164,29 +164,76 @@ fn is_block_local_raw(raw: &[RawEntity], i: usize) -> bool {
         .is_some_and(|p| hosts_block_items(raw[p].kind))
 }
 
-fn under_nested_mod_raw(raw: &[RawEntity], i: usize) -> bool {
+fn nearest_mod_raw(raw: &[RawEntity], i: usize) -> Option<usize> {
     let mut walk = raw[i].parent_idx;
     while let Some(p) = walk {
         if raw[p].kind == Kind::Mod {
-            return true;
+            return Some(p);
         }
         walk = raw[p].parent_idx;
     }
-    false
+    None
 }
 
-pub(crate) fn under_nested_mod_rec(snapshot: &Snapshot, id: EntityId) -> bool {
+fn nearest_mod_rec(snapshot: &Snapshot, id: EntityId) -> Option<EntityId> {
     let mut walk = snapshot.entities.get(&id).and_then(|r| r.parent);
     while let Some(pid) = walk {
         let Some(prec) = snapshot.entities.get(&pid) else {
             break;
         };
         if prec.kind == Kind::Mod {
-            return true;
+            return Some(pid);
         }
         walk = prec.parent;
     }
-    false
+    None
+}
+
+fn fill_mod_env_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
+    env.in_nested_mod = false;
+    env.super_is_parent_mod = false;
+    env.super_items.clear();
+    let Some(m) = nearest_mod_raw(raw, i) else {
+        return;
+    };
+    env.in_nested_mod = true;
+    let Some(pp) = raw[m].parent_idx else {
+        return;
+    };
+    if raw[pp].kind != Kind::Mod {
+        return;
+    }
+    env.super_is_parent_mod = true;
+    for (j, ch) in raw.iter().enumerate() {
+        if ch.parent_idx == Some(pp) && is_block_local_raw(raw, j) {
+            env.insert_super(&ch.name, ch.kind, ids[j]);
+        }
+    }
+}
+
+pub(crate) fn fill_mod_env_from_snapshot(env: &mut Env, snapshot: &Snapshot, id: EntityId) {
+    env.in_nested_mod = false;
+    env.super_is_parent_mod = false;
+    env.super_items.clear();
+    let Some(m) = nearest_mod_rec(snapshot, id) else {
+        return;
+    };
+    env.in_nested_mod = true;
+    let Some(pp) = snapshot.entities.get(&m).and_then(|r| r.parent) else {
+        return;
+    };
+    let Some(prec) = snapshot.entities.get(&pp) else {
+        return;
+    };
+    if prec.kind != Kind::Mod {
+        return;
+    }
+    env.super_is_parent_mod = true;
+    for (cid, crec) in &snapshot.entities {
+        if crec.parent == Some(pp) && is_block_local_rec(snapshot, crec) {
+            env.insert_super(&crec.name, crec.kind, *cid);
+        }
+    }
 }
 
 /// Associated types of the enclosing impl/trait are in scope for signatures
@@ -236,10 +283,13 @@ pub(crate) fn fill_nested_items_from_snapshot(env: &mut Env, snapshot: &Snapshot
         let Some(prec) = snapshot.entities.get(&pid) else {
             break;
         };
-        if !hosts_block_items(prec.kind) {
+        if prec.kind == Kind::Mod {
+            chain.push(pid);
             break;
         }
-        chain.push(pid);
+        if hosts_block_items(prec.kind) {
+            chain.push(pid);
+        }
         walk = prec.parent;
     }
     chain.reverse();
@@ -258,10 +308,13 @@ fn fill_nested_items_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId]
     let mut chain = vec![i];
     let mut walk = raw[i].parent_idx;
     while let Some(pi) = walk {
-        if !hosts_block_items(raw[pi].kind) {
+        if raw[pi].kind == Kind::Mod {
+            chain.push(pi);
             break;
         }
-        chain.push(pi);
+        if hosts_block_items(raw[pi].kind) {
+            chain.push(pi);
+        }
         walk = raw[pi].parent_idx;
     }
     chain.reverse();
@@ -564,7 +617,7 @@ fn materialize(
                 .unwrap_or_default();
         }
         fill_nested_items_from_raw(&mut local_env, raw, ids, i);
-        local_env.in_nested_mod = under_nested_mod_raw(raw, i);
+        fill_mod_env_from_raw(&mut local_env, raw, ids, i);
         let res = resolve(node, src, lang, &local_env)?;
         let children: Vec<(ByteRange, EntityId)> = ent
             .children

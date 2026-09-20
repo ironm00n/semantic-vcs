@@ -379,8 +379,10 @@ fn collect_refs<'a>(
                 || is_type_qualified_ref(node, src, lang, env)
             {
                 refs.push((r, IdentRef::Free(name.into())));
-            } else if let Some(id) = if is_crate_or_super_path(node, src, lang) {
+            } else if let Some(id) = if is_crate_path(node, src, lang) {
                 env.lookup_module(&name, ns)
+            } else if is_super_path(node, src, lang) {
+                env.lookup_super(&name, ns)
             } else {
                 env.lookup(&name, ns)
             } {
@@ -999,8 +1001,15 @@ fn is_foreign_scoped_ref(
         && env.lookup_global(name, Namespace::Type).is_none()
 }
 
-/// `crate::f` / `super::f` inside `mod inner` still name the outer item.
-fn is_crate_or_super_path(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> bool {
+fn is_crate_path(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> bool {
+    path_root_is(node, src, lang, "crate")
+}
+
+fn is_super_path(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> bool {
+    path_root_is(node, src, lang, "super")
+}
+
+fn path_root_is(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang, want: &str) -> bool {
     if lang.name() != "rust" {
         return false;
     }
@@ -1011,7 +1020,7 @@ fn is_crate_or_super_path(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn La
         return false;
     }
     let name = std::str::from_utf8(&src[root.start_byte()..root.end_byte()]).unwrap_or("");
-    matches!(name, "crate" | "super")
+    name == want
 }
 
 fn scoped_path_root(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {

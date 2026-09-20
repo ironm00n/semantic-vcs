@@ -1194,3 +1194,101 @@ fn rename_follows_crate_path_inside_a_nested_mod() {
         "crate::parse inside the nested mod must follow: {text}"
     );
 }
+
+#[test]
+fn rename_of_outer_mod_fn_does_not_rewrite_a_nested_mod_call() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"mod outer {\n    fn parse() {}\n    fn g() { parse(); }\n    mod inner {\n        fn f() { parse(); }\n    }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let outer_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.parent.is_some_and(|p| {
+                    snap.entities.get(&p).is_some_and(|pr| pr.name == "outer")
+                })
+        })
+        .map(|(id, _)| *id)
+        .expect("outer::parse");
+    let next = rename(&store, &snap, outer_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("fn parse_file()"), "{text}");
+    assert!(text.contains("fn g() { parse_file(); }"), "{text}");
+    assert!(
+        text.contains("fn f() { parse(); }"),
+        "inner mod must not see the outer mod item: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_super_path_inside_a_nested_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"mod outer {\n    fn parse() {}\n    mod inner {\n        fn f() { super::parse(); }\n    }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let outer_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.parent.is_some_and(|p| {
+                    snap.entities.get(&p).is_some_and(|pr| pr.name == "outer")
+                })
+        })
+        .map(|(id, _)| *id)
+        .expect("outer::parse");
+    let next = rename(&store, &snap, outer_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("super::parse_file()"),
+        "super::parse inside the nested mod must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_of_mod_fn_rewrites_an_impl_method_call() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"mod outer {\n    fn parse() {}\n    struct S;\n    impl S {\n        fn f() { parse(); }\n    }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let outer_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.parent.is_some_and(|p| {
+                    snap.entities.get(&p).is_some_and(|pr| pr.name == "outer")
+                })
+        })
+        .map(|(id, _)| *id)
+        .expect("outer::parse");
+    let next = rename(&store, &snap, outer_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("fn f() { parse_file(); }"),
+        "impl method in the same mod must see the sibling: {text}"
+    );
+}

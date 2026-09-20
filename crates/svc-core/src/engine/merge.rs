@@ -108,7 +108,7 @@ pub fn merge(
                 env.current_file = Some(ra.file.clone());
                 fill_self_methods_from_snapshot(&mut env, &a_s, ra.parent);
                 fill_nested_items_from_snapshot(&mut env, &a_s, id);
-                env.in_nested_mod = super::under_nested_mod_rec(&a_s, id);
+                super::fill_mod_env_from_snapshot(&mut env, &a_s, id);
                 let rec = merge_record(
                     store,
                     langs,
@@ -610,7 +610,7 @@ fn binding_post(
         env.current_file = Some(rec.file.clone());
         fill_self_methods_from_snapshot(&mut env, snap, rec.parent);
         fill_nested_items_from_snapshot(&mut env, snap, id);
-        env.in_nested_mod = super::under_nested_mod_rec(snap, id);
+        super::fill_mod_env_from_snapshot(&mut env, snap, id);
         let res = super::resolve(node, &item, lang, &env)?;
         for (i, (r, ident)) in res.refs.iter().enumerate() {
             if own_name == Some(*r) {

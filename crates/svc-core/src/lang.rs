@@ -36,8 +36,15 @@ pub struct Env {
     /// When set, [`Self::lookup`] prefers [`Self::by_file`] for this path.
     pub current_file: Option<RelPath>,
     /// Inside `mod inner { … }`, bare names are the module's own items only.
-    /// `crate::` / `super::` still use [`Self::lookup_module`].
+    /// `crate::` still uses [`Self::lookup_module`].
     pub in_nested_mod: bool,
+    /// Items of the parent module, for `super::f` when that parent is itself a
+    /// `mod`. Empty when `super` is the file (then [`Self::lookup_super`] falls
+    /// through to [`Self::lookup_module`]).
+    pub super_items: HashMap<(String, Namespace), EntityId>,
+    /// Parent of the enclosing `mod` is another `mod`, so `super::` must not
+    /// fall through to the crate.
+    pub super_is_parent_mod: bool,
 }
 
 impl Env {
@@ -51,8 +58,19 @@ impl Env {
         self.lookup_module(name, ns)
     }
 
+    /// `super::f` — parent-mod items, or the file/crate when `super` is the crate root.
+    pub fn lookup_super(&self, name: &str, ns: Namespace) -> Option<EntityId> {
+        if let Some(id) = Self::lookup_in_map(Some(&self.super_items), name, ns) {
+            return Some(id);
+        }
+        if self.super_is_parent_mod {
+            return None;
+        }
+        self.lookup_module(name, ns)
+    }
+
     /// File / crate / repo names, skipping nested-mod isolation. `crate::f`
-    /// and `super::f` inside `mod inner` still bind the outer item.
+    /// inside `mod inner` still binds the crate-root item.
     pub fn lookup_module(&self, name: &str, ns: Namespace) -> Option<EntityId> {
         if let Some(file) = &self.current_file {
             if let Some(id) = Self::lookup_in_map(self.by_file.get(file), name, ns) {
@@ -232,6 +250,13 @@ impl Env {
         let name = name.into();
         for ns in namespaces_for(kind) {
             self.nested_items.insert((name.clone(), *ns), id);
+        }
+    }
+
+    pub fn insert_super(&mut self, name: impl Into<String>, kind: Kind, id: EntityId) {
+        let name = name.into();
+        for ns in namespaces_for(kind) {
+            self.super_items.insert((name.clone(), *ns), id);
         }
     }
 }
