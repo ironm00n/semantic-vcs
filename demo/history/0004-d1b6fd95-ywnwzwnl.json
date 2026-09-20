@@ -6,33 +6,35 @@
       "entry": {
         "op": {
           "New": {
-            "change": "01a0bd1c-941a-7069-8b1e-a9751781175d"
+            "change": "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb"
           }
         },
         "observed": null,
         "at": 1789876804867,
         "group": null,
         "before": {
-          "root": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
+          "root": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a"
           }
         },
         "after": {
-          "root": "e953acfaeadc189f3bdf36b4231acd293e73a6fcc7b69dfc1b228d503047c076",
+          "root": "f018dd29f692c464b0ad5e74172399ea46f342cb5ed5202df01bb28c741dac70",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "e953acfaeadc189f3bdf36b4231acd293e73a6fcc7b69dfc1b228d503047c076"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "f018dd29f692c464b0ad5e74172399ea46f342cb5ed5202df01bb28c741dac70"
           }
         }
       },
@@ -58,27 +60,29 @@
         "at": 1789876805811,
         "group": null,
         "before": {
-          "root": "e953acfaeadc189f3bdf36b4231acd293e73a6fcc7b69dfc1b228d503047c076",
+          "root": "f018dd29f692c464b0ad5e74172399ea46f342cb5ed5202df01bb28c741dac70",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "e953acfaeadc189f3bdf36b4231acd293e73a6fcc7b69dfc1b228d503047c076"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "f018dd29f692c464b0ad5e74172399ea46f342cb5ed5202df01bb28c741dac70"
           }
         },
         "after": {
-          "root": "236d46ed2339567523b785353054173930eb0117065d24c696f8caf839a408c6",
+          "root": "75d77a4785b3ea6166671242d0376c3357f272046dfe2d851541b1c1414fe574",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "236d46ed2339567523b785353054173930eb0117065d24c696f8caf839a408c6"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "75d77a4785b3ea6166671242d0376c3357f272046dfe2d851541b1c1414fe574"
           }
         }
       },
@@ -96,7 +100,7 @@
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd1b-f1a8-7247-b5f1-83535f611425",
+            "id": "01a0bd9c-3fee-7249-9c09-f3d9893e9933",
             "definition": "/// First applicable class. Aligns rendered whole items, not neutralized tokens.\npub fn classify(old: Side<'_>, new: Side<'_>) -> ObservedClass {\n    if old.content == new.content {\n        if old.bytes == new.bytes {\n            return ObservedClass::Alpha;\n        }\n        return if only_local_spellings(old.render, new.render, old.map, new.map) {\n            ObservedClass::Alpha\n        } else {\n            ObservedClass::DocsOnly\n        };\n    }\n    if surviving_refs_ok(old.render, new.render, old.map, new.map) {\n        ObservedClass::BindingPreserving\n    } else {\n        ObservedClass::BindingChanging\n    }\n}",
             "intent": "Refactor"
           }
@@ -105,32 +109,34 @@
         "at": 1789876806814,
         "group": null,
         "before": {
-          "root": "236d46ed2339567523b785353054173930eb0117065d24c696f8caf839a408c6",
+          "root": "75d77a4785b3ea6166671242d0376c3357f272046dfe2d851541b1c1414fe574",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "236d46ed2339567523b785353054173930eb0117065d24c696f8caf839a408c6"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "75d77a4785b3ea6166671242d0376c3357f272046dfe2d851541b1c1414fe574"
           }
         },
         "after": {
-          "root": "e18547eedea3f2f27eb22e33b06fc175314bc315c1eb81f63902ecea8d4822d4",
+          "root": "e5611dd6c44a91ee2a7258624031752bd40fc8a1232fdedc4af5a47a7e08182f",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "e18547eedea3f2f27eb22e33b06fc175314bc315c1eb81f63902ecea8d4822d4"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "e5611dd6c44a91ee2a7258624031752bd40fc8a1232fdedc4af5a47a7e08182f"
           }
         }
       },
       "refs": {
-        "01a0bd1b-f1a8-7247-b5f1-83535f611425": {
+        "01a0bd9c-3fee-7249-9c09-f3d9893e9933": {
           "file": "crates/svc-core/src/engine/classify.rs",
           "chain": [
             [
@@ -162,27 +168,29 @@
         "at": 1789876817864,
         "group": null,
         "before": {
-          "root": "e18547eedea3f2f27eb22e33b06fc175314bc315c1eb81f63902ecea8d4822d4",
+          "root": "e5611dd6c44a91ee2a7258624031752bd40fc8a1232fdedc4af5a47a7e08182f",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "e18547eedea3f2f27eb22e33b06fc175314bc315c1eb81f63902ecea8d4822d4"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "e5611dd6c44a91ee2a7258624031752bd40fc8a1232fdedc4af5a47a7e08182f"
           }
         },
         "after": {
-          "root": "a265b8c530b70f28e19459ec53d5e3513c683f177d5f899fc57c8b972ff7a3fb",
+          "root": "1c0b3f8967b418e68c5b4dbc500152a05d05a9f54d3d729feb7e8c70f36d149a",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "a265b8c530b70f28e19459ec53d5e3513c683f177d5f899fc57c8b972ff7a3fb"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "1c0b3f8967b418e68c5b4dbc500152a05d05a9f54d3d729feb7e8c70f36d149a"
           }
         }
       },
@@ -222,27 +230,29 @@
         "at": 1789876852966,
         "group": null,
         "before": {
-          "root": "a265b8c530b70f28e19459ec53d5e3513c683f177d5f899fc57c8b972ff7a3fb",
+          "root": "1c0b3f8967b418e68c5b4dbc500152a05d05a9f54d3d729feb7e8c70f36d149a",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "a265b8c530b70f28e19459ec53d5e3513c683f177d5f899fc57c8b972ff7a3fb"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "1c0b3f8967b418e68c5b4dbc500152a05d05a9f54d3d729feb7e8c70f36d149a"
           }
         },
         "after": {
-          "root": "38d393fe9b69c9c81e56cce4c7516c674a3fb48ba716b016538cc8ecf55bfd93",
+          "root": "150924a97cdcc9a67dbd515b7dcc80cb346d04fad0a3239de917510948b7c634",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "38d393fe9b69c9c81e56cce4c7516c674a3fb48ba716b016538cc8ecf55bfd93"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "150924a97cdcc9a67dbd515b7dcc80cb346d04fad0a3239de917510948b7c634"
           }
         }
       },
@@ -260,7 +270,7 @@
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd1b-f1b9-76bb-8b77-4078da582ba4",
+            "id": "01a0bd9c-4007-76ea-96e7-4360c0f9281c",
             "definition": "pub fn edit_def(\n    store: &dyn Store,\n    langs: &Langs,\n    snap: &Snapshot,\n    id: EntityId,\n    definition: &[u8],\n) -> Result<(Snapshot, ObservedClass)> {\n    let rec = snap\n        .entities\n        .get(&id)\n        .ok_or(Error::NoSuchEntity(id))?\n        .clone();\n    let lang = langs\n        .for_path(&rec.file)\n        .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;\n    let definition = item_text(store, snap, id, definition)?;\n    let (root_old, part) = ingest_item_tree(\n        \"edit-def\",\n        store,\n        snap,\n        &rec.file,\n        lang,\n        rec.parent,\n        &definition,\n    )?;\n    let mapped = remap_tree(store, part.entities, root_old, id, Some(snap))?;\n    let new_rec = mapped\n        .get(&id)\n        .cloned()\n        .ok_or_else(|| Error::Other(\"edit-def lost the root item\".into()))?;\n    if new_rec.name != rec.name {\n        return Err(Error::Other(format!(\n            \"edit-def cannot rename {} to {}; use svc rename\",\n            rec.name, new_rec.name\n        )));\n    }\n    if new_rec.kind != rec.kind {\n        return Err(Error::Other(format!(\n            \"edit-def cannot change {} from {:?} to {:?}; delete and add-def instead\",\n            rec.name, rec.kind, new_rec.kind\n        )));\n    }\n    let new_content = new_rec.content;\n    let new_bytes = new_rec.bytes;\n    let mut next = snap.clone();\n    for cid in subtree(snap, id) {\n        if cid != id {\n            next.entities.remove(&cid);\n        }\n    }\n    if let Some(dest) = next.entities.get_mut(&id) {\n        dest.content = new_content;\n        dest.bytes = new_bytes;\n    }\n    for (cid, mut child) in mapped {\n        if cid == id {\n            continue;\n        }\n        child.file = rec.file.clone();\n        next.insert(cid, child)?;\n    }\n    let class = classify_entity(store, snap, &next, id)?;\n    Ok((next, class))\n}",
             "intent": "Refactor"
           }
@@ -269,32 +279,34 @@
         "at": 1789876863513,
         "group": null,
         "before": {
-          "root": "38d393fe9b69c9c81e56cce4c7516c674a3fb48ba716b016538cc8ecf55bfd93",
+          "root": "150924a97cdcc9a67dbd515b7dcc80cb346d04fad0a3239de917510948b7c634",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "38d393fe9b69c9c81e56cce4c7516c674a3fb48ba716b016538cc8ecf55bfd93"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "150924a97cdcc9a67dbd515b7dcc80cb346d04fad0a3239de917510948b7c634"
           }
         },
         "after": {
-          "root": "b61d11da1c89b7c8d5fda9230e998e00beb1f7bd21df7d3c682bd2b2c2204a83",
+          "root": "43e4c4e632f8f9068fb252da8bb85377264e1c2b175b319e06062fc613e8f13d",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "b61d11da1c89b7c8d5fda9230e998e00beb1f7bd21df7d3c682bd2b2c2204a83"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "43e4c4e632f8f9068fb252da8bb85377264e1c2b175b319e06062fc613e8f13d"
           }
         }
       },
       "refs": {
-        "01a0bd1b-f1b9-76bb-8b77-4078da582ba4": {
+        "01a0bd9c-4007-76ea-96e7-4360c0f9281c": {
           "file": "crates/svc-core/src/engine/ops.rs",
           "chain": [
             [
@@ -317,7 +329,7 @@
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd1b-f1a9-744b-802a-3d4b597ef853",
+            "id": "01a0bd9c-3fef-76fa-8505-268a4eca92c5",
             "definition": "/// Structural deltas between two snapshots. An edited entity carries the class the\n/// classifier assigns to old → new (rendered from `store`), never a placeholder. Files\n/// are compared by their bytes outside entities, so an opaque file shows up as a whole.\npub fn diff(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<Vec<Delta>> {\n    let mut out = Vec::new();\n    for (id, rec) in &next.entities {\n        match prev.entities.get(id) {\n            None => out.push(Delta::Added(*id)),\n            Some(old) => {\n                if old.name != rec.name {\n                    out.push(Delta::Renamed {\n                        id: *id,\n                        from: old.name.clone(),\n                        to: rec.name.clone(),\n                    });\n                }\n                if old.parent != rec.parent {\n                    out.push(Delta::Moved {\n                        id: *id,\n                        from_parent: old.parent,\n                        to_parent: rec.parent,\n                    });\n                }\n                if old.file != rec.file || old.ordinal != rec.ordinal {\n                    let parent_kind = rec\n                        .parent\n                        .and_then(|pid| next.entities.get(&pid).map(|p| p.kind));\n                    let layout_only = old.parent == rec.parent\n                        && old.file == rec.file\n                        && commutative_layout(rec.file.extension(), parent_kind, rec.kind);\n                    if !layout_only {\n                        out.push(Delta::Relocated {\n                            id: *id,\n                            from: (old.file.clone(), old.ordinal),\n                            to: (rec.file.clone(), rec.ordinal),\n                        });\n                    }\n                }\n                if old.content != rec.content || old.bytes != rec.bytes {\n                    out.push(Delta::Edited(*id, classify_entity(store, prev, next, *id)?));\n                }\n            }\n        }\n    }\n    for (id, old) in &prev.entities {\n        if !next.entities.contains_key(id) {\n            out.push(Delta::Removed {\n                id: *id,\n                name: old.name.clone(),\n            });\n        }\n    }\n    for (path, rec) in &next.files {\n        match prev.files.get(path) {\n            None => out.push(Delta::FileAdded(path.clone())),\n            Some(old) if old.trailing != rec.trailing => out.push(Delta::FileTail {\n                path: path.clone(),\n                whitespace_only: sans_whitespace(&old.trailing) == sans_whitespace(&rec.trailing),\n            }),\n            Some(_) => {}\n        }\n    }\n    for path in prev.files.keys() {\n        if !next.files.contains_key(path) {\n            out.push(Delta::FileRemoved(path.clone()));\n        }\n    }\n    Ok(out)\n}",
             "intent": "Refactor"
           }
@@ -326,32 +338,34 @@
         "at": 1789876865103,
         "group": null,
         "before": {
-          "root": "b61d11da1c89b7c8d5fda9230e998e00beb1f7bd21df7d3c682bd2b2c2204a83",
+          "root": "43e4c4e632f8f9068fb252da8bb85377264e1c2b175b319e06062fc613e8f13d",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "b61d11da1c89b7c8d5fda9230e998e00beb1f7bd21df7d3c682bd2b2c2204a83"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "43e4c4e632f8f9068fb252da8bb85377264e1c2b175b319e06062fc613e8f13d"
           }
         },
         "after": {
-          "root": "fd70a33e271148894d964928136fad60e806f76dab7b3c9fe9706dac0dcabd12",
+          "root": "8156d2cbd3b5d93daa4a9a6450c5b1f52314f9e35c7f37f57ecfb82178f99dd6",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "fd70a33e271148894d964928136fad60e806f76dab7b3c9fe9706dac0dcabd12"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "8156d2cbd3b5d93daa4a9a6450c5b1f52314f9e35c7f37f57ecfb82178f99dd6"
           }
         }
       },
       "refs": {
-        "01a0bd1b-f1a9-744b-802a-3d4b597ef853": {
+        "01a0bd9c-3fef-76fa-8505-268a4eca92c5": {
           "file": "crates/svc-core/src/engine/diff_impl.rs",
           "chain": [
             [
@@ -377,27 +391,29 @@
         "at": 1789876962468,
         "group": null,
         "before": {
-          "root": "fd70a33e271148894d964928136fad60e806f76dab7b3c9fe9706dac0dcabd12",
+          "root": "8156d2cbd3b5d93daa4a9a6450c5b1f52314f9e35c7f37f57ecfb82178f99dd6",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "fd70a33e271148894d964928136fad60e806f76dab7b3c9fe9706dac0dcabd12"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "8156d2cbd3b5d93daa4a9a6450c5b1f52314f9e35c7f37f57ecfb82178f99dd6"
           }
         },
         "after": {
-          "root": "e17c09ec0fd8f2223517a8b1e00d97c963594e8528a03363b83205071040f3ea",
+          "root": "1a6b168f8cb04345b701030d32e33b6e5943d24570ceed4c4050fd2ac962a7c3",
           "heads": {
-            "01a0bca7-735f-7475-826b-429207f654f0": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "d882148f1ac6b156d4b44c5ead2a870ef190c0b2fcda3f40b232fde12d0c0040",
-            "01a0bd1b-f8d7-75e6-a2b9-c29db05ce8ad": "ddacefd9edab09f20d7834007d8778c744a6f63d5e5cd376e7507ad2dacd9f94",
-            "01a0bd1c-3118-7457-a5d5-00c6637266e1": "b747a7f725fc683cc8f4834793f71aa938c39ea5272b57806ed10305d35315df",
-            "01a0bd1c-68d6-710d-bb73-16658bd2bb4d": "4c1b657b099f3834b0222459ac4b5d1afd303f048dc0304164c7fc4a46043427",
-            "01a0bd1c-941a-7069-8b1e-a9751781175d": "e17c09ec0fd8f2223517a8b1e00d97c963594e8528a03363b83205071040f3ea"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "1a6b168f8cb04345b701030d32e33b6e5943d24570ceed4c4050fd2ac962a7c3"
           }
         }
       },

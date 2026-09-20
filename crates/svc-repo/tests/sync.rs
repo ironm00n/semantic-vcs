@@ -125,3 +125,35 @@ fn two_ops_of_one_kind_in_one_millisecond_both_travel() {
     assert!(std::fs::read_to_string(b_dir.path().join("src/main.rs")).unwrap().contains("fn check("));
     assert_eq!(transfer(&a, &b, cs, "a").unwrap().sent, 0);
 }
+
+#[test]
+fn a_mail_changeset_reaches_a_hub_on_another_tree_and_hand_edits_stay_out_of_it() {
+    use svc_core::{NoteKind, NoteTo, Op};
+    let (a_dir, hub_dir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    demo_crate(a_dir.path());
+    demo_crate(hub_dir.path());
+    let a = Repo::init(a_dir.path(), Repo::default_langs()).unwrap();
+    let hub = Repo::init(hub_dir.path(), Repo::default_langs()).unwrap();
+    // The hub is on a different tree: someone renamed there.
+    rename_to(&hub, "read", "read_hub");
+    let mail = changeset_begin(&a, "mail", Intent::Refactor, None, false).unwrap().id;
+    // A hand edit on a while the mail changeset is open.
+    let main_rs = a_dir.path().join("src/main.rs");
+    let edited = std::fs::read_to_string(&main_rs).unwrap().replace("fn validate(", "fn validate_edited(");
+    std::fs::write(&main_rs, edited).unwrap();
+    svc_repo::note(&a, NoteTo::Checkout("supervisor".into()), NoteKind::Note, "landed x").unwrap();
+    changeset_end(&a).unwrap();
+    let ops = a.store().ops(svc_core::OpIx(0), false).unwrap();
+    let absorb = ops.iter().find(|(_, e)| matches!(e.op, Op::Absorb)).expect("the hand edit was absorbed");
+    assert_eq!(absorb.1.group, None, "the absorb is the tree's own, not the mail's");
+    let note = ops.iter().find(|(_, e)| matches!(e.op, Op::Note { .. })).unwrap();
+    assert_eq!(note.1.group, Some(mail));
+
+    let r = transfer(&a, &hub, mail, "a").unwrap();
+    assert_eq!(r.sent, 1, "the note alone, onto a tree that is not a's");
+    let inbox_ops = hub.store().ops(svc_core::OpIx(0), false).unwrap();
+    let (ix, delivered) = inbox_ops.iter().find(|(_, e)| matches!(e.op, Op::Note { .. })).unwrap();
+    assert_eq!(delivered.group, Some(mail));
+    assert_eq!(hub.redb().op_workspace(*ix).unwrap().as_deref(), Some("a"), "the sender is named");
+    assert!(std::fs::read_to_string(hub_dir.path().join("src/main.rs")).unwrap().contains("read_hub("), "the hub's tree is untouched");
+}

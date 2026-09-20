@@ -213,6 +213,14 @@ impl Repo {
         };
         let checkout_lock = Self::checkout_lock(&lock_path, wait)?;
         let store = RedbStore::open(&store_path)?.with_workspace(workspace.as_deref())?;
+        // A store written before the current snapshot encoding does not decode; say so
+        // rather than surfacing the decoder's complaint.
+        if let Err(e) = store.root().and_then(|root| store.get_snapshot(root)) {
+            return Err(Error::Other(format!(
+                "{} was written by an older svc and cannot be read by this one ({e}); on a clean tree: rm -rf .svc && svc init (secondary checkouts: svc workspace add again)",
+                store_path.display()
+            )));
+        }
         // A pointer names a workspace; only the directory the store registered for that
         // name is its working copy. Anything else opened as it would absorb its own files
         // into that change.

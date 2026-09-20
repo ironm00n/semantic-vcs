@@ -2,29 +2,61 @@
   "base_tree": "0ce99cd983cc1493738243154e999d96aeac0f96d5ebf69970aaae244e6de008",
   "entries": [
     {
-      "ix": 8,
+      "ix": 79,
       "entry": {
         "op": {
           "New": {
-            "change": "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53"
+            "change": "01a0bd9d-f848-72f9-a609-fd941e200739"
           }
         },
         "observed": null,
         "at": 1789879379218,
         "group": null,
         "before": {
-          "root": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
+          "root": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953"
           }
         },
         "after": {
-          "root": "4a59adaab320d907e3e6e9b963d1f57156cac3dd426025d82b98dd5220f5c294",
+          "root": "0d828cc4823f82831e07278b4c187fbf080cf00068bba78340bb4e5a13640875",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "4a59adaab320d907e3e6e9b963d1f57156cac3dd426025d82b98dd5220f5c294"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "0d828cc4823f82831e07278b4c187fbf080cf00068bba78340bb4e5a13640875"
           }
         }
       },
@@ -34,11 +66,11 @@
       "workspace": null
     },
     {
-      "ix": 9,
+      "ix": 80,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd18-6ee8-70c9-acc0-6511ec7d8271",
+            "id": "01a0bd9c-4009-74b6-9471-106c847047cc",
             "definition": "/// File tail after the last entity — or the whole of a file svc has no language for —\n/// as a content-addressed blob shared by every snapshot that has the same bytes; `None`\n/// when nothing follows the last entity. Roots are derived from `Snapshot.entities`\n/// (parent is None, same file, ordinal-sorted) so they cannot drift.\n#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug, Default)]\npub struct FileRecord {\n    pub trailing: Option<BytesId>,\n}",
             "intent": "Feature"
           }
@@ -47,24 +79,56 @@
         "at": 1789879393980,
         "group": null,
         "before": {
-          "root": "4a59adaab320d907e3e6e9b963d1f57156cac3dd426025d82b98dd5220f5c294",
+          "root": "0d828cc4823f82831e07278b4c187fbf080cf00068bba78340bb4e5a13640875",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "4a59adaab320d907e3e6e9b963d1f57156cac3dd426025d82b98dd5220f5c294"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "0d828cc4823f82831e07278b4c187fbf080cf00068bba78340bb4e5a13640875"
           }
         },
         "after": {
-          "root": "57177d958ede055bd414b1ed7a40f60e371b215ad9c4e1519f3a0feb988cb226",
+          "root": "e92a41aced5491a1faab68dd9be0b5ba4cf8a19decef91ff4dec5b5400ca2976",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "57177d958ede055bd414b1ed7a40f60e371b215ad9c4e1519f3a0feb988cb226"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "e92a41aced5491a1faab68dd9be0b5ba4cf8a19decef91ff4dec5b5400ca2976"
           }
         }
       },
       "refs": {
-        "01a0bd18-6ee8-70c9-acc0-6511ec7d8271": {
+        "01a0bd9c-4009-74b6-9471-106c847047cc": {
           "file": "crates/svc-core/src/entity.rs",
           "chain": [
             [
@@ -74,12 +138,16 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-core/src/entity.rs": {
+          "Text": "use serde::{Deserialize, Serialize};\n\nuse crate::ids::{BytesId, ContentId, EntityId, RelPath};\n\n/// Accessor/static roles are `Kind` variants so `(parent, kind, name)` stays unique\n/// without folding `\"get \"` into the stored name (which would render `get get path()`).\n#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]\npub enum Kind {\n    Fn,\n    Struct,\n    Enum,\n    Union,\n    Trait,\n    Impl,\n    Const,\n    Static,\n    Mod,\n    TypeAlias,\n    Macro,\n    JsFunction,\n    JsClass,\n    JsMethod,\n    JsGetter,\n    JsSetter,\n    JsField,\n    JsStaticMethod,\n    JsStaticField,\n    JsDeclarator,\n    JsStaticBlock,\n    Opaque,\n}\n\n#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]\n/// What makes an entity the same one across re-parses and merges. Nested items are\n/// unique under their parent; file-level items (`parent: None`) are unique within their\n/// file, so `file` is set exactly then. Two files may each have a `fn hex32`.\npub struct SigKey {\n    pub parent: Option<EntityId>,\n    pub file: Option<RelPath>,\n    pub kind: Kind,\n    pub name: String,\n}\n\n#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]\npub struct EntityRecord {\n    pub name: String,\n    pub kind: Kind,\n    pub parent: Option<EntityId>,\n    pub file: RelPath,\n    pub ordinal: u32,\n    pub content: ContentId,\n    pub bytes: BytesId,\n}\n\n/// File tail after the last entity — or the whole of a file svc has no language for —\n/// as a content-addressed blob shared by every snapshot that has the same bytes; `None`\n/// when nothing follows the last entity. Roots are derived from `Snapshot.entities`\n/// (parent is None, same file, ordinal-sorted) so they cannot drift.\n#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug, Default)]\npub struct FileRecord {\n    pub trailing: Option<BytesId>,\n}\n\nimpl EntityRecord {\n    pub fn sig_key(&self) -> SigKey {\n        SigKey::new(self.parent, &self.file, self.kind, self.name.clone())\n    }\n}\n\nimpl SigKey {\n    pub fn new(parent: Option<EntityId>, file: &RelPath, kind: Kind, name: String) -> Self {\n        Self {\n            parent,\n            file: parent.is_none().then(|| file.clone()),\n            kind,\n            name,\n        }\n    }\n}\n\nimpl Kind {\n    pub fn is_synthetic_named(self) -> bool {\n        matches!(self, Kind::Impl | Kind::JsStaticBlock)\n    }\n}\n"
+        }
+      },
       "after_tree": "af2b5389eee124791cea040af3cad34a40b52b859834326906ad27e590d4ebd4",
       "workspace": null
     },
     {
-      "ix": 10,
+      "ix": 81,
       "entry": {
         "op": {
           "AddDef": {
@@ -95,33 +163,69 @@
         "at": 1789879394865,
         "group": null,
         "before": {
-          "root": "57177d958ede055bd414b1ed7a40f60e371b215ad9c4e1519f3a0feb988cb226",
+          "root": "e92a41aced5491a1faab68dd9be0b5ba4cf8a19decef91ff4dec5b5400ca2976",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "57177d958ede055bd414b1ed7a40f60e371b215ad9c4e1519f3a0feb988cb226"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "e92a41aced5491a1faab68dd9be0b5ba4cf8a19decef91ff4dec5b5400ca2976"
           }
         },
         "after": {
-          "root": "f19fae13cf9b22829c85f829ed5ddec791337523740c5902ecc5bb38d43ba7d5",
+          "root": "7262078dd1095790c486e546cb0720205c4af2908f521d46ca3e5867cfe15d9f",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "f19fae13cf9b22829c85f829ed5ddec791337523740c5902ecc5bb38d43ba7d5"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "7262078dd1095790c486e546cb0720205c4af2908f521d46ca3e5867cfe15d9f"
           }
         }
       },
       "refs": {},
-      "files": {},
+      "files": {
+        "crates/svc-core/src/entity.rs": {
+          "Text": "use serde::{Deserialize, Serialize};\n\nuse crate::ids::{BytesId, ContentId, EntityId, RelPath};\n\n/// Accessor/static roles are `Kind` variants so `(parent, kind, name)` stays unique\n/// without folding `\"get \"` into the stored name (which would render `get get path()`).\n#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]\npub enum Kind {\n    Fn,\n    Struct,\n    Enum,\n    Union,\n    Trait,\n    Impl,\n    Const,\n    Static,\n    Mod,\n    TypeAlias,\n    Macro,\n    JsFunction,\n    JsClass,\n    JsMethod,\n    JsGetter,\n    JsSetter,\n    JsField,\n    JsStaticMethod,\n    JsStaticField,\n    JsDeclarator,\n    JsStaticBlock,\n    Opaque,\n}\n\n#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]\n/// What makes an entity the same one across re-parses and merges. Nested items are\n/// unique under their parent; file-level items (`parent: None`) are unique within their\n/// file, so `file` is set exactly then. Two files may each have a `fn hex32`.\npub struct SigKey {\n    pub parent: Option<EntityId>,\n    pub file: Option<RelPath>,\n    pub kind: Kind,\n    pub name: String,\n}\n\n#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]\npub struct EntityRecord {\n    pub name: String,\n    pub kind: Kind,\n    pub parent: Option<EntityId>,\n    pub file: RelPath,\n    pub ordinal: u32,\n    pub content: ContentId,\n    pub bytes: BytesId,\n}\n\n/// File tail after the last entity — or the whole of a file svc has no language for —\n/// as a content-addressed blob shared by every snapshot that has the same bytes; `None`\n/// when nothing follows the last entity. Roots are derived from `Snapshot.entities`\n/// (parent is None, same file, ordinal-sorted) so they cannot drift.\n#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug, Default)]\npub struct FileRecord {\n    pub trailing: Option<BytesId>,\n}\n\nimpl FileRecord {\n    /// Store `tail` as a one-literal blob and point at it; empty tails are `None`.\n    pub fn from_tail(store: &dyn Store, tail: &[u8]) -> Result<Self> {\n        if tail.is_empty() {\n            return Ok(Self::default());\n        }\n        let blob = Bytes::new(\n            tail.to_vec(),\n            vec![Chunk::Literal(ByteRange {\n                start: 0,\n                end: tail.len() as u32,\n            })],\n            Vec::new(),\n        )?;\n        Ok(Self {\n            trailing: Some(store.put_bytes_blob(&blob)?),\n        })\n    }\n\n    /// The tail's bytes, fetched from `store`.\n    pub fn tail(&self, store: &dyn Store) -> Result<Vec<u8>> {\n        match self.trailing {\n            None => Ok(Vec::new()),\n            Some(id) => Ok(store.get_bytes_blob(id)?.src().to_vec()),\n        }\n    }\n}\n\nimpl EntityRecord {\n    pub fn sig_key(&self) -> SigKey {\n        SigKey::new(self.parent, &self.file, self.kind, self.name.clone())\n    }\n}\n\nimpl SigKey {\n    pub fn new(parent: Option<EntityId>, file: &RelPath, kind: Kind, name: String) -> Self {\n        Self {\n            parent,\n            file: parent.is_none().then(|| file.clone()),\n            kind,\n            name,\n        }\n    }\n}\n\nimpl Kind {\n    pub fn is_synthetic_named(self) -> bool {\n        matches!(self, Kind::Impl | Kind::JsStaticBlock)\n    }\n}\n"
+        }
+      },
       "after_tree": "c66d8584fe8911771e7c0986876bddfd7bac4e874f2f10445a49abd838b98ebf",
       "workspace": null
     },
     {
-      "ix": 11,
+      "ix": 82,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd18-6edc-7573-8ffd-8022fab7b3a6",
+            "id": "01a0bd9c-3ffb-72aa-bf53-b373416983fd",
             "definition": "/// Bytes-in → snapshot-out. Does not write the snapshot, set root/heads, or append an op.\n/// `files` is the whole tree; `prev` lends ids only. Names resolve against what is parsed\n/// here — never against `prev`, whose entities may be exactly what this edit deleted (a\n/// reference kept bound to a gone id renders as `?`).\npub fn snapshot_files(\n    store: &dyn Store,\n    langs: &Langs,\n    files: &BTreeMap<RelPath, Vec<u8>>,\n    prev: Option<&Snapshot>,\n    change: ChangeId,\n) -> Result<Snapshot> {\n    struct Parsed<'a> {\n        path: RelPath,\n        src: &'a [u8],\n        tree: tree_sitter::Tree,\n        raw: Vec<RawEntity>,\n        lang: &'a dyn Lang,\n        ids: Vec<EntityId>,\n    }\n    let mut parsed = Vec::new();\n    let mut opaque = BTreeMap::new();\n    let mut prev_ids = prev_ids(prev);\n    for (path, src) in files {\n        match langs.for_path(path) {\n            Some(lang) => {\n                let tree = parse(src, lang)?;\n                let raw = extract(&tree, src, lang)?;\n                let ids = assign_ids(&raw, path, &mut prev_ids);\n                parsed.push(Parsed {\n                    path: path.clone(),\n                    src,\n                    tree,\n                    raw,\n                    lang,\n                    ids,\n                });\n            }\n            // Manifests, lockfiles, recordings: stored as the file tail with no\n            // entities so `svc init` on this repo still renders a tree cargo can build.\n            None => {\n                opaque.insert(path.clone(), src.clone());\n            }\n        }\n    }\n    // Prev is for assign_ids. Seeding names from it keeps deleted same-file\n    // defs in the env, so a remaining call binds to a missing id and render\n    // prints `?` (claude 03:34: absorb after deleting resolve_entity_in).\n    let mut env = Env::default();\n    for p in &parsed {\n        for (i, ent) in p.raw.iter().enumerate() {\n            if is_inherent_raw(&p.raw, i) {\n                continue;\n            }\n            env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));\n        }\n    }\n    let mut entities = BTreeMap::new();\n    let mut file_recs = BTreeMap::new();\n    for p in &parsed {\n        let (ents, file) = materialize(\n            p.src,\n            p.path.clone(),\n            p.lang,\n            store,\n            &p.tree,\n            &p.raw,\n            &p.ids,\n            &env,\n        )?;\n        entities.extend(ents);\n        file_recs.insert(p.path.clone(), file);\n    }\n    for (path, src) in opaque {\n        file_recs.insert(path, FileRecord::from_tail(store, &src)?);\n    }\n    Ok(Snapshot {\n        parents: Vec::new(),\n        predecessors: Vec::new(),\n        change,\n        entities,\n        files: file_recs,\n        conflicts: Vec::new(),\n        message: String::new(),\n    })\n}",
             "intent": "Feature"
           }
@@ -130,24 +234,56 @@
         "at": 1789879417535,
         "group": null,
         "before": {
-          "root": "f19fae13cf9b22829c85f829ed5ddec791337523740c5902ecc5bb38d43ba7d5",
+          "root": "7262078dd1095790c486e546cb0720205c4af2908f521d46ca3e5867cfe15d9f",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "f19fae13cf9b22829c85f829ed5ddec791337523740c5902ecc5bb38d43ba7d5"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "7262078dd1095790c486e546cb0720205c4af2908f521d46ca3e5867cfe15d9f"
           }
         },
         "after": {
-          "root": "63a4ef8802d8b5bd39533ee85e05580689eddc8cba4be346d19d1c03b5cf3d5e",
+          "root": "4cae9f7d3ee3609f1b277e68ed3a7946bb3d3a158296331fbc12dd45e03fbbfe",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "63a4ef8802d8b5bd39533ee85e05580689eddc8cba4be346d19d1c03b5cf3d5e"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "4cae9f7d3ee3609f1b277e68ed3a7946bb3d3a158296331fbc12dd45e03fbbfe"
           }
         }
       },
       "refs": {
-        "01a0bd18-6edc-7573-8ffd-8022fab7b3a6": {
+        "01a0bd9c-3ffb-72aa-bf53-b373416983fd": {
           "file": "crates/svc-core/src/engine/mod.rs",
           "chain": [
             [
@@ -157,16 +293,20 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-core/src/engine/mod.rs": {
+          "Text": "use std::collections::BTreeMap;\n\nuse crate::content::{Bytes, Content, IdentRef};\nuse crate::entity::{EntityRecord, FileRecord, Kind, SigKey};\nuse crate::error::{Error, Result};\nuse crate::ids::{ByteRange, ChangeId, EntityId, RelPath};\nuse crate::lang::{Env, Lang, Langs, RawEntity, Resolution};\nuse crate::snapshot::Snapshot;\nuse crate::store::Store;\n\nmod align;\nmod bytes;\nmod canon;\nmod classify;\nmod diff_impl;\nmod extract;\nmod merge;\nmod ops;\nmod render_impl;\n\npub use classify::{Side, classify, classify_entity};\npub use merge::{lca, merge};\npub use ops::{\n    StatusReport, add_def, add_def_at, classify_def, commit_snapshot, delete, edit_def,\n    extract_hoist, format_tokens, inline, lookup, lookup_name, move_def, redefine, relocate,\n    rename, resolve_add_def_file, rust_langs, show, status_report,\n};\n\n#[derive(Clone, Debug, Default)]\npub struct Rendered {\n    pub files: BTreeMap<RelPath, Vec<u8>>,\n    /// Ranges index the rendered entity buffer. Absent when `with_maps` is false.\n    pub maps: Option<BTreeMap<EntityId, Vec<(ByteRange, IdentRef)>>>,\n}\n\npub fn parse(src: &[u8], lang: &dyn Lang) -> Result<tree_sitter::Tree> {\n    let mut parser = tree_sitter::Parser::new();\n    parser\n        .set_language(&lang.language())\n        .map_err(|e| Error::Parse(e.to_string()))?;\n    parser\n        .parse(src, None)\n        .ok_or_else(|| Error::Parse(\"tree-sitter returned None\".into()))\n}\n\npub fn extract(tree: &tree_sitter::Tree, src: &[u8], lang: &dyn Lang) -> Result<Vec<RawEntity>> {\n    extract::extract(tree, src, lang)\n}\n\n/// Name + refined Kind for Muse's JS lane tests (nested `let`s stay locals).\npub fn js_extract_refined_kinds(src: &str) -> Result<Vec<(String, crate::entity::Kind)>> {\n    let lang = crate::JsLang;\n    let tree = parse(src.as_bytes(), &lang)?;\n    Ok(extract(&tree, src.as_bytes(), &lang)?\n        .into_iter()\n        .map(|e| (e.name, e.kind))\n        .collect())\n}\n\npub fn env_from_snapshot(snapshot: &Snapshot) -> Env {\n    let mut env = Env::default();\n    for (id, rec) in &snapshot.entities {\n        if is_inherent_rec(snapshot, rec) {\n            continue;\n        }\n        env.insert_def_in(&rec.name, rec.kind, *id, Some(&rec.file));\n    }\n    env\n}\n\n/// Inherent methods nested under `parent` (an `impl` or class). Empty when the\n/// item is file-root: there is no receiver to bind `self.foo()` against.\npub(crate) fn fill_self_methods_from_snapshot(\n    env: &mut Env,\n    snapshot: &Snapshot,\n    parent: Option<EntityId>,\n) {\n    env.self_methods.clear();\n    let Some(parent) = parent else {\n        return;\n    };\n    env.self_methods = snapshot\n        .entities\n        .iter()\n        .filter(|(_, rec)| rec.parent == Some(parent) && is_callable_member(rec.kind))\n        .map(|(id, rec)| (rec.name.clone(), *id))\n        .collect();\n}\n\nfn is_callable_member(kind: Kind) -> bool {\n    matches!(kind, Kind::Fn | Kind::JsMethod | Kind::JsStaticMethod)\n}\n\n/// Inherent methods live in `self_methods`, not the flat Value env. A free\n/// `fn read` and `impl S { fn read(&self) }` are different targets: `read()`\n/// is the free fn, `self.read()` is the method.\nfn is_inherent_member(kind: Kind, parent_kind: Kind) -> bool {\n    match parent_kind {\n        Kind::Impl | Kind::Trait => matches!(kind, Kind::Fn),\n        Kind::JsClass => matches!(\n            kind,\n            Kind::JsMethod\n                | Kind::JsStaticMethod\n                | Kind::JsGetter\n                | Kind::JsSetter\n                | Kind::JsField\n                | Kind::JsStaticField\n        ),\n        _ => false,\n    }\n}\n\nfn is_inherent_rec(snapshot: &Snapshot, rec: &EntityRecord) -> bool {\n    rec.parent.is_some_and(|p| {\n        snapshot\n            .entities\n            .get(&p)\n            .is_some_and(|par| is_inherent_member(rec.kind, par.kind))\n    })\n}\n\nfn is_inherent_raw(raw: &[RawEntity], i: usize) -> bool {\n    raw[i]\n        .parent_idx\n        .is_some_and(|p| is_inherent_member(raw[i].kind, raw[p].kind))\n}\n\npub fn resolve(\n    item: tree_sitter::Node<'_>,\n    src: &[u8],\n    lang: &dyn Lang,\n    env: &Env,\n) -> Result<Resolution> {\n    Ok(canon::resolve_locals(item, src, lang, env))\n}\n\npub fn to_bytes(\n    item: tree_sitter::Node<'_>,\n    src: &[u8],\n    resolution: &Resolution,\n    children: &[(ByteRange, EntityId)],\n    own_name: Option<EntityId>,\n) -> Result<Bytes> {\n    let extent = extract::byte_range(item);\n    let name = own_name.and_then(|id| {\n        item.child_by_field_name(\"name\")\n            .map(|n| (extract::byte_range(n), id))\n    });\n    bytes::bytes_from_span(src, extent, children, name, resolution)\n}\n\npub fn canonicalize(\n    item: tree_sitter::Node<'_>,\n    src: &[u8],\n    res: &Resolution,\n    children: &[(ByteRange, EntityId)],\n    _env: &Env,\n    lang: &dyn Lang,\n) -> Result<Content> {\n    canon::canonicalize(item, src, res, children, lang)\n}\n\npub fn render(\n    snapshot: &Snapshot,\n    store: &dyn Store,\n    _langs: &Langs,\n    with_maps: bool,\n) -> Result<Rendered> {\n    render_impl::render(snapshot, store, with_maps)\n}\n\npub fn render_entity(\n    snapshot: &Snapshot,\n    store: &dyn Store,\n    id: EntityId,\n    with_map: bool,\n) -> Result<(Vec<u8>, Option<Vec<(ByteRange, IdentRef)>>)> {\n    render_impl::render_entity(snapshot, store, id, with_map)\n}\n\npub fn diff(\n    store: &dyn Store,\n    prev: &Snapshot,\n    next: &Snapshot,\n) -> Result<Vec<crate::delta::Delta>> {\n    diff_impl::diff(store, prev, next)\n}\n\n/// Bytes-in → snapshot-out. Does not write the snapshot, set root/heads, or append an op.\n/// `files` is the whole tree; `prev` lends ids only. Names resolve against what is parsed\n/// here — never against `prev`, whose entities may be exactly what this edit deleted (a\n/// reference kept bound to a gone id renders as `?`).\npub fn snapshot_files(\n    store: &dyn Store,\n    langs: &Langs,\n    files: &BTreeMap<RelPath, Vec<u8>>,\n    prev: Option<&Snapshot>,\n    change: ChangeId,\n) -> Result<Snapshot> {\n    struct Parsed<'a> {\n        path: RelPath,\n        src: &'a [u8],\n        tree: tree_sitter::Tree,\n        raw: Vec<RawEntity>,\n        lang: &'a dyn Lang,\n        ids: Vec<EntityId>,\n    }\n    let mut parsed = Vec::new();\n    let mut opaque = BTreeMap::new();\n    let mut prev_ids = prev_ids(prev);\n    for (path, src) in files {\n        match langs.for_path(path) {\n            Some(lang) => {\n                let tree = parse(src, lang)?;\n                let raw = extract(&tree, src, lang)?;\n                let ids = assign_ids(&raw, path, &mut prev_ids);\n                parsed.push(Parsed {\n                    path: path.clone(),\n                    src,\n                    tree,\n                    raw,\n                    lang,\n                    ids,\n                });\n            }\n            // Manifests, lockfiles, recordings: stored as the file tail with no\n            // entities so `svc init` on this repo still renders a tree cargo can build.\n            None => {\n                opaque.insert(path.clone(), src.clone());\n            }\n        }\n    }\n    // Prev is for assign_ids. Seeding names from it keeps deleted same-file\n    // defs in the env, so a remaining call binds to a missing id and render\n    // prints `?` (claude 03:34: absorb after deleting resolve_entity_in).\n    let mut env = Env::default();\n    for p in &parsed {\n        for (i, ent) in p.raw.iter().enumerate() {\n            if is_inherent_raw(&p.raw, i) {\n                continue;\n            }\n            env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));\n        }\n    }\n    let mut entities = BTreeMap::new();\n    let mut file_recs = BTreeMap::new();\n    for p in &parsed {\n        let (ents, file) = materialize(\n            p.src,\n            p.path.clone(),\n            p.lang,\n            store,\n            &p.tree,\n            &p.raw,\n            &p.ids,\n            &env,\n        )?;\n        entities.extend(ents);\n        file_recs.insert(p.path.clone(), file);\n    }\n    for (path, src) in opaque {\n        file_recs.insert(path, FileRecord::from_tail(store, &src)?);\n    }\n    Ok(Snapshot {\n        parents: Vec::new(),\n        predecessors: Vec::new(),\n        change,\n        entities,\n        files: file_recs,\n        conflicts: Vec::new(),\n        message: String::new(),\n    })\n}\n\npub fn ingest_file(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    change: ChangeId,\n) -> Result<Snapshot> {\n    ingest_file_with_env(src, path, lang, store, change, &Env::default())\n}\n\npub fn ingest_file_with_env(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    change: ChangeId,\n    extra: &Env,\n) -> Result<Snapshot> {\n    ingest_file_prev(src, path, lang, store, change, None, extra)\n}\n\npub fn ingest_file_prev(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    change: ChangeId,\n    prev: Option<&Snapshot>,\n    extra: &Env,\n) -> Result<Snapshot> {\n    let tree = parse(src, lang)?;\n    let raw = extract(&tree, src, lang)?;\n    let ids = assign_ids(&raw, &path, &mut prev_ids(prev));\n    let mut env = extra.clone();\n    for (i, ent) in raw.iter().enumerate() {\n        if is_inherent_raw(&raw, i) {\n            continue;\n        }\n        env.insert_def_in(&ent.name, ent.kind, ids[i], Some(&path));\n    }\n    let (entities, file) = materialize(src, path.clone(), lang, store, &tree, &raw, &ids, &env)?;\n    let mut files = BTreeMap::new();\n    files.insert(path, file);\n    Ok(Snapshot {\n        parents: Vec::new(),\n        predecessors: Vec::new(),\n        change,\n        entities,\n        files,\n        conflicts: Vec::new(),\n        message: String::new(),\n    })\n}\n\nfn materialize(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    tree: &tree_sitter::Tree,\n    raw: &[RawEntity],\n    ids: &[EntityId],\n    env: &Env,\n) -> Result<(BTreeMap<EntityId, EntityRecord>, FileRecord)> {\n    let mut entities = BTreeMap::new();\n    // Clone once per file: `Env.names` is Arc, so this is not O(n) in the snapshot.\n    // Filling `self_methods` only when the caller left it empty — `edit_def` fills it\n    // from the snapshot, and the fragment being parsed has no siblings (opus 03:05).\n    let mut local_env = env.clone();\n    local_env.current_file = Some(path.clone());\n    let caller_supplied = !env.self_methods.is_empty();\n    let mut sibs: std::collections::HashMap<usize, std::collections::HashMap<String, EntityId>> =\n        std::collections::HashMap::new();\n    if !caller_supplied {\n        for (j, sib) in raw.iter().enumerate() {\n            if let Some(p) = sib.parent_idx {\n                if is_callable_member(sib.kind) {\n                    sibs.entry(p).or_default().insert(sib.name.clone(), ids[j]);\n                }\n            }\n        }\n    }\n    for (i, ent) in raw.iter().enumerate() {\n        let node = extract::find_node(tree.root_node(), ent.item_range)\n            .ok_or_else(|| Error::Parse(format!(\"no node for {}\", ent.name)))?;\n        if !caller_supplied {\n            local_env.self_methods = ent\n                .parent_idx\n                .and_then(|p| sibs.get(&p))\n                .cloned()\n                .unwrap_or_default();\n        }\n        let res = resolve(node, src, lang, &local_env)?;\n        let children: Vec<(ByteRange, EntityId)> = ent\n            .children\n            .iter()\n            .map(|&c| (raw[c].bytes_range, ids[c]))\n            .collect();\n        let own_name = ent.name_range.map(|r| (r, EntityId::SELF));\n        let bytes = bytes::bytes_from_span(src, ent.bytes_range, &children, own_name, &res)?;\n        let bytes_id = store.put_bytes_blob(&bytes)?;\n        let child_spans: Vec<(ByteRange, EntityId)> = ent\n            .children\n            .iter()\n            .map(|&c| (raw[c].item_range, ids[c]))\n            .collect();\n        let content = canonicalize(node, src, &res, &child_spans, &local_env, lang)?;\n        let content_id = store.put_content(&content)?;\n        let ordinal = raw\n            .iter()\n            .filter(|o| o.parent_idx == ent.parent_idx && o.item_range.start < ent.item_range.start)\n            .count() as u32;\n        entities.insert(\n            ids[i],\n            EntityRecord {\n                name: ent.name.clone(),\n                kind: ent.kind,\n                parent: ent.parent_idx.map(|p| ids[p]),\n                file: path.clone(),\n                ordinal,\n                content: content_id,\n                bytes: bytes_id,\n            },\n        );\n    }\n    let roots: Vec<_> = raw\n        .iter()\n        .filter(|e| e.parent_idx.is_none())\n        .cloned()\n        .collect();\n    let trailing = render_impl::trailing_for(src, &roots);\n    Ok((entities, FileRecord { trailing }))\n}\n\n/// Reuse ids from `prev` by SigKey: nested items match under their parent, file-level\n/// items only within `file` (two files may each define `fn hex32`).\n/// The previous snapshot's ids by signature, each list in id order: a re-ingested entity\n/// keeps its id, and two same-signature entities take theirs in the order they had.\n/// Built once per ingest; a lookup per raw entity instead of a scan of every record.\ntype PrevIds = BTreeMap<SigKey, std::collections::VecDeque<EntityId>>;\n\nfn prev_ids(prev: Option<&Snapshot>) -> PrevIds {\n    let mut by_sig = PrevIds::new();\n    if let Some(prev) = prev {\n        for (id, rec) in &prev.entities {\n            by_sig.entry(rec.sig_key()).or_default().push_back(*id);\n        }\n    }\n    by_sig\n}\n\nfn assign_ids(raw: &[RawEntity], file: &RelPath, prev: &mut PrevIds) -> Vec<EntityId> {\n    let mut ids = Vec::with_capacity(raw.len());\n    for ent in raw {\n        let parent = ent.parent_idx.map(|p| ids[p]);\n        let key = SigKey::new(parent, file, ent.kind, ent.name.clone());\n        let id = prev\n            .get_mut(&key)\n            .and_then(|same| same.pop_front())\n            .unwrap_or_else(EntityId::new);\n        ids.push(id);\n    }\n    ids\n}\n"
+        }
+      },
       "after_tree": "d75a4dea13692150a868da2dc4b3e585dc0f936eb4cef724229a67d551b4a51c",
       "workspace": null
     },
     {
-      "ix": 12,
+      "ix": 83,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd18-6edc-7573-8ffd-8027f9e6d1f4",
+            "id": "01a0bd9c-3ffb-72aa-bf53-b37824881ade",
             "definition": "fn materialize(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    tree: &tree_sitter::Tree,\n    raw: &[RawEntity],\n    ids: &[EntityId],\n    env: &Env,\n) -> Result<(BTreeMap<EntityId, EntityRecord>, FileRecord)> {\n    let mut entities = BTreeMap::new();\n    // Clone once per file: `Env.names` is Arc, so this is not O(n) in the snapshot.\n    // Filling `self_methods` only when the caller left it empty — `edit_def` fills it\n    // from the snapshot, and the fragment being parsed has no siblings (opus 03:05).\n    let mut local_env = env.clone();\n    local_env.current_file = Some(path.clone());\n    let caller_supplied = !env.self_methods.is_empty();\n    let mut sibs: std::collections::HashMap<usize, std::collections::HashMap<String, EntityId>> =\n        std::collections::HashMap::new();\n    if !caller_supplied {\n        for (j, sib) in raw.iter().enumerate() {\n            if let Some(p) = sib.parent_idx {\n                if is_callable_member(sib.kind) {\n                    sibs.entry(p).or_default().insert(sib.name.clone(), ids[j]);\n                }\n            }\n        }\n    }\n    for (i, ent) in raw.iter().enumerate() {\n        let node = extract::find_node(tree.root_node(), ent.item_range)\n            .ok_or_else(|| Error::Parse(format!(\"no node for {}\", ent.name)))?;\n        if !caller_supplied {\n            local_env.self_methods = ent\n                .parent_idx\n                .and_then(|p| sibs.get(&p))\n                .cloned()\n                .unwrap_or_default();\n        }\n        let res = resolve(node, src, lang, &local_env)?;\n        let children: Vec<(ByteRange, EntityId)> = ent\n            .children\n            .iter()\n            .map(|&c| (raw[c].bytes_range, ids[c]))\n            .collect();\n        let own_name = ent.name_range.map(|r| (r, EntityId::SELF));\n        let bytes = bytes::bytes_from_span(src, ent.bytes_range, &children, own_name, &res)?;\n        let bytes_id = store.put_bytes_blob(&bytes)?;\n        let child_spans: Vec<(ByteRange, EntityId)> = ent\n            .children\n            .iter()\n            .map(|&c| (raw[c].item_range, ids[c]))\n            .collect();\n        let content = canonicalize(node, src, &res, &child_spans, &local_env, lang)?;\n        let content_id = store.put_content(&content)?;\n        let ordinal = raw\n            .iter()\n            .filter(|o| o.parent_idx == ent.parent_idx && o.item_range.start < ent.item_range.start)\n            .count() as u32;\n        entities.insert(\n            ids[i],\n            EntityRecord {\n                name: ent.name.clone(),\n                kind: ent.kind,\n                parent: ent.parent_idx.map(|p| ids[p]),\n                file: path.clone(),\n                ordinal,\n                content: content_id,\n                bytes: bytes_id,\n            },\n        );\n    }\n    let roots: Vec<_> = raw\n        .iter()\n        .filter(|e| e.parent_idx.is_none())\n        .cloned()\n        .collect();\n    let trailing = render_impl::trailing_for(src, &roots);\n    Ok((entities, FileRecord::from_tail(store, &trailing)?))\n}",
             "intent": "Feature"
           }
@@ -175,24 +315,56 @@
         "at": 1789879418627,
         "group": null,
         "before": {
-          "root": "63a4ef8802d8b5bd39533ee85e05580689eddc8cba4be346d19d1c03b5cf3d5e",
+          "root": "4cae9f7d3ee3609f1b277e68ed3a7946bb3d3a158296331fbc12dd45e03fbbfe",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "63a4ef8802d8b5bd39533ee85e05580689eddc8cba4be346d19d1c03b5cf3d5e"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "4cae9f7d3ee3609f1b277e68ed3a7946bb3d3a158296331fbc12dd45e03fbbfe"
           }
         },
         "after": {
-          "root": "8767528073e68bd8382e74e70cbfec204403f0ad4f640474fe12b26326af45ca",
+          "root": "06c79b8dddbeb8dc2c077fcfcd8cc27b0a63568c262d2c07f21b002c1b022e88",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "8767528073e68bd8382e74e70cbfec204403f0ad4f640474fe12b26326af45ca"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "06c79b8dddbeb8dc2c077fcfcd8cc27b0a63568c262d2c07f21b002c1b022e88"
           }
         }
       },
       "refs": {
-        "01a0bd18-6edc-7573-8ffd-8027f9e6d1f4": {
+        "01a0bd9c-3ffb-72aa-bf53-b37824881ade": {
           "file": "crates/svc-core/src/engine/mod.rs",
           "chain": [
             [
@@ -202,16 +374,20 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-core/src/engine/mod.rs": {
+          "Text": "use std::collections::BTreeMap;\n\nuse crate::content::{Bytes, Content, IdentRef};\nuse crate::entity::{EntityRecord, FileRecord, Kind, SigKey};\nuse crate::error::{Error, Result};\nuse crate::ids::{ByteRange, ChangeId, EntityId, RelPath};\nuse crate::lang::{Env, Lang, Langs, RawEntity, Resolution};\nuse crate::snapshot::Snapshot;\nuse crate::store::Store;\n\nmod align;\nmod bytes;\nmod canon;\nmod classify;\nmod diff_impl;\nmod extract;\nmod merge;\nmod ops;\nmod render_impl;\n\npub use classify::{Side, classify, classify_entity};\npub use merge::{lca, merge};\npub use ops::{\n    StatusReport, add_def, add_def_at, classify_def, commit_snapshot, delete, edit_def,\n    extract_hoist, format_tokens, inline, lookup, lookup_name, move_def, redefine, relocate,\n    rename, resolve_add_def_file, rust_langs, show, status_report,\n};\n\n#[derive(Clone, Debug, Default)]\npub struct Rendered {\n    pub files: BTreeMap<RelPath, Vec<u8>>,\n    /// Ranges index the rendered entity buffer. Absent when `with_maps` is false.\n    pub maps: Option<BTreeMap<EntityId, Vec<(ByteRange, IdentRef)>>>,\n}\n\npub fn parse(src: &[u8], lang: &dyn Lang) -> Result<tree_sitter::Tree> {\n    let mut parser = tree_sitter::Parser::new();\n    parser\n        .set_language(&lang.language())\n        .map_err(|e| Error::Parse(e.to_string()))?;\n    parser\n        .parse(src, None)\n        .ok_or_else(|| Error::Parse(\"tree-sitter returned None\".into()))\n}\n\npub fn extract(tree: &tree_sitter::Tree, src: &[u8], lang: &dyn Lang) -> Result<Vec<RawEntity>> {\n    extract::extract(tree, src, lang)\n}\n\n/// Name + refined Kind for Muse's JS lane tests (nested `let`s stay locals).\npub fn js_extract_refined_kinds(src: &str) -> Result<Vec<(String, crate::entity::Kind)>> {\n    let lang = crate::JsLang;\n    let tree = parse(src.as_bytes(), &lang)?;\n    Ok(extract(&tree, src.as_bytes(), &lang)?\n        .into_iter()\n        .map(|e| (e.name, e.kind))\n        .collect())\n}\n\npub fn env_from_snapshot(snapshot: &Snapshot) -> Env {\n    let mut env = Env::default();\n    for (id, rec) in &snapshot.entities {\n        if is_inherent_rec(snapshot, rec) {\n            continue;\n        }\n        env.insert_def_in(&rec.name, rec.kind, *id, Some(&rec.file));\n    }\n    env\n}\n\n/// Inherent methods nested under `parent` (an `impl` or class). Empty when the\n/// item is file-root: there is no receiver to bind `self.foo()` against.\npub(crate) fn fill_self_methods_from_snapshot(\n    env: &mut Env,\n    snapshot: &Snapshot,\n    parent: Option<EntityId>,\n) {\n    env.self_methods.clear();\n    let Some(parent) = parent else {\n        return;\n    };\n    env.self_methods = snapshot\n        .entities\n        .iter()\n        .filter(|(_, rec)| rec.parent == Some(parent) && is_callable_member(rec.kind))\n        .map(|(id, rec)| (rec.name.clone(), *id))\n        .collect();\n}\n\nfn is_callable_member(kind: Kind) -> bool {\n    matches!(kind, Kind::Fn | Kind::JsMethod | Kind::JsStaticMethod)\n}\n\n/// Inherent methods live in `self_methods`, not the flat Value env. A free\n/// `fn read` and `impl S { fn read(&self) }` are different targets: `read()`\n/// is the free fn, `self.read()` is the method.\nfn is_inherent_member(kind: Kind, parent_kind: Kind) -> bool {\n    match parent_kind {\n        Kind::Impl | Kind::Trait => matches!(kind, Kind::Fn),\n        Kind::JsClass => matches!(\n            kind,\n            Kind::JsMethod\n                | Kind::JsStaticMethod\n                | Kind::JsGetter\n                | Kind::JsSetter\n                | Kind::JsField\n                | Kind::JsStaticField\n        ),\n        _ => false,\n    }\n}\n\nfn is_inherent_rec(snapshot: &Snapshot, rec: &EntityRecord) -> bool {\n    rec.parent.is_some_and(|p| {\n        snapshot\n            .entities\n            .get(&p)\n            .is_some_and(|par| is_inherent_member(rec.kind, par.kind))\n    })\n}\n\nfn is_inherent_raw(raw: &[RawEntity], i: usize) -> bool {\n    raw[i]\n        .parent_idx\n        .is_some_and(|p| is_inherent_member(raw[i].kind, raw[p].kind))\n}\n\npub fn resolve(\n    item: tree_sitter::Node<'_>,\n    src: &[u8],\n    lang: &dyn Lang,\n    env: &Env,\n) -> Result<Resolution> {\n    Ok(canon::resolve_locals(item, src, lang, env))\n}\n\npub fn to_bytes(\n    item: tree_sitter::Node<'_>,\n    src: &[u8],\n    resolution: &Resolution,\n    children: &[(ByteRange, EntityId)],\n    own_name: Option<EntityId>,\n) -> Result<Bytes> {\n    let extent = extract::byte_range(item);\n    let name = own_name.and_then(|id| {\n        item.child_by_field_name(\"name\")\n            .map(|n| (extract::byte_range(n), id))\n    });\n    bytes::bytes_from_span(src, extent, children, name, resolution)\n}\n\npub fn canonicalize(\n    item: tree_sitter::Node<'_>,\n    src: &[u8],\n    res: &Resolution,\n    children: &[(ByteRange, EntityId)],\n    _env: &Env,\n    lang: &dyn Lang,\n) -> Result<Content> {\n    canon::canonicalize(item, src, res, children, lang)\n}\n\npub fn render(\n    snapshot: &Snapshot,\n    store: &dyn Store,\n    _langs: &Langs,\n    with_maps: bool,\n) -> Result<Rendered> {\n    render_impl::render(snapshot, store, with_maps)\n}\n\npub fn render_entity(\n    snapshot: &Snapshot,\n    store: &dyn Store,\n    id: EntityId,\n    with_map: bool,\n) -> Result<(Vec<u8>, Option<Vec<(ByteRange, IdentRef)>>)> {\n    render_impl::render_entity(snapshot, store, id, with_map)\n}\n\npub fn diff(\n    store: &dyn Store,\n    prev: &Snapshot,\n    next: &Snapshot,\n) -> Result<Vec<crate::delta::Delta>> {\n    diff_impl::diff(store, prev, next)\n}\n\n/// Bytes-in → snapshot-out. Does not write the snapshot, set root/heads, or append an op.\n/// `files` is the whole tree; `prev` lends ids only. Names resolve against what is parsed\n/// here — never against `prev`, whose entities may be exactly what this edit deleted (a\n/// reference kept bound to a gone id renders as `?`).\npub fn snapshot_files(\n    store: &dyn Store,\n    langs: &Langs,\n    files: &BTreeMap<RelPath, Vec<u8>>,\n    prev: Option<&Snapshot>,\n    change: ChangeId,\n) -> Result<Snapshot> {\n    struct Parsed<'a> {\n        path: RelPath,\n        src: &'a [u8],\n        tree: tree_sitter::Tree,\n        raw: Vec<RawEntity>,\n        lang: &'a dyn Lang,\n        ids: Vec<EntityId>,\n    }\n    let mut parsed = Vec::new();\n    let mut opaque = BTreeMap::new();\n    let mut prev_ids = prev_ids(prev);\n    for (path, src) in files {\n        match langs.for_path(path) {\n            Some(lang) => {\n                let tree = parse(src, lang)?;\n                let raw = extract(&tree, src, lang)?;\n                let ids = assign_ids(&raw, path, &mut prev_ids);\n                parsed.push(Parsed {\n                    path: path.clone(),\n                    src,\n                    tree,\n                    raw,\n                    lang,\n                    ids,\n                });\n            }\n            // Manifests, lockfiles, recordings: stored as the file tail with no\n            // entities so `svc init` on this repo still renders a tree cargo can build.\n            None => {\n                opaque.insert(path.clone(), src.clone());\n            }\n        }\n    }\n    // Prev is for assign_ids. Seeding names from it keeps deleted same-file\n    // defs in the env, so a remaining call binds to a missing id and render\n    // prints `?` (claude 03:34: absorb after deleting resolve_entity_in).\n    let mut env = Env::default();\n    for p in &parsed {\n        for (i, ent) in p.raw.iter().enumerate() {\n            if is_inherent_raw(&p.raw, i) {\n                continue;\n            }\n            env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));\n        }\n    }\n    let mut entities = BTreeMap::new();\n    let mut file_recs = BTreeMap::new();\n    for p in &parsed {\n        let (ents, file) = materialize(\n            p.src,\n            p.path.clone(),\n            p.lang,\n            store,\n            &p.tree,\n            &p.raw,\n            &p.ids,\n            &env,\n        )?;\n        entities.extend(ents);\n        file_recs.insert(p.path.clone(), file);\n    }\n    for (path, src) in opaque {\n        file_recs.insert(path, FileRecord::from_tail(store, &src)?);\n    }\n    Ok(Snapshot {\n        parents: Vec::new(),\n        predecessors: Vec::new(),\n        change,\n        entities,\n        files: file_recs,\n        conflicts: Vec::new(),\n        message: String::new(),\n    })\n}\n\npub fn ingest_file(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    change: ChangeId,\n) -> Result<Snapshot> {\n    ingest_file_with_env(src, path, lang, store, change, &Env::default())\n}\n\npub fn ingest_file_with_env(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    change: ChangeId,\n    extra: &Env,\n) -> Result<Snapshot> {\n    ingest_file_prev(src, path, lang, store, change, None, extra)\n}\n\npub fn ingest_file_prev(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    change: ChangeId,\n    prev: Option<&Snapshot>,\n    extra: &Env,\n) -> Result<Snapshot> {\n    let tree = parse(src, lang)?;\n    let raw = extract(&tree, src, lang)?;\n    let ids = assign_ids(&raw, &path, &mut prev_ids(prev));\n    let mut env = extra.clone();\n    for (i, ent) in raw.iter().enumerate() {\n        if is_inherent_raw(&raw, i) {\n            continue;\n        }\n        env.insert_def_in(&ent.name, ent.kind, ids[i], Some(&path));\n    }\n    let (entities, file) = materialize(src, path.clone(), lang, store, &tree, &raw, &ids, &env)?;\n    let mut files = BTreeMap::new();\n    files.insert(path, file);\n    Ok(Snapshot {\n        parents: Vec::new(),\n        predecessors: Vec::new(),\n        change,\n        entities,\n        files,\n        conflicts: Vec::new(),\n        message: String::new(),\n    })\n}\n\nfn materialize(\n    src: &[u8],\n    path: RelPath,\n    lang: &dyn Lang,\n    store: &dyn Store,\n    tree: &tree_sitter::Tree,\n    raw: &[RawEntity],\n    ids: &[EntityId],\n    env: &Env,\n) -> Result<(BTreeMap<EntityId, EntityRecord>, FileRecord)> {\n    let mut entities = BTreeMap::new();\n    // Clone once per file: `Env.names` is Arc, so this is not O(n) in the snapshot.\n    // Filling `self_methods` only when the caller left it empty — `edit_def` fills it\n    // from the snapshot, and the fragment being parsed has no siblings (opus 03:05).\n    let mut local_env = env.clone();\n    local_env.current_file = Some(path.clone());\n    let caller_supplied = !env.self_methods.is_empty();\n    let mut sibs: std::collections::HashMap<usize, std::collections::HashMap<String, EntityId>> =\n        std::collections::HashMap::new();\n    if !caller_supplied {\n        for (j, sib) in raw.iter().enumerate() {\n            if let Some(p) = sib.parent_idx {\n                if is_callable_member(sib.kind) {\n                    sibs.entry(p).or_default().insert(sib.name.clone(), ids[j]);\n                }\n            }\n        }\n    }\n    for (i, ent) in raw.iter().enumerate() {\n        let node = extract::find_node(tree.root_node(), ent.item_range)\n            .ok_or_else(|| Error::Parse(format!(\"no node for {}\", ent.name)))?;\n        if !caller_supplied {\n            local_env.self_methods = ent\n                .parent_idx\n                .and_then(|p| sibs.get(&p))\n                .cloned()\n                .unwrap_or_default();\n        }\n        let res = resolve(node, src, lang, &local_env)?;\n        let children: Vec<(ByteRange, EntityId)> = ent\n            .children\n            .iter()\n            .map(|&c| (raw[c].bytes_range, ids[c]))\n            .collect();\n        let own_name = ent.name_range.map(|r| (r, EntityId::SELF));\n        let bytes = bytes::bytes_from_span(src, ent.bytes_range, &children, own_name, &res)?;\n        let bytes_id = store.put_bytes_blob(&bytes)?;\n        let child_spans: Vec<(ByteRange, EntityId)> = ent\n            .children\n            .iter()\n            .map(|&c| (raw[c].item_range, ids[c]))\n            .collect();\n        let content = canonicalize(node, src, &res, &child_spans, &local_env, lang)?;\n        let content_id = store.put_content(&content)?;\n        let ordinal = raw\n            .iter()\n            .filter(|o| o.parent_idx == ent.parent_idx && o.item_range.start < ent.item_range.start)\n            .count() as u32;\n        entities.insert(\n            ids[i],\n            EntityRecord {\n                name: ent.name.clone(),\n                kind: ent.kind,\n                parent: ent.parent_idx.map(|p| ids[p]),\n                file: path.clone(),\n                ordinal,\n                content: content_id,\n                bytes: bytes_id,\n            },\n        );\n    }\n    let roots: Vec<_> = raw\n        .iter()\n        .filter(|e| e.parent_idx.is_none())\n        .cloned()\n        .collect();\n    let trailing = render_impl::trailing_for(src, &roots);\n    Ok((entities, FileRecord::from_tail(store, &trailing)?))\n}\n\n/// Reuse ids from `prev` by SigKey: nested items match under their parent, file-level\n/// items only within `file` (two files may each define `fn hex32`).\n/// The previous snapshot's ids by signature, each list in id order: a re-ingested entity\n/// keeps its id, and two same-signature entities take theirs in the order they had.\n/// Built once per ingest; a lookup per raw entity instead of a scan of every record.\ntype PrevIds = BTreeMap<SigKey, std::collections::VecDeque<EntityId>>;\n\nfn prev_ids(prev: Option<&Snapshot>) -> PrevIds {\n    let mut by_sig = PrevIds::new();\n    if let Some(prev) = prev {\n        for (id, rec) in &prev.entities {\n            by_sig.entry(rec.sig_key()).or_default().push_back(*id);\n        }\n    }\n    by_sig\n}\n\nfn assign_ids(raw: &[RawEntity], file: &RelPath, prev: &mut PrevIds) -> Vec<EntityId> {\n    let mut ids = Vec::with_capacity(raw.len());\n    for ent in raw {\n        let parent = ent.parent_idx.map(|p| ids[p]);\n        let key = SigKey::new(parent, file, ent.kind, ent.name.clone());\n        let id = prev\n            .get_mut(&key)\n            .and_then(|same| same.pop_front())\n            .unwrap_or_else(EntityId::new);\n        ids.push(id);\n    }\n    ids\n}\n"
+        }
+      },
       "after_tree": "f56e39829b296e03ad4b15dbb4e6dc09ce7ac294b862bdf1acd936294ec1e92b",
       "workspace": null
     },
     {
-      "ix": 13,
+      "ix": 84,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd18-6ee7-7170-a91d-1c31f4d28642",
+            "id": "01a0bd9c-4008-76b8-ab26-cc360539e469",
             "definition": "pub fn render(snapshot: &Snapshot, store: &dyn Store, with_maps: bool) -> Result<Rendered> {\n    let mut files = BTreeMap::new();\n    let mut maps = with_maps.then(BTreeMap::new);\n    for (path, rec) in &snapshot.files {\n        let mut buf = Vec::new();\n        for id in snapshot.file_roots(path) {\n            let (bytes, map) = expand(snapshot, store, id, with_maps)?;\n            buf.extend_from_slice(&bytes);\n            if let (Some(maps), Some(map)) = (maps.as_mut(), map) {\n                maps.insert(id, map);\n            }\n        }\n        buf.extend_from_slice(&rec.tail(store)?);\n        files.insert(path.clone(), buf);\n    }\n    Ok(Rendered { files, maps })\n}",
             "intent": "Feature"
           }
@@ -220,24 +396,56 @@
         "at": 1789879419778,
         "group": null,
         "before": {
-          "root": "8767528073e68bd8382e74e70cbfec204403f0ad4f640474fe12b26326af45ca",
+          "root": "06c79b8dddbeb8dc2c077fcfcd8cc27b0a63568c262d2c07f21b002c1b022e88",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "8767528073e68bd8382e74e70cbfec204403f0ad4f640474fe12b26326af45ca"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "06c79b8dddbeb8dc2c077fcfcd8cc27b0a63568c262d2c07f21b002c1b022e88"
           }
         },
         "after": {
-          "root": "2cda404ffd896c260794d87d8409fd1eb33fe988f47e5a08b4e40ba0814e46a8",
+          "root": "ba90a0e986384fa0d4e97c85adc741cc5adecf7a4e1f82a5c4356b2ebc067435",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "2cda404ffd896c260794d87d8409fd1eb33fe988f47e5a08b4e40ba0814e46a8"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "ba90a0e986384fa0d4e97c85adc741cc5adecf7a4e1f82a5c4356b2ebc067435"
           }
         }
       },
       "refs": {
-        "01a0bd18-6ee7-7170-a91d-1c31f4d28642": {
+        "01a0bd9c-4008-76b8-ab26-cc360539e469": {
           "file": "crates/svc-core/src/engine/render_impl.rs",
           "chain": [
             [
@@ -247,16 +455,20 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-core/src/engine/render_impl.rs": {
+          "Text": "use std::collections::BTreeMap;\n\nuse crate::content::{Chunk, IdentRef};\nuse crate::error::{Error, Result};\nuse crate::ids::{ByteRange, EntityId};\nuse crate::snapshot::Snapshot;\nuse crate::store::Store;\n\nuse super::Rendered;\n\npub fn render(snapshot: &Snapshot, store: &dyn Store, with_maps: bool) -> Result<Rendered> {\n    let mut files = BTreeMap::new();\n    let mut maps = with_maps.then(BTreeMap::new);\n    for (path, rec) in &snapshot.files {\n        let mut buf = Vec::new();\n        for id in snapshot.file_roots(path) {\n            let (bytes, map) = expand(snapshot, store, id, with_maps)?;\n            buf.extend_from_slice(&bytes);\n            if let (Some(maps), Some(map)) = (maps.as_mut(), map) {\n                maps.insert(id, map);\n            }\n        }\n        buf.extend_from_slice(&rec.tail(store)?);\n        files.insert(path.clone(), buf);\n    }\n    Ok(Rendered { files, maps })\n}\n\npub fn render_entity(\n    snapshot: &Snapshot,\n    store: &dyn Store,\n    id: EntityId,\n    with_map: bool,\n) -> Result<(Vec<u8>, Option<Vec<(ByteRange, IdentRef)>>)> {\n    expand(snapshot, store, id, with_map)\n}\n\nfn expand(\n    snapshot: &Snapshot,\n    store: &dyn Store,\n    id: EntityId,\n    with_map: bool,\n) -> Result<(Vec<u8>, Option<Vec<(ByteRange, IdentRef)>>)> {\n    let rec = snapshot.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;\n    let bytes = store.get_bytes_blob(rec.bytes)?;\n    let mut out = Vec::new();\n    let mut map = with_map.then(Vec::new);\n    for chunk in bytes.chunks() {\n        match chunk {\n            Chunk::Literal(r) => {\n                let a = r.start as usize;\n                let b = r.end as usize;\n                let src = bytes.src();\n                if b > src.len() || a > b {\n                    return Err(Error::Other(\"literal chunk out of range\".into()));\n                }\n                let base = out.len() as u32;\n                out.extend_from_slice(&src[a..b]);\n                if let Some(map) = map.as_mut() {\n                    for (lr, ident) in bytes.local_ranges() {\n                        if lr.start >= r.start && lr.end <= r.end {\n                            map.push((\n                                ByteRange {\n                                    start: base + (lr.start - r.start),\n                                    end: base + (lr.end - r.start),\n                                },\n                                ident.clone(),\n                            ));\n                        }\n                    }\n                }\n            }\n            Chunk::Child(cid) => {\n                let (child, child_map) = expand(snapshot, store, *cid, with_map)?;\n                out.extend_from_slice(&child);\n                if let (Some(map), Some(child_map)) = (map.as_mut(), child_map) {\n                    let base = (out.len() - child.len()) as u32;\n                    for (r, ident) in child_map {\n                        map.push((\n                            ByteRange {\n                                start: base + r.start,\n                                end: base + r.end,\n                            },\n                            ident,\n                        ));\n                    }\n                }\n            }\n            Chunk::Name(nid) => {\n                let name = if *nid == EntityId::SELF {\n                    rec.name.as_str()\n                } else {\n                    snapshot\n                        .entities\n                        .get(nid)\n                        .map(|e| e.name.as_str())\n                        .unwrap_or(\"?\")\n                };\n                let start = out.len() as u32;\n                out.extend_from_slice(name.as_bytes());\n                if let Some(map) = map.as_mut() {\n                    map.push((\n                        ByteRange {\n                            start,\n                            end: out.len() as u32,\n                        },\n                        IdentRef::Entity(*nid),\n                    ));\n                }\n            }\n        }\n    }\n    Ok((out, map))\n}\n\npub fn trailing_for(src: &[u8], roots: &[crate::lang::RawEntity]) -> Vec<u8> {\n    let end = roots.iter().map(|e| e.bytes_range.end).max().unwrap_or(0) as usize;\n    src.get(end.min(src.len())..).unwrap_or(&[]).to_vec()\n}\n"
+        }
+      },
       "after_tree": "211532801b4943fe82dffefe732a3e1861ca7d39ccbbaec309b534a6a758d789",
       "workspace": null
     },
     {
-      "ix": 14,
+      "ix": 85,
       "entry": {
         "op": {
           "EditDef": {
-            "id": "01a0bd18-6ed3-7390-8f71-4e02caf60373",
+            "id": "01a0bd9c-3fef-76fa-8505-268a4eca92c5",
             "definition": "/// Structural deltas between two snapshots. An edited entity carries the class the\n/// classifier assigns to old → new (rendered from `store`), never a placeholder. Files\n/// are compared by their bytes outside entities, so an opaque file shows up as a whole.\npub fn diff(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<Vec<Delta>> {\n    let mut out = Vec::new();\n    for (id, rec) in &next.entities {\n        match prev.entities.get(id) {\n            None => out.push(Delta::Added(*id)),\n            Some(old) => {\n                if old.name != rec.name {\n                    out.push(Delta::Renamed {\n                        id: *id,\n                        from: old.name.clone(),\n                        to: rec.name.clone(),\n                    });\n                }\n                if old.parent != rec.parent {\n                    out.push(Delta::Moved {\n                        id: *id,\n                        from_parent: old.parent,\n                        to_parent: rec.parent,\n                    });\n                }\n                if old.file != rec.file || old.ordinal != rec.ordinal {\n                    let parent_kind = rec\n                        .parent\n                        .and_then(|pid| next.entities.get(&pid).map(|p| p.kind));\n                    let layout_only = old.parent == rec.parent\n                        && old.file == rec.file\n                        && commutative_layout(rec.file.extension(), parent_kind, rec.kind);\n                    if !layout_only {\n                        out.push(Delta::Relocated {\n                            id: *id,\n                            from: (old.file.clone(), old.ordinal),\n                            to: (rec.file.clone(), rec.ordinal),\n                        });\n                    }\n                }\n                if old.content != rec.content || old.bytes != rec.bytes {\n                    out.push(Delta::Edited(*id, classify_entity(store, prev, next, *id)?));\n                }\n            }\n        }\n    }\n    for (id, old) in &prev.entities {\n        if !next.entities.contains_key(id) {\n            out.push(Delta::Removed {\n                id: *id,\n                name: old.name.clone(),\n            });\n        }\n    }\n    for (path, rec) in &next.files {\n        match prev.files.get(path) {\n            None => out.push(Delta::FileAdded(path.clone())),\n            Some(old) if old.trailing != rec.trailing => out.push(Delta::FileTail {\n                path: path.clone(),\n                whitespace_only: sans_whitespace(&old.tail(store)?) == sans_whitespace(&rec.tail(store)?),\n            }),\n            Some(_) => {}\n        }\n    }\n    for path in prev.files.keys() {\n        if !next.files.contains_key(path) {\n            out.push(Delta::FileRemoved(path.clone()));\n        }\n    }\n    Ok(out)\n}",
             "intent": "Feature"
           }
@@ -265,24 +477,56 @@
         "at": 1789879420953,
         "group": null,
         "before": {
-          "root": "2cda404ffd896c260794d87d8409fd1eb33fe988f47e5a08b4e40ba0814e46a8",
+          "root": "ba90a0e986384fa0d4e97c85adc741cc5adecf7a4e1f82a5c4356b2ebc067435",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "2cda404ffd896c260794d87d8409fd1eb33fe988f47e5a08b4e40ba0814e46a8"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "ba90a0e986384fa0d4e97c85adc741cc5adecf7a4e1f82a5c4356b2ebc067435"
           }
         },
         "after": {
-          "root": "b5686d4a51a8990af4fc5ee3c46c58c0954e78c8e54b48614be7fee6b8c3a5bd",
+          "root": "7e7ffd826bdb351b1893a4b4a3f3461c29313a7fe0107ad52c526a95fd4b9560",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "b5686d4a51a8990af4fc5ee3c46c58c0954e78c8e54b48614be7fee6b8c3a5bd"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "7e7ffd826bdb351b1893a4b4a3f3461c29313a7fe0107ad52c526a95fd4b9560"
           }
         }
       },
       "refs": {
-        "01a0bd18-6ed3-7390-8f71-4e02caf60373": {
+        "01a0bd9c-3fef-76fa-8505-268a4eca92c5": {
           "file": "crates/svc-core/src/engine/diff_impl.rs",
           "chain": [
             [
@@ -292,31 +536,67 @@
           ]
         }
       },
-      "files": {},
+      "files": {
+        "crates/svc-core/src/engine/diff_impl.rs": {
+          "Text": "use crate::delta::Delta;\nuse crate::entity::Kind;\nuse crate::error::Result;\nuse crate::lang::Lang;\nuse crate::snapshot::Snapshot;\nuse crate::store::Store;\nuse crate::{JsLang, RustLang};\n\nuse super::classify_entity;\n\n/// Structural deltas between two snapshots. An edited entity carries the class the\n/// classifier assigns to old → new (rendered from `store`), never a placeholder. Files\n/// are compared by their bytes outside entities, so an opaque file shows up as a whole.\npub fn diff(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<Vec<Delta>> {\n    let mut out = Vec::new();\n    for (id, rec) in &next.entities {\n        match prev.entities.get(id) {\n            None => out.push(Delta::Added(*id)),\n            Some(old) => {\n                if old.name != rec.name {\n                    out.push(Delta::Renamed {\n                        id: *id,\n                        from: old.name.clone(),\n                        to: rec.name.clone(),\n                    });\n                }\n                if old.parent != rec.parent {\n                    out.push(Delta::Moved {\n                        id: *id,\n                        from_parent: old.parent,\n                        to_parent: rec.parent,\n                    });\n                }\n                if old.file != rec.file || old.ordinal != rec.ordinal {\n                    let parent_kind = rec\n                        .parent\n                        .and_then(|pid| next.entities.get(&pid).map(|p| p.kind));\n                    let layout_only = old.parent == rec.parent\n                        && old.file == rec.file\n                        && commutative_layout(rec.file.extension(), parent_kind, rec.kind);\n                    if !layout_only {\n                        out.push(Delta::Relocated {\n                            id: *id,\n                            from: (old.file.clone(), old.ordinal),\n                            to: (rec.file.clone(), rec.ordinal),\n                        });\n                    }\n                }\n                if old.content != rec.content || old.bytes != rec.bytes {\n                    out.push(Delta::Edited(*id, classify_entity(store, prev, next, *id)?));\n                }\n            }\n        }\n    }\n    for (id, old) in &prev.entities {\n        if !next.entities.contains_key(id) {\n            out.push(Delta::Removed {\n                id: *id,\n                name: old.name.clone(),\n            });\n        }\n    }\n    for (path, rec) in &next.files {\n        match prev.files.get(path) {\n            None => out.push(Delta::FileAdded(path.clone())),\n            Some(old) if old.trailing != rec.trailing => out.push(Delta::FileTail {\n                path: path.clone(),\n                whitespace_only: sans_whitespace(&old.tail(store)?) == sans_whitespace(&rec.tail(store)?),\n            }),\n            Some(_) => {}\n        }\n    }\n    for path in prev.files.keys() {\n        if !next.files.contains_key(path) {\n            out.push(Delta::FileRemoved(path.clone()));\n        }\n    }\n    Ok(out)\n}\n\npub(crate) fn commutative_layout(ext: Option<&str>, parent: Option<Kind>, child: Kind) -> bool {\n    let Some(lang) = lang_for_ext(ext) else {\n        return false;\n    };\n    lang.commutative_parents().iter().any(|rule| {\n        rule.parent == parent\n            && rule\n                .only_child_kinds\n                .is_none_or(|kinds| kinds.contains(&child))\n            && !rule\n                .except_child_kinds\n                .is_some_and(|kinds| kinds.contains(&child))\n    })\n}\n\nfn sans_whitespace(bytes: &[u8]) -> Vec<u8> {\n    bytes\n        .iter()\n        .copied()\n        .filter(|b| !b.is_ascii_whitespace())\n        .collect()\n}\n\n/// The language a file extension belongs to, for diffs that have no `Langs` in hand.\npub(crate) fn lang_for_ext(ext: Option<&str>) -> Option<&'static dyn Lang> {\n    match ext {\n        Some(\"rs\") => Some(&RustLang),\n        Some(\"js\" | \"mjs\" | \"cjs\") => Some(&JsLang),\n        _ => None,\n    }\n}\n"
+        }
+      },
       "after_tree": "d3e3a49b784b62b67db51e33e760efa36724aa42224e5650d3f0c7fcf7d8d84a",
       "workspace": null
     },
     {
-      "ix": 15,
+      "ix": 86,
       "entry": {
         "op": "Absorb",
         "observed": null,
         "at": 1789879696498,
         "group": null,
         "before": {
-          "root": "b5686d4a51a8990af4fc5ee3c46c58c0954e78c8e54b48614be7fee6b8c3a5bd",
+          "root": "7e7ffd826bdb351b1893a4b4a3f3461c29313a7fe0107ad52c526a95fd4b9560",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "b5686d4a51a8990af4fc5ee3c46c58c0954e78c8e54b48614be7fee6b8c3a5bd"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "7e7ffd826bdb351b1893a4b4a3f3461c29313a7fe0107ad52c526a95fd4b9560"
           }
         },
         "after": {
-          "root": "00c345df403413b50b931ffd7921f97d0324615efddab214636b250b3a103c54",
+          "root": "5ec1c2559d1769612f7ee52e43e00141af3bf4868dfae5476c1d43593653e1fe",
           "heads": {
-            "01a0bd18-6ebe-7758-8967-65fdca838813": "41b99de522c77afccf181b5eb072194c9c729c1f01d786d9890319496dfad5d9",
-            "01a0bd18-78cf-71ec-8f40-b092161153e3": "e8a252ea4c76bb7a3f2b4cccedf1aea2c8de7ef9d82c3dbd8931b480e2ca48d2",
-            "01a0bd1f-e4b0-77a3-a28c-8a31321e3f53": "00c345df403413b50b931ffd7921f97d0324615efddab214636b250b3a103c54"
+            "01a0bca7-735f-7475-826b-429207f654f0": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd06-3276-77cc-ab60-19e7ada67b35": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd17-fff6-7215-89f7-cd1a840fd62f": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1b-f199-738a-aeb8-1a9cd557d88c": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd1c-fd7e-70d0-a7d0-0da2d3ee337f": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9c-3fda-73c8-aec8-f1da144bd2f1": "f2a956ce7eb1d38a50219991b95dfadfc34cbf54bc05776786ba86f26c6e25aa",
+            "01a0bd9c-4709-744f-a09c-9d85d6f00852": "752b9ebbea8ab46a8a45f66b4fd3b997629737e410546cdfddae6a358270129b",
+            "01a0bd9c-7d14-77e3-a4e7-352a62b1d204": "1e97123846a82b8042b02d31e986112e104b8cb5608ea6b11117d3c45c4e5593",
+            "01a0bd9c-abd6-77d6-b9ee-cec481e2c006": "e5e6fba2ba9f820bf65213303a3dc2beee11f0aa108191e3d97fe2926e310c1a",
+            "01a0bd9c-cd41-779c-9087-3b39e0b3a2bb": "0d306a0673a9ebad5e628047443b1af7b857d26ffb452499640bf8649a9e1127",
+            "01a0bd9c-ff25-73a1-9483-983cd01732ec": "6718f975d20ed69fc865e1a3e61dd14863bf4834f406e209428e811a9ef08693",
+            "01a0bd9d-23a8-7068-8c54-b743c3d15bdc": "110090b7f78892ad55b3a3ab7e5d5358fed222a2315912522f1d3ea9a284029c",
+            "01a0bd9d-3e86-774a-aa0f-1901d56c0f98": "6a844727338319ceb000c51e39c6f6ef7c6e521fbf182ab599dfb3883c71daa9",
+            "01a0bd9d-5654-73f9-aab8-0c6aac6bceb9": "defce22eabb8efce6889992b37185c91f9b68e59a57060cd0768fba28eb61d7c",
+            "01a0bd9d-8a78-76cd-8182-3177e617613e": "4cc7da6098d80c0d70f9b4797d9189679dddfb20f237b191ab6663e911080759",
+            "01a0bd9d-a2fb-7575-8961-93a3fa23aaf1": "9e5fd440bd8507d6c152b9da5701eb3aa7e058da8654ecf3efe7964c2dcf0aa6",
+            "01a0bd9d-c6d8-72ae-a04b-0cf8dc4f70c5": "763d533899a258fb09510a215d5705cd62ae1b68f36ada0d89a398a0458be532",
+            "01a0bd9d-dfe7-73f7-adc3-15fc249778da": "2d3b3217c14a4d6b054c09cde4727ff04ecca47a70228d8e14f7d5a255202953",
+            "01a0bd9d-f848-72f9-a609-fd941e200739": "5ec1c2559d1769612f7ee52e43e00141af3bf4868dfae5476c1d43593653e1fe"
           }
         }
       },

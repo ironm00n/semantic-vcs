@@ -262,12 +262,33 @@ impl Import<'_> {
         engine: impl FnOnce(&Snapshot) -> Result<Snapshot>,
     ) -> Result<Snapshot> {
         let repo = self.repo;
-        let computed = engine(cur)?;
+        let computed = match engine(cur) {
+            Ok(next) => next,
+            // The engine of the day refuses what it once did (a rename of a use line, say).
+            // The record still says what happened: nothing, or these files.
+            Err(refused) => {
+                if b.files.is_empty() && tree_hash(&rendered(repo, cur)?) != b.after_tree {
+                    return Err(refused);
+                }
+                self.from_record.push(b.ix);
+                return self.from_files(b, cur);
+            }
+        };
         if b.files.is_empty() || tree_hash(&rendered(repo, &computed)?) == b.after_tree {
             return Ok(computed);
         }
         self.from_record.push(b.ix);
-        // In memory, not on disk: a file written now would be absorbed as a hand edit first.
+        self.from_files(b, cur)
+    }
+
+    /// The snapshot the record describes: this checkout's files with the entry's changes
+    /// applied in memory (a file written to disk now would be absorbed as a hand edit first).
+    /// With no recorded files it is `cur` itself: the op changed nothing.
+    fn from_files(&self, b: &BundleEntry, cur: &Snapshot) -> Result<Snapshot> {
+        if b.files.is_empty() {
+            return Ok(cur.clone());
+        }
+        let repo = self.repo;
         let mut files = repo.tracked_files()?;
         for (path, body) in &b.files {
             match body {

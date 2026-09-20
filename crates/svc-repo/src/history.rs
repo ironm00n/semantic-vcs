@@ -799,6 +799,10 @@ pub fn note(repo: &Repo, to: NoteTo, kind: NoteKind, text: impl Into<String>) ->
     if matches!(kind, NoteKind::Note) && text.trim().is_empty() {
         return Err(Error::Other("note text is empty".into()));
     }
+    // Hand edits absorbed on the way are the tree's own story, stamped now and outside
+    // the open changeset: a mail changeset must stay pushable to a hub on another tree.
+    let own = crate::repo::Provenance { at: crate::repo::now(), group: None, workspace: repo.workspace().map(str::to_string) };
+    repo.with_provenance(own, || repo.absorb().map(|_| ()))?;
     let m = repo.mutate(
         Op::Note { to, kind, text },
         None,
