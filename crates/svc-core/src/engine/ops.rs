@@ -53,6 +53,7 @@ pub fn relocate(snap: &Snapshot, id: EntityId, file: RelPath, ordinal: u32) -> R
     // Render iterates `snapshot.files`, not entities. A path that never had a
     // FileRecord would swallow the item on disk even though the entity moved.
     next.ensure_file(file.clone());
+    next.make_room_at_root(&file, ordinal, id);
     next.set_file(id, file, ordinal)?;
     Ok(next)
 }
@@ -78,6 +79,9 @@ pub fn move_def(
     }
     let old_parent = rec.parent;
     let mut next = snap.clone();
+    if let (None, Some(o)) = (new_parent, ordinal) {
+        next.make_room_at_root(&rec.file, o, id);
+    }
     next.reparent(id, new_parent, ordinal)?;
     if let Some(p) = new_parent {
         let file = next.entities[&p].file.clone();
@@ -688,6 +692,9 @@ pub fn add_def_at(
     root.parent = parent;
     root.file = file.clone();
     root.ordinal = ordinal;
+    if parent.is_none() {
+        next.make_room_at_root(&file, ordinal, id);
+    }
     next.insert(id, root)?;
     for (cid, mut rec) in mapped {
         if cid == id {
@@ -1304,15 +1311,17 @@ fn sibling_indent(store: &dyn Store, snap: &Snapshot, parent: EntityId) -> Vec<u
 }
 
 /// A new item needs a blank line before it or render glues `}fn` / `;fn`. Nested items
-/// (an impl method, a class member) are also indented one level, since the body an
-/// agent passes is written at column 0.
+/// (an impl method, a class member) are also indented one level when the body an
+/// agent passes is written at column 0; a body that arrives indented is kept as is.
+/// Only text that begins with its own newline is taken as already laid out.
 fn add_def_text(parent: Option<EntityId>, indent: &[u8], text: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
-    let bare = !text.first().is_some_and(|b| b.is_ascii_whitespace());
-    if bare {
+    let laid_out = text.first() == Some(&b'\n');
+    let indented = text.first().is_some_and(|b| *b == b' ' || *b == b'\t');
+    if !laid_out {
         out.extend_from_slice(b"\n\n");
     }
-    if parent.is_some() && bare {
+    if parent.is_some() && !laid_out && !indented {
         for (i, line) in text.split(|b| *b == b'\n').enumerate() {
             if i > 0 {
                 out.push(b'\n');

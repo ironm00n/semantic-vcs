@@ -61,3 +61,39 @@ fn nested_add_def_is_on_its_own_indented_line() {
         "re-ingest keeps the member nested"
     );
 }
+
+#[test]
+fn nested_add_def_of_pre_indented_text_starts_on_its_own_line() {
+    // `show-def | jq .text` of a sibling gives text that already carries the member
+    // indentation; it must not be glued to the previous `}` for starting with spaces.
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let src = "pub struct B(Vec<u8>);\n\nimpl B {\n    pub fn len(&self) -> usize {\n        self.0.len()\n    }\n}\n";
+    let mut files = BTreeMap::new();
+    files.insert(path.clone(), src.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let imp = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.kind == Kind::Impl)
+        .map(|(id, _)| *id)
+        .unwrap();
+    let next = add_def(
+        &store,
+        &langs,
+        &snap,
+        EntityId::new(),
+        Some(imp),
+        1,
+        b"    /// Empty?\n    pub fn is_empty(&self) -> bool {\n        self.0.is_empty()\n    }",
+        Intent::Feature,
+    )
+    .unwrap();
+    let out = String::from_utf8(render(&next, &store, &langs, false).unwrap().files[&path].clone())
+        .unwrap();
+    assert!(
+        out.contains("    }\n\n    /// Empty?\n    pub fn is_empty(&self) -> bool {\n"),
+        "{out}"
+    );
+}

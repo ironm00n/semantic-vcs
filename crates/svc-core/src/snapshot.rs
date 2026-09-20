@@ -200,6 +200,29 @@ impl Snapshot {
     pub fn ensure_file(&mut self, file: RelPath) {
         self.files.entry(file).or_default();
     }
+
+    /// Before placing `id` at `ordinal` among the roots of `file`: if another root
+    /// already has that ordinal, move every root at or after it down one so the new
+    /// position is the one asked for, not a tie broken by id order. Distinct ordinals
+    /// (an ingest) are never touched; gaps are fine, `file_roots` sorts.
+    pub fn make_room_at_root(&mut self, file: &RelPath, ordinal: u32, id: EntityId) {
+        let roots = self.file_roots(file);
+        let taken = roots
+            .iter()
+            .any(|r| *r != id && self.entities[r].ordinal == ordinal);
+        if !taken {
+            return;
+        }
+        for r in roots {
+            if r == id {
+                continue;
+            }
+            let rec = self.entities.get_mut(&r).unwrap();
+            if rec.ordinal >= ordinal {
+                rec.ordinal += 1;
+            }
+        }
+    }
 }
 
 fn refuse_duplicate(snap: &Snapshot, id: EntityId, key: &SigKey) -> Result<()> {
