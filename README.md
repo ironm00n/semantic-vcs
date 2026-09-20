@@ -88,7 +88,9 @@ demo/dogfood.sh --tui  # svc manages its own crates: revisions, merge, review, r
 # demo/dogfood.sh --agent "rename describe_op to describe_operation"
 ```
 
-For a smaller fixture, use `demo/play.sh --tui` (or `--agent`). Or by hand:
+The full-source script preserves the checkout path it prints, so the same
+history can be inspected again without reseeding it. For a smaller fixture,
+use `demo/play.sh --tui` (or `--agent`). Or by hand:
 
 ```sh
 cd demo/config
