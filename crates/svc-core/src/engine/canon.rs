@@ -258,16 +258,24 @@ fn collect_binders<'a>(
         } = role
         {
             for name_node in locate(node, locator) {
-                for id in ident_leaves(name_node, name_node) {
+                for id in ident_leaves(name_node, name_node, src) {
                     let r = byte_range(id);
                     // Typed `|x: T|` is both a `parameter` binder and a child of
                     // `closure_parameters`. One range, one slot.
                     if slots.iter().any(|(existing, _, _)| *existing == r) {
                         continue;
                     }
-                    let n = next.entry(namespace).or_insert(0);
-                    let slot = Slot(*n);
-                    *n += 1;
+                    let name = String::from_utf8_lossy(&src[r.start as usize..r.end as usize])
+                        .into_owned();
+                    // `Ok(x) | Err(x)` is one binding. Fresh slots per occurrence
+                    // make O9 rename them apart and rustc reject the or-pattern.
+                    let slot =
+                        or_pattern_slot(id, &name, namespace, binders).unwrap_or_else(|| {
+                            let n = next.entry(namespace).or_insert(0);
+                            let slot = Slot(*n);
+                            *n += 1;
+                            slot
+                        });
                     slots.push((r, slot, namespace));
                     let (visible_from, scope) = binder_extent(node, src, lang, root_id, visibility);
                     binders.push(BinderInfo {
@@ -276,8 +284,7 @@ fn collect_binders<'a>(
                         scope,
                         slot,
                         namespace,
-                        name: String::from_utf8_lossy(&src[r.start as usize..r.end as usize])
-                            .into_owned(),
+                        name,
                     });
                 }
             }
@@ -410,21 +417,37 @@ fn locate<'a>(node: tree_sitter::Node<'a>, loc: Locator) -> Vec<tree_sitter::Nod
 fn ident_leaves<'a>(
     node: tree_sitter::Node<'a>,
     pattern_root: tree_sitter::Node<'a>,
+    src: &[u8],
 ) -> Vec<tree_sitter::Node<'a>> {
     if is_ident_leaf(node) {
         let t = node.kind();
         if t == "_" || node_is_wildcard(node) {
             return vec![];
         }
-        return (!is_pattern_constructor(node, pattern_root))
+        return (!is_pattern_constructor(node, pattern_root, src))
             .then_some(node)
             .into_iter()
             .collect();
     }
+    if node.kind() == "match_pattern" {
+        let mut out = Vec::new();
+        let mut c = node.walk();
+        if c.goto_first_child() {
+            loop {
+                if c.field_name() != Some("condition") {
+                    out.extend(ident_leaves(c.node(), pattern_root, src));
+                }
+                if !c.goto_next_sibling() {
+                    break;
+                }
+            }
+        }
+        return out;
+    }
     let mut out = Vec::new();
     let mut c = node.walk();
     for ch in node.named_children(&mut c) {
-        out.extend(ident_leaves(ch, pattern_root));
+        out.extend(ident_leaves(ch, pattern_root, src));
     }
     out
 }
@@ -631,7 +654,7 @@ fn add_generic_binders(
             } = role
             {
                 for name_node in locate(node, locator) {
-                    for id in ident_leaves(name_node, name_node) {
+                    for id in ident_leaves(name_node, name_node, src) {
                         let r = byte_range(id);
                         let n = next.entry(namespace).or_insert(0);
                         let slot = Slot(*n);
@@ -665,22 +688,73 @@ fn add_generic_binders(
 fn is_pattern_constructor(
     node: tree_sitter::Node<'_>,
     pattern_root: tree_sitter::Node<'_>,
+    src: &[u8],
 ) -> bool {
     let mut current = node;
     while current.id() != pattern_root.id() {
         let Some(parent) = current.parent() else {
             break;
         };
-        if matches!(parent.kind(), "tuple_struct_pattern" | "struct_pattern")
-            && parent.child_by_field_name("type").is_some_and(|n| {
-                n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte()
-            })
-        {
-            return true;
+        match parent.kind() {
+            "tuple_struct_pattern" | "struct_pattern" => {
+                if parent.child_by_field_name("type").is_some_and(|n| {
+                    n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte()
+                }) {
+                    return true;
+                }
+            }
+            "scoped_identifier" | "scoped_type_identifier" | "generic_pattern" => {
+                return true;
+            }
+            "field_pattern" => {
+                if node.kind() != "shorthand_field_identifier"
+                    && parent.child_by_field_name("name").is_some_and(|n| {
+                        n.start_byte() <= node.start_byte() && node.end_byte() <= n.end_byte()
+                    })
+                {
+                    return true;
+                }
+            }
+            "captured_pattern" => {
+                if parent.named_child(0).is_some_and(|n| n.id() == node.id()) {
+                    return false;
+                }
+            }
+            _ => {}
         }
         current = parent;
     }
+    // Unit variants / consts (`None`, `AfterStmt`) are identifier patterns.
+    // Bindings in this crate are snake_case; PascalCase is the constructor.
+    if node.kind() == "identifier" {
+        let name = &src[node.start_byte()..node.end_byte()];
+        if name.first().is_some_and(|b| b.is_ascii_uppercase()) {
+            return true;
+        }
+    }
     false
+}
+
+fn or_pattern_slot(
+    ident: tree_sitter::Node<'_>,
+    name: &str,
+    ns: Namespace,
+    binders: &[BinderInfo],
+) -> Option<Slot> {
+    let mut current = ident.parent();
+    while let Some(parent) = current {
+        if parent.kind() == "or_pattern" {
+            let start = parent.start_byte() as u32;
+            let end = parent.end_byte() as u32;
+            if let Some(b) = binders.iter().rev().find(|b| {
+                b.namespace == ns && b.name == name && start <= b.range.start && b.range.end <= end
+            }) {
+                return Some(b.slot);
+            }
+        }
+        current = parent.parent();
+    }
+    None
 }
 
 fn is_struct_field_key(node: tree_sitter::Node<'_>) -> bool {

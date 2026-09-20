@@ -1,9 +1,9 @@
+use crate::content::Namespace;
 use crate::entity::Kind;
 use crate::lang::{
     Barrier, BinderClass, CommutativeRule, EntityKindRule, Env, Lang, Locator, Role, Visibility,
     When,
 };
-use crate::content::Namespace;
 
 pub struct RustLang;
 
@@ -209,41 +209,59 @@ impl Lang for RustLang {
 
 fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
     match node.kind() {
-        "function_item" | "function_signature_item" => vec![
-            Role::Scope {
-                opens: &[Namespace::Type, Namespace::Lifetime, Namespace::Value],
-                barriers: &[
-                    Barrier {
-                        ns: Namespace::Value,
-                        class: BinderClass::Local,
-                        when: When::Always,
-                    },
-                    Barrier {
-                        ns: Namespace::Value,
-                        class: BinderClass::Generic,
-                        when: When::ThroughBlock,
-                    },
-                    Barrier {
-                        ns: Namespace::Type,
-                        class: BinderClass::Generic,
-                        when: When::ThroughBlock,
-                    },
-                    Barrier {
-                        ns: Namespace::Lifetime,
-                        class: BinderClass::Generic,
-                        when: When::ThroughBlock,
-                    },
-                    Barrier {
-                        ns: Namespace::Label,
-                        class: BinderClass::Label,
-                        when: When::Always,
-                    },
-                ],
-            },
-        ],
+        "function_item" | "function_signature_item" => vec![Role::Scope {
+            opens: &[Namespace::Type, Namespace::Lifetime, Namespace::Value],
+            barriers: &[
+                Barrier {
+                    ns: Namespace::Value,
+                    class: BinderClass::Local,
+                    when: When::Always,
+                },
+                Barrier {
+                    ns: Namespace::Value,
+                    class: BinderClass::Generic,
+                    when: When::ThroughBlock,
+                },
+                Barrier {
+                    ns: Namespace::Type,
+                    class: BinderClass::Generic,
+                    when: When::ThroughBlock,
+                },
+                Barrier {
+                    ns: Namespace::Lifetime,
+                    class: BinderClass::Generic,
+                    when: When::ThroughBlock,
+                },
+                Barrier {
+                    ns: Namespace::Label,
+                    class: BinderClass::Label,
+                    when: When::Always,
+                },
+            ],
+        }],
         "let_declaration" => vec![Role::Binder {
             namespace: Namespace::Value,
             visibility: Visibility::AfterStmt,
+            locator: Locator::Field("pattern"),
+        }],
+        // `if let` / `while let` / let-chains. AfterStmt covers `&& h > 1` in a
+        // let-chain; the else branch may see the slot (v1).
+        "let_condition" => vec![Role::Binder {
+            namespace: Namespace::Value,
+            visibility: Visibility::AfterStmt,
+            locator: Locator::Field("pattern"),
+        }],
+        "match_arm" | "last_match_arm" => vec![Role::Binder {
+            namespace: Namespace::Value,
+            // pattern includes the guard; value is the arm body. Whole would
+            // walk to the enclosing function block and leak the binder into
+            // other arms.
+            visibility: Visibility::Sub(&["pattern", "value"]),
+            locator: Locator::Field("pattern"),
+        }],
+        "for_expression" => vec![Role::Binder {
+            namespace: Namespace::Value,
+            visibility: Visibility::Sub(&["body"]),
             locator: Locator::Field("pattern"),
         }],
         "parameter" => vec![Role::Binder {
@@ -255,7 +273,11 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
         // Untyped closure parameter `|s|`: a bare identifier under closure_parameters, scoped
         // to the closure. Typed ones are `parameter` nodes and bind through their pattern; a
         // locator over all of `parameters` would also bind the type names (O9 caught that).
-        "identifier" if node.parent().is_some_and(|p| p.kind() == "closure_parameters") => {
+        "identifier"
+            if node
+                .parent()
+                .is_some_and(|p| p.kind() == "closure_parameters") =>
+        {
             vec![Role::Binder {
                 namespace: Namespace::Value,
                 visibility: Visibility::Whole,
@@ -284,19 +306,22 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
             }],
         },
         "block" => vec![Role::Scope {
-            opens: &[Namespace::Type, Namespace::Value, Namespace::Macro, Namespace::Label],
+            opens: &[
+                Namespace::Type,
+                Namespace::Value,
+                Namespace::Macro,
+                Namespace::Label,
+            ],
             barriers: &[],
         }],
-        "closure_expression" => vec![
-            Role::Scope {
-                opens: &[Namespace::Value],
-                barriers: &[Barrier {
-                    ns: Namespace::Label,
-                    class: BinderClass::Label,
-                    when: When::Always,
-                }],
-            },
-        ],
+        "closure_expression" => vec![Role::Scope {
+            opens: &[Namespace::Value],
+            barriers: &[Barrier {
+                ns: Namespace::Label,
+                class: BinderClass::Label,
+                when: When::Always,
+            }],
+        }],
         "type_parameter" | "lifetime_parameter" | "const_parameter" => {
             let ns = match node.kind() {
                 "lifetime_parameter" => Namespace::Lifetime,

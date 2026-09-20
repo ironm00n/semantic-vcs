@@ -230,6 +230,9 @@ pub fn snapshot_files(
             }
         }
     }
+    // Prev is for assign_ids. Seeding names from it keeps deleted same-file
+    // defs in the env, so a remaining call binds to a missing id and render
+    // prints `?` (claude 03:34: absorb after deleting resolve_entity_in).
     let mut env = Env::default();
     for p in &parsed {
         for (i, ent) in p.raw.iter().enumerate() {

@@ -596,3 +596,33 @@ fn rename_same_named_fn_in_the_same_crate_rewrites_only_that_file() {
     assert!(merge_txt.contains("resolve();"), "{merge_txt}");
     assert!(!merge_txt.contains("resolve_renamed"), "{merge_txt}");
 }
+
+#[test]
+fn absorb_does_not_bind_a_deleted_same_file_def() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let main = RelPath::new("crates/svc/src/main.rs").unwrap();
+    let repo = RelPath::new("crates/svc-repo/src/lib.rs").unwrap();
+    let mut prev_files = BTreeMap::new();
+    prev_files.insert(
+        main.clone(),
+        b"fn resolve_entity_in() {}\nfn show() { resolve_entity_in(); }\n".to_vec(),
+    );
+    prev_files.insert(repo.clone(), b"pub fn resolve_entity_in() {}\n".to_vec());
+    let prev = snapshot_files(&store, &langs, &prev_files, None, ChangeId::new()).unwrap();
+    let mut next_files = BTreeMap::new();
+    next_files.insert(
+        main.clone(),
+        b"fn show() { resolve_entity_in(); }\n".to_vec(),
+    );
+    next_files.insert(repo.clone(), b"pub fn resolve_entity_in() {}\n".to_vec());
+    let next = snapshot_files(&store, &langs, &next_files, Some(&prev), ChangeId::new()).unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&main].clone()).unwrap();
+    assert!(
+        !text.contains('?'),
+        "deleted same-file def must not leave a hole: {text}"
+    );
+    assert!(text.contains("resolve_entity_in();"), "{text}");
+    assert!(!text.contains("fn resolve_entity_in"), "{text}");
+}

@@ -292,8 +292,8 @@ fn rust_closure_param_is_local_in_the_body() {
     let src = "fn f() { let _ = |x| x; }\n";
     let refs = rust_item_refs(src);
     assert!(
-        refs.iter().any(|(n, ident)| n == "x"
-            && matches!(ident, IdentRef::Local(_, Namespace::Value))),
+        refs.iter()
+            .any(|(n, ident)| n == "x" && matches!(ident, IdentRef::Local(_, Namespace::Value))),
         "closure body `x` must be the parameter slot: {refs:?}"
     );
     assert!(
@@ -309,7 +309,11 @@ fn rust_typed_closure_param_is_a_single_slot() {
     let src = "fn f() { let _ = |x: u32| x; }\n";
     let refs = rust_item_refs(src);
     let xs: Vec<_> = refs.iter().filter(|(n, _)| n == "x").collect();
-    assert_eq!(xs.len(), 1, "typed closure param must not double-bind: {refs:?}");
+    assert_eq!(
+        xs.len(),
+        1,
+        "typed closure param must not double-bind: {refs:?}"
+    );
     assert!(
         matches!(xs[0].1, IdentRef::Local(_, Namespace::Value)),
         "{refs:?}"
@@ -334,7 +338,11 @@ fn macro_args_are_local_refs() {
     let src = "fn f() { let x = 1; foo!(x); let y = x; }\n";
     let refs = rust_item_refs(src);
     let xs = locals_named(&refs, "x");
-    assert_eq!(xs.len(), 2, "both `foo!(x)` and `let y = x` reference x: {refs:?}");
+    assert_eq!(
+        xs.len(),
+        2,
+        "both `foo!(x)` and `let y = x` reference x: {refs:?}"
+    );
 }
 
 #[test]
@@ -348,4 +356,109 @@ fn rust_typed_closure_param_gets_one_slot() {
     let ns: Vec<_> = locals_named(&refs, "n");
     assert_eq!(ns.len(), 1, "{refs:?}");
     assert_ne!(srcs[0], ns[0], "distinct params get distinct slots");
+}
+
+#[test]
+fn rust_if_let_while_let_match_and_for_are_local_slots() {
+    let src = r#"fn f(x: Option<u32>, xs: &[u32]) -> u32 {
+    if let Some(b) = x { b } else { 0 }
+    while let Some(c) = x { return c; }
+    match x { Some(d) => d, None => 0 }
+    for (i, e) in xs.iter().enumerate() { let _ = (i, e); }
+    if let Some(h) = x && h > 1 { h } else { 0 }
+}
+"#;
+    let refs = rust_item_refs(src);
+    for name in ["b", "c", "d", "i", "e", "h"] {
+        assert!(
+            !locals_named(&refs, name).is_empty(),
+            "{name} must be a local slot: {refs:?}"
+        );
+        assert_eq!(
+            frees_named(&refs, name),
+            0,
+            "{name} must not be Free: {refs:?}"
+        );
+        assert!(
+            refs.iter()
+                .filter(|(n, _)| n == name)
+                .all(|(_, ident)| matches!(ident, IdentRef::Local(_, _))),
+            "{name} must not be an Entity: {refs:?}"
+        );
+    }
+}
+
+#[test]
+fn rust_match_arm_binder_does_not_leak_to_other_arms() {
+    let src = "fn f(x: Option<u32>) -> u32 { match x { Some(a) => a, None => a } }\n";
+    let refs = rust_item_refs(src);
+    assert_eq!(
+        locals_named(&refs, "a").len(),
+        1,
+        "only the Some arm body is Local: {refs:?}"
+    );
+    assert_eq!(
+        frees_named(&refs, "a"),
+        1,
+        "the other arm must not see the binder: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_or_pattern_binders_share_a_slot() {
+    let src = "fn f(r: Result<u32, u32>) -> u32 { match r { Ok(x) | Err(x) => x } }\n";
+    let refs = rust_item_refs(src);
+    let xs = locals_named(&refs, "x");
+    assert_eq!(xs.len(), 1, "{refs:?}");
+    assert_eq!(frees_named(&refs, "x"), 0, "{refs:?}");
+}
+
+#[test]
+fn rust_none_in_a_match_is_not_a_local() {
+    let src = "fn f(x: Option<u32>) -> u32 { match x { None => 0, Some(v) => v } }\n";
+    let refs = rust_item_refs(src);
+    assert!(
+        locals_named(&refs, "None").is_empty(),
+        "None must not be a binder: {refs:?}"
+    );
+    assert!(
+        refs.iter()
+            .filter(|(n, _)| n == "None")
+            .all(|(_, ident)| !matches!(ident, IdentRef::Local(_, _))),
+        "{refs:?}"
+    );
+}
+
+#[test]
+fn while_let_p_is_not_the_helper_fn_p() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let canon = RelPath::new("crates/svc-core/src/canon.rs").unwrap();
+    let helper = RelPath::new("crates/svc-core/tests/helpers.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        canon.clone(),
+        b"fn syntax_root(mut n: Option<u32>) { while let Some(p) = n { n = p; } }\n".to_vec(),
+    );
+    files.insert(helper, b"fn p() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let env = env_from_snapshot(&snap);
+    let src = "fn syntax_root(mut n: Option<u32>) { while let Some(p) = n { n = p; } }\n";
+    let lang = RustLang;
+    let tree = parse(src.as_bytes(), &lang).unwrap();
+    let item = tree.root_node().named_child(0).expect("fn");
+    let res = resolve(item, src.as_bytes(), &lang, &env).unwrap();
+    let prefs: Vec<_> = res
+        .refs
+        .iter()
+        .filter(|(r, _)| &src.as_bytes()[r.start as usize..r.end as usize] == b"p")
+        .map(|(_, ident)| ident.clone())
+        .collect();
+    assert!(
+        prefs
+            .iter()
+            .all(|ident| matches!(ident, IdentRef::Local(_, _))),
+        "while-let p must not bind to fn p: {prefs:?}"
+    );
+    assert!(!prefs.is_empty(), "{prefs:?}");
 }

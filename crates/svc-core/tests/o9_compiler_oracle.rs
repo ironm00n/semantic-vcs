@@ -33,11 +33,11 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use svc_core::RustLang;
 use svc_core::content::{IdentRef, Namespace};
 use svc_core::engine::{extract, parse, resolve};
 use svc_core::ids::{ByteRange, Slot};
 use svc_core::lang::Env;
-use svc_core::RustLang;
 
 fn find_node<'t>(root: tree_sitter::Node<'t>, range: ByteRange) -> Option<tree_sitter::Node<'t>> {
     if root.start_byte() as u32 == range.start && root.end_byte() as u32 == range.end {
@@ -101,8 +101,8 @@ fn alpha_rename_file(src: &str, lang: &RustLang, next_id: &mut u32) -> String {
             if *ns != Namespace::Value {
                 continue;
             }
-            let orig = std::str::from_utf8(&bytes[range.start as usize..range.end as usize])
-                .unwrap();
+            let orig =
+                std::str::from_utf8(&bytes[range.start as usize..range.end as usize]).unwrap();
             // `self` is a keyword receiver, not a renameable binder: `self: &Type` /
             // `&self` cannot be spelled with an arbitrary identifier and keep its
             // self-receiver syntax. It resolves through the same Local/Value slot
@@ -113,10 +113,31 @@ fn alpha_rename_file(src: &str, lang: &RustLang, next_id: &mut u32) -> String {
             if might_be_format_captured(entity_text, orig) {
                 continue;
             }
-            let name = format!("_svc_{next_id}");
-            *next_id += 1;
-            slot_names.insert(*slot, name.clone());
-            renames.push((*range, name, ent.name.clone(), "slot"));
+            // Or-patterns bind one slot at several ranges (`Ok(x) | Err(x)`).
+            let name = if let Some(existing) = slot_names.get(slot) {
+                existing.clone()
+            } else {
+                let name = format!("_svc_{next_id}");
+                *next_id += 1;
+                slot_names.insert(*slot, name.clone());
+                name
+            };
+            // Pattern shorthand `S { a }`: find_node returns the outer
+            // `field_pattern` (same span as `shorthand_field_identifier`).
+            let is_shorthand_pat = find_node(tree.root_node(), *range).is_some_and(|n| {
+                n.kind() == "shorthand_field_identifier"
+                    || (n.kind() == "field_pattern" && n.child_by_field_name("pattern").is_none())
+            });
+            if is_shorthand_pat {
+                renames.push((
+                    *range,
+                    format!("{orig}: {name}"),
+                    ent.name.clone(),
+                    "slot(shorthand_pat)",
+                ));
+            } else {
+                renames.push((*range, name, ent.name.clone(), "slot"));
+            }
         }
         for (range, ident) in &res.refs {
             if let IdentRef::Local(slot, Namespace::Value) = ident {
@@ -134,7 +155,12 @@ fn alpha_rename_file(src: &str, lang: &RustLang, next_id: &mut u32) -> String {
                         let orig =
                             std::str::from_utf8(&bytes[range.start as usize..range.end as usize])
                                 .unwrap();
-                        renames.push((*range, format!("{orig}: {name}"), ent.name.clone(), "ref(shorthand)"));
+                        renames.push((
+                            *range,
+                            format!("{orig}: {name}"),
+                            ent.name.clone(),
+                            "ref(shorthand)",
+                        ));
                     } else {
                         renames.push((*range, name.clone(), ent.name.clone(), "ref"));
                     }
@@ -152,8 +178,14 @@ fn alpha_rename_file(src: &str, lang: &RustLang, next_id: &mut u32) -> String {
             let hi = (w[1].0.end as usize + 30).min(bytes.len());
             panic!(
                 "overlapping rename ranges {:?} (name={}, entity={}, origin={}) and {:?} (name={}, entity={}, origin={}) near: {:?}",
-                w[0].0, w[0].1, w[0].2, w[0].3,
-                w[1].0, w[1].1, w[1].2, w[1].3,
+                w[0].0,
+                w[0].1,
+                w[0].2,
+                w[0].3,
+                w[1].0,
+                w[1].1,
+                w[1].2,
+                w[1].3,
                 String::from_utf8_lossy(&bytes[lo..hi]),
             );
         }
@@ -194,7 +226,8 @@ fn scratch_cargo_toml() -> String {
     let root_toml = std::fs::read_to_string(workspace_root.join("Cargo.toml")).unwrap();
 
     let ws_deps = toml_table_block(&root_toml, "[workspace.dependencies]");
-    let ws_package_edition = toml_scalar(&root_toml, "edition", "[workspace.package]").unwrap_or_else(|| "2024".into());
+    let ws_package_edition =
+        toml_scalar(&root_toml, "edition", "[workspace.package]").unwrap_or_else(|| "2024".into());
 
     let mut deps = String::new();
     let mut in_deps = false;
@@ -302,7 +335,11 @@ fn o9_alpha_renamed_svc_core_still_compiles() {
         std::fs::write(&dest, renamed).unwrap();
     }
     assert!(next_id > 0, "expected at least one Value local to rename");
-    eprintln!("o9: renamed {next_id} locals across {} files, checking {}", files.len(), scratch.display());
+    eprintln!(
+        "o9: renamed {next_id} locals across {} files, checking {}",
+        files.len(),
+        scratch.display()
+    );
 
     let output = std::process::Command::new("cargo")
         .args(["check", "--offline", "--quiet"])
