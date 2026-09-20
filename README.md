@@ -83,8 +83,8 @@ demo/git-twin/build.sh
 ```sh
 nix develop
 cargo build -p svc
-demo/play.sh          # scratch copy of the demo crate, svc on PATH
-# demo/play.sh --tui
+demo/play.sh          # scratch copy; already has a rename, a merge, and a binding conflict
+# demo/play.sh --tui  # same, review UI on that story
 # demo/play.sh --agent
 ```
 

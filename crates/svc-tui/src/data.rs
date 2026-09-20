@@ -2,7 +2,7 @@
 //! the checkout, so the agent's own `svc` calls can proceed while it runs).
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
 use serde::Deserialize;
@@ -67,6 +67,10 @@ impl Svc {
             .args(args)
             .arg("--json")
             .current_dir(&self.root)
+            // The TUI is in raw mode; a child that inherits that tty can block
+            // forever on stdin, which freezes the whole UI.
+            .stdin(Stdio::null())
+            .env("SVC_LOCK_TIMEOUT_MS", "800")
             .output()
             .map_err(|e| format!("spawn {}: {e}", self.bin.display()))?;
         if !out.status.success() {
@@ -76,7 +80,10 @@ impl Svc {
             format!(
                 "svc {}: bad json ({e}): {}",
                 args.join(" "),
-                String::from_utf8_lossy(&out.stdout).chars().take(200).collect::<String>()
+                String::from_utf8_lossy(&out.stdout)
+                    .chars()
+                    .take(200)
+                    .collect::<String>()
             )
         })
     }
@@ -85,11 +92,17 @@ impl Svc {
     /// another checkout's `svc rename`, the agent — bumps the file, so a 1 s probe of this
     /// is what makes the panes follow without polling `svc` itself.
     pub fn store_changed_at(&self) -> Option<SystemTime> {
-        let own = self.root.join(svc_repo::repo::STORE_DIR).join(svc_repo::repo::STORE_FILE);
+        let own = self
+            .root
+            .join(svc_repo::repo::STORE_DIR)
+            .join(svc_repo::repo::STORE_FILE);
         let store = if own.is_file() {
             own
         } else {
-            svc_repo::WorkspacePointer::read(&self.root).ok().flatten()?.store
+            svc_repo::WorkspacePointer::read(&self.root)
+                .ok()
+                .flatten()?
+                .store
         };
         std::fs::metadata(store).and_then(|m| m.modified()).ok()
     }
@@ -100,6 +113,11 @@ impl Svc {
 
     pub fn log(&self) -> Result<Vec<OpOut>, String> {
         self.json(&["log"])
+    }
+
+    /// Whole journal, newest first — the change-log pane, not the current-change review queue.
+    pub fn op_log(&self) -> Result<Vec<OpOut>, String> {
+        self.json(&["op", "log"])
     }
 
     pub fn blame(&self, entity_id: &str) -> Result<Vec<BlameEntry>, String> {
@@ -138,7 +156,12 @@ impl Svc {
 pub fn describe_op(op: &Op) -> String {
     match op {
         Op::Rename { new, .. } => format!("renamed → {new}"),
-        Op::Move { parent, .. } => format!("moved → {}", parent.map(|p| p.short()).unwrap_or_else(|| "top level".into())),
+        Op::Move { parent, .. } => format!(
+            "moved → {}",
+            parent
+                .map(|p| p.short())
+                .unwrap_or_else(|| "top level".into())
+        ),
         Op::Relocate { file, ordinal, .. } => format!("relocated → {file}#{ordinal}"),
         Op::Extract { .. } => "extracted (hoisted)".into(),
         Op::Inline { .. } => "inlined".into(),
@@ -158,7 +181,9 @@ pub use svc_repo::text::{class as class_name, intent as intent_name};
 
 pub fn conflict_line(c: &ConflictOut) -> String {
     match &c.conflict {
-        Conflict::Binding { name, was, now, at, .. } => format!(
+        Conflict::Binding {
+            name, was, now, at, ..
+        } => format!(
             "binding conflict in {}: `{name}` at {}:{} meant {}, now means {}",
             c.name,
             at.line,
@@ -179,7 +204,9 @@ pub fn kind_glyph(k: Kind) -> &'static str {
         Kind::Struct | Kind::Enum | Kind::Union | Kind::JsClass => "◇",
         Kind::Trait => "◈",
         Kind::Impl => "⊕",
-        Kind::Const | Kind::Static | Kind::JsField | Kind::JsStaticField | Kind::JsDeclarator => "•",
+        Kind::Const | Kind::Static | Kind::JsField | Kind::JsStaticField | Kind::JsDeclarator => {
+            "•"
+        }
         Kind::Mod => "▸",
         Kind::TypeAlias => "≡",
         Kind::Macro => "!",
@@ -205,10 +232,8 @@ mod tests {
 
     #[test]
     fn show_def_reads_text_or_bytes_src() {
-        let with_text: ShowDef = serde_json::from_str(
-            r#"{"canonical":"fn f()","text":"fn f() {}\n"}"#,
-        )
-        .unwrap();
+        let with_text: ShowDef =
+            serde_json::from_str(r#"{"canonical":"fn f()","text":"fn f() {}\n"}"#).unwrap();
         assert_eq!(with_text.source(), "fn f() {}\n");
 
         let from_src: ShowDef = serde_json::from_str(

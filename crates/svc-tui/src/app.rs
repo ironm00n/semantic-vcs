@@ -82,6 +82,13 @@ pub struct App {
     /// is another process (or the agent) publishing, and the panes follow it.
     store_seen: Option<SystemTime>,
     store_probe_at: Instant,
+    /// Last `Event::Resize` we drew for — `script(1)` and some ptys repeat the
+    /// same size, which used to mark every frame dirty and starve input.
+    last_size: Option<(u16, u16)>,
+    /// Full `svc op log`, newest first, for the change-log strip.
+    ops: Vec<OpOut>,
+    /// Jump once to an entity that actually has history, not the first `use`.
+    picked_story: bool,
     pub should_quit: bool,
     pub log: Vec<String>,
 }
@@ -107,7 +114,10 @@ impl App {
             need_draw: true,
             detail_at: Instant::now(),
             store_seen: None,
-            store_probe_at: Instant::now(),
+            store_probe_at: Instant::now() + Duration::from_secs(1),
+            last_size: None,
+            ops: Vec::new(),
+            picked_story: false,
             should_quit: false,
             log: Vec::new(),
         };
@@ -133,12 +143,18 @@ impl App {
             Err(e) => self.error = Some(e),
         }
         let log = self.svc.log().unwrap_or_default();
+        self.ops = self.svc.op_log().unwrap_or_else(|_| log.clone());
         let conflicts = self.svc.conflicts().unwrap_or_default();
         self.rebuild_queue(&log, &conflicts);
         self.select_touched_if_needed();
-        self.events_for = None;
-        self.load_events();
+        if self.touched.is_empty() {
+            self.pick_story_entity();
+        }
+        // Lists first; `show-def`/`blame` wait for pump so the first paint is not a hang.
+        self.invalidate_detail();
+        self.detail_at = Instant::now();
         self.store_seen = self.svc.store_changed_at();
+        self.store_probe_at = Instant::now() + Duration::from_secs(1);
         self.need_draw = true;
     }
 
@@ -162,6 +178,29 @@ impl App {
         if self.events_for.is_none() && Instant::now() >= self.detail_at {
             self.load_events();
             self.need_draw = true;
+        }
+    }
+
+    /// Newest journal subject that is still in the tree, else the first real item.
+    fn pick_story_entity(&mut self) {
+        if self.picked_story {
+            return;
+        }
+        self.picked_story = true;
+        for op in &self.ops {
+            if matches!(op.op, Op::New { .. } | Op::Branch { .. }) {
+                continue;
+            }
+            let Some(name) = op.subject.as_deref() else {
+                continue;
+            };
+            if let Some(idx) = self.rows.iter().position(|(i, _)| self.defs[*i].name == name) {
+                self.tree_state.select(Some(idx));
+                return;
+            }
+        }
+        if let Some(idx) = self.rows.iter().position(|(i, _)| !is_synth(&self.defs[*i])) {
+            self.tree_state.select(Some(idx));
         }
     }
 
@@ -276,6 +315,8 @@ impl App {
     pub fn load_events(&mut self) {
         let Some(def) = self.selected_def().cloned() else {
             self.events.clear();
+            // Sentinel so pump does not redraw every tick on an empty tree.
+            self.events_for = Some(String::new());
             return;
         };
         if self.events_for.as_deref() == Some(def.id.as_str()) {
@@ -315,10 +356,17 @@ impl App {
             Err(e) => lines.push(Line::from(format!("blame failed: {e}")).red()),
         }
         self.events = lines;
+        // show-def/blame open the store and bump its mtime; if we keep the
+        // pre-spawn stamp, the 1 s probe thinks another process published.
+        self.store_seen = self.svc.store_changed_at();
     }
 
     pub fn handle_key(&mut self, event: &Event) {
-        if matches!(event, Event::Resize(_, _)) {
+        if let Event::Resize(w, h) = *event {
+            if self.last_size == Some((w, h)) {
+                return;
+            }
+            self.last_size = Some((w, h));
             self.need_draw = true;
             return;
         }
@@ -572,7 +620,20 @@ impl App {
         let name = self.selected_def().map(|d| d.name.clone()).unwrap_or_default();
         let mut lines = self.events.clone();
         if lines.is_empty() {
-            lines.push(Line::from("no events").dark_gray());
+            lines.push(Line::from("…").dark_gray());
+        }
+        let story: Vec<&OpOut> = self
+            .ops
+            .iter()
+            .filter(|o| !matches!(o.op, Op::New { .. } | Op::Branch { .. }))
+            .take(16)
+            .collect();
+        lines.push(Line::from(""));
+        if story.is_empty() {
+            lines.push(Line::from("change log — no ops on this store yet").dark_gray());
+        } else {
+            lines.push(Line::from("change log").dark_gray());
+            lines.extend(story.into_iter().map(op_log_line));
         }
         if let Some(agent) = &self.agent {
             lines.push(Line::from(""));
@@ -626,12 +687,24 @@ impl App {
     }
 }
 
+fn is_synth(d: &Definition) -> bool {
+    d.name.starts_with('«') && d.name.ends_with('»')
+}
+
 /// Definitions as a preorder tree: roots by (file, ordinal), children under their parent.
+/// Synthetic `«use_declaration:N»` opaques are not review targets.
 fn tree_rows(defs: &[Definition]) -> Vec<(usize, usize)> {
     let by_id: HashMap<&str, usize> = defs.iter().enumerate().map(|(i, d)| (d.id.as_str(), i)).collect();
     let mut children: HashMap<Option<usize>, Vec<usize>> = HashMap::new();
     for (i, d) in defs.iter().enumerate() {
-        let parent = d.parent.as_deref().and_then(|p| by_id.get(p).copied());
+        if is_synth(d) {
+            continue;
+        }
+        let parent = d
+            .parent
+            .as_deref()
+            .and_then(|p| by_id.get(p).copied())
+            .filter(|&pi| !is_synth(&defs[pi]));
         children.entry(parent).or_default().push(i);
     }
     for v in children.values_mut() {
@@ -649,6 +722,25 @@ fn tree_rows(defs: &[Definition]) -> Vec<(usize, usize)> {
         }
     }
     out
+}
+
+fn op_log_line(op: &OpOut) -> Line<'static> {
+    let who = op.subject.clone().unwrap_or_default();
+    let desc = describe_op(&op.op);
+    let text = if who.is_empty() {
+        desc
+    } else {
+        format!("{who}: {desc}")
+    };
+    let style = if op.flagged {
+        Style::default().fg(Color::Red)
+    } else {
+        Style::default()
+    };
+    Line::from(vec![
+        Span::styled(format!("#{:<3} ", op.ix.0), Style::default().fg(Color::DarkGray)),
+        Span::styled(text, style),
+    ])
 }
 
 fn blame_line(e: &BlameEntry) -> Line<'static> {
@@ -980,6 +1072,63 @@ mod tests {
             app.events_for.is_none(),
             "pump must not shell out in the same millisecond as j"
         );
+    }
+
+    #[test]
+    fn a_duplicate_resize_does_not_mark_the_frame_dirty() {
+        let mut app = App::new(Svc::new(PathBuf::from("svc"), PathBuf::from("/nonexistent")));
+        app.need_draw = false;
+        app.handle_key(&Event::Resize(80, 24));
+        assert!(app.need_draw);
+        app.need_draw = false;
+        app.handle_key(&Event::Resize(80, 24));
+        assert!(!app.need_draw, "same size is not a new frame");
+        app.handle_key(&Event::Resize(120, 40));
+        assert!(app.need_draw);
+    }
+
+    #[test]
+    fn synthetic_use_items_are_not_tree_rows() {
+        let defs = vec![
+            def("id-use", "«use_declaration:0»", 0),
+            def("id-load", "load", 1),
+        ];
+        let rows = tree_rows(&defs);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(defs[rows[0].0].name, "load");
+    }
+
+    #[test]
+    fn first_pick_jumps_to_the_latest_logged_entity() {
+        let mut app = App::new(Svc::new(PathBuf::from("svc"), PathBuf::from("/nonexistent")));
+        app.defs = vec![
+            def("id-use", "«use_declaration:0»", 0),
+            def("id-parse", "parse_cfg", 1),
+            def("id-load", "load", 2),
+        ];
+        app.rows = tree_rows(&app.defs);
+        app.tree_state.select(Some(0));
+        app.ops = vec![OpOut {
+            ix: OpIx(6),
+            op: Op::EditDef {
+                id: EntityId::new(),
+                definition: String::new(),
+                intent: Intent::Feature,
+            },
+            declared: Some(Intent::Feature),
+            observed: Some(ObservedClass::BindingPreserving),
+            flagged: false,
+            at: 0,
+            group: None,
+            root_after: SnapshotId::of(&()),
+            subject: Some("load".into()),
+        }];
+        app.pick_story_entity();
+        let i = app.tree_state.selected().unwrap();
+        assert_eq!(app.defs[app.rows[i].0].name, "load");
+        app.pick_story_entity();
+        let j = app.tree_state.selected().unwrap();
+        assert_eq!(i, j, "later refreshes must not steal the caret");
     }
 
     #[test]

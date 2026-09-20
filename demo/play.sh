@@ -7,31 +7,66 @@
 #   demo/play.sh --agent                        # same, with the replay agent running line 9 inside the UI
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SVC="$HERE/../target/debug/svc"
+if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -x "${CARGO_TARGET_DIR}/debug/svc" ]; then
+  SVC="${CARGO_TARGET_DIR}/debug/svc"
+else
+  SVC="$HERE/../target/debug/svc"
+fi
 [ -x "$SVC" ] || { echo "no svc binary at $SVC (run: cargo build -p svc)"; exit 2; }
 WORK="$(mktemp -d /tmp/svc-play.XXXXXX)"
 cp -r "$HERE/config/." "$WORK/" && rm -rf "$WORK/.git" "$WORK/.svc"
 cd "$WORK"
 "$SVC" init --json >/dev/null && "$SVC" new --json >/dev/null
 
+item() { sed -n "/^fn $1(/,/^}/p" src/main.rs; }
+
+# init+new leaves an empty log: every entity is only "added". Seed the SPEC
+# story so the TUI opens on load with a rename, a clean merge, and a binding
+# conflict in the queue. --agent keeps a virgin tree for the line-9 recording.
+seed_story() {
+  echo "seeding rename / merge / binding conflict…"
+  "$SVC" rename --entity parse --new-name parse_config --json >/dev/null
+  "$SVC" new --json >/dev/null
+  "$SVC" branch a --json >/dev/null
+  "$SVC" rename --entity parse_config --new-name parse_cfg --json >/dev/null
+  "$SVC" branch b --json >/dev/null
+  MAIN_B="$(item main | sed 's/    match load(&path) {/    let _ = parse_config("x");\n    match load(\&path) {/')"$'\n'
+  "$SVC" edit-def --entity main --intent feature --definition "$MAIN_B" --json >/dev/null
+  "$SVC" merge a --json >/dev/null
+  "$SVC" new --json >/dev/null
+  LOAD_A="$(item load | sed 's/    let cfg = parse_cfg(\&raw)?;/    let raw = normalize(\&raw);\n    let cfg = parse_cfg(\&raw)?;/')"$'\n'
+  LOAD_B="$(item load | sed 's/    Ok(cfg)/    log(\&raw);\n    Ok(cfg)/')"$'\n'
+  "$SVC" branch a6 --json >/dev/null
+  "$SVC" edit-def --entity load --intent feature --definition "$LOAD_A" --json >/dev/null
+  "$SVC" branch b6 --json >/dev/null
+  "$SVC" edit-def --entity load --intent feature --definition "$LOAD_B" --json >/dev/null
+  "$SVC" merge a6 --json >/dev/null
+}
+
 export PATH="$(dirname "$SVC"):$PATH"
 export SVC_AGENT_COMMAND="node $HERE/replay-agent.mjs $HERE/recordings/line9.ops.jsonl"
 TASK="rename read to read_file and pull the retry check out of validate into its own fn"
 
+if [ "${1:-}" != "--agent" ]; then
+  seed_story || echo "seed failed (playground still usable as init+new)"
+fi
+
 cat <<EOF
 svc playground: $WORK   (a copy of demo/config; \`svc init\` already run)
 
-  svc status                                   entities / semantic / layout, absorbs hand edits
-  svc show parse                               canonical stream: \$0 \$1 locals, #read⟨1f2a⟩ entity refs
-  svc rename --entity parse --new-name parse_config ; svc log ; grep parse_config src/main.rs
-  svc new ; svc branch a ; svc rename --entity read --new-name read_file ; svc branch b
-  svc edit-def --entity main --intent feature --definition "\$(cat main.rs)"   # then: svc merge a
-  svc log / svc op log / svc heads / svc blame --entity load / svc evolog <change>
-  svc undo                                     one step, whole changeset
-  svc tui                                      review UI: j/k, tab, enter, a/r, p, u, q
-                                               (the store is shared: `svc rename …` from a second terminal here shows in the tree within a second)
+  seeded (except --agent): parse→parse_config→parse_cfg merged into main;
+                           load has the line-6 binding conflict on \`raw\`
+  svc tui                  opens on that story — j/k, change log, queue [!]
+  svc log / svc op log     current change vs whole journal
+  svc blame --entity load  added → edited → the capture
+  svc conflicts            the one Binding on \`raw\`
+  svc status               entities / semantic / layout, absorbs hand edits
+  svc show parse_cfg       canonical stream: \$0 \$1 locals, #read⟨…⟩ entity refs
+  svc undo                 one step, whole changeset
+  svc tui                  review UI: j/k, tab, enter, a/r, p, u, q
+                                               (the store is shared: \`svc rename …\` from a second terminal here shows in the tree within a second)
   svc workspace add w2 $WORK-w2 ; (cd $WORK-w2 && svc new && svc rename --entity log --new-name log_line)
-                                               a second checkout on the same store, its own change; `svc workspace list`; `svc merge <its change>`
+                                               a second checkout on the same store, its own change; \`svc workspace list\`; \`svc merge <its change>\`
   svc tui --agent "$TASK"
                                                line 9 runs inside the UI (scripted agent; set
                                                DEEPSEEK_API_KEY=\$(cat ~/.deepseek.key)
