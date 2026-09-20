@@ -3058,3 +3058,73 @@ fn rename_follows_macro_declared_file_module_inside_an_inline_mod() {
         "must not emit a second mod item: {lib_text}"
     );
 }
+
+#[test]
+fn rename_follows_super_from_a_file_module_under_an_inline_parent() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let inner = RelPath::new("src/outer/inner.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"mod outer {\n    fn helper() {}\n    mod inner;\n}\n".to_vec(),
+    );
+    files.insert(
+        inner.clone(),
+        b"use super::helper;\npub fn f() { helper(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "helper")
+        .map(|(id, _)| *id)
+        .expect("helper");
+    let next = rename(&store, &snap, id, "helper_fn").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&inner].clone()).unwrap();
+    assert!(
+        text.contains("use super::helper_fn;"),
+        "super:: through an inline parent must follow: {text}"
+    );
+    assert!(
+        text.contains("helper_fn();"),
+        "call through super:: of an inline parent must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_does_not_rewrite_crate_root_via_super_from_an_inline_parent_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let inner = RelPath::new("src/outer/inner.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"fn parse() {}\nmod outer {\n    mod inner;\n}\n".to_vec(),
+    );
+    files.insert(
+        inner.clone(),
+        b"fn f() { super::parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == lib)
+        .map(|(id, _)| *id)
+        .expect("lib parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&inner].clone()).unwrap();
+    assert!(
+        text.contains("super::parse()"),
+        "crate-root parse is not super:: of a file module under inline outer: {text}"
+    );
+    assert!(
+        !text.contains("parse_file"),
+        "must not steal crate-root via super:: {text}"
+    );
+}

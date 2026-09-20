@@ -528,6 +528,32 @@ fn apply_file_module_env(env: &mut Env) {
     env.self_mod = Some(m);
 }
 
+/// `mod outer { mod inner; }` — `super::` in `inner.rs` is `outer`'s items, not
+/// the declaring file's crate-root names.
+fn fill_file_module_inline_supers(env: &mut Env) {
+    let Some(mut walk) = env.self_mod else {
+        return;
+    };
+    let file_mods: HashSet<_> = env.file_of_mod.values().copied().collect();
+    while let Some(&p) = env.mod_parent.get(&walk) {
+        if file_mods.contains(&p) {
+            break;
+        }
+        let mut map = HashMap::new();
+        if let Some(items) = env.mod_items.get(&p) {
+            map.extend(items.clone());
+        }
+        if let Some(im) = env.mod_imports.get(&p) {
+            map.extend(im.clone());
+        }
+        if let Some(re) = env.mod_reexports.get(&p) {
+            map.extend(re.clone());
+        }
+        env.super_stack.push(map);
+        walk = p;
+    }
+}
+
 fn fill_super_files(env: &mut Env, start: &RelPath) {
     env.super_files.clear();
     let mut walk = start.clone();
@@ -551,6 +577,7 @@ fn fill_mod_env_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: 
     env.inline_mod = false;
     apply_file_module_env(env);
     let Some(mut m) = nearest_mod_raw(raw, i) else {
+        fill_file_module_inline_supers(env);
         return;
     };
     env.in_nested_mod = true;
@@ -587,6 +614,7 @@ pub(crate) fn fill_mod_env_from_snapshot(env: &mut Env, snapshot: &Snapshot, id:
     env.inline_mod = false;
     apply_file_module_env(env);
     let Some(mut m) = nearest_mod_rec(snapshot, id) else {
+        fill_file_module_inline_supers(env);
         return;
     };
     env.in_nested_mod = true;

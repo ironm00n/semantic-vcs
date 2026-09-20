@@ -51,6 +51,8 @@ pub struct Env {
     pub file_of_mod: HashMap<RelPath, EntityId>,
     /// Declaring file of a `mod foo;` entity (`src/lib.rs` for `mod outer;`).
     pub mod_decl_file: HashMap<EntityId, RelPath>,
+    /// Parent `mod` of a nested `mod` (`outer` for `mod outer { mod inner; }`).
+    pub mod_parent: HashMap<EntityId, EntityId>,
     /// Parent files for `super::` / `super::super::` out of a file module.
     pub super_files: Vec<RelPath>,
     /// Inside an inline `mod inner { }` (not only a file loaded by `mod foo;`).
@@ -110,15 +112,16 @@ impl Env {
         if let Some(map) = self.super_stack.get(i) {
             return Self::lookup_in_map(Some(map), name, ns);
         }
-        let skip = usize::from(self.inline_mod);
-        if i < skip {
+        let rest = i - self.super_stack.len();
+        if self.inline_mod && rest == 0 {
             return self
                 .current_file
                 .as_ref()
                 .and_then(|file| self.lookup_file(file, name, ns))
                 .or_else(|| self.lookup_module(name, ns));
         }
-        if let Some(file) = self.super_files.get(i - skip) {
+        let file_i = if self.inline_mod { rest - 1 } else { rest };
+        if let Some(file) = self.super_files.get(file_i) {
             return self.lookup_file(file, name, ns);
         }
         self.lookup_module(name, ns)
@@ -419,6 +422,7 @@ impl Env {
         self.mods.insert(parent);
         if kind == Kind::Mod {
             self.mods.insert(id);
+            self.mod_parent.insert(id, parent);
         }
         let map = self.mod_items.entry(parent).or_default();
         Self::insert_super_level(map, name, kind, id);
