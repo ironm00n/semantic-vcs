@@ -232,6 +232,7 @@ fn link_file_modules(
             }
             for cand in file_module_paths(path, &ent.name) {
                 file_of_mod.insert(cand, ids[i]);
+                env.mod_decl_file.insert(ids[i], (*path).clone());
             }
         }
     }
@@ -264,6 +265,7 @@ fn link_file_modules_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
         }
         for cand in file_module_paths(&rec.file, &rec.name) {
             file_of_mod.insert(cand, *id);
+            env.mod_decl_file.insert(*id, rec.file.clone());
         }
     }
     for (id, rec) in &snapshot.entities {
@@ -307,6 +309,7 @@ fn apply_file_module_env(env: &mut Env) {
     let Some(file) = env.current_file.clone() else {
         return;
     };
+    fill_super_files(env, &file);
     let Some(&m) = env.file_of_mod.get(&file) else {
         return;
     };
@@ -314,15 +317,33 @@ fn apply_file_module_env(env: &mut Env) {
     env.self_mod = Some(m);
 }
 
+fn fill_super_files(env: &mut Env, start: &RelPath) {
+    env.super_files.clear();
+    let mut walk = start.clone();
+    let mut seen = HashSet::new();
+    while let Some(&mod_id) = env.file_of_mod.get(&walk) {
+        if !seen.insert(mod_id) {
+            break;
+        }
+        let Some(decl) = env.mod_decl_file.get(&mod_id).cloned() else {
+            break;
+        };
+        env.super_files.push(decl.clone());
+        walk = decl;
+    }
+}
+
 fn fill_mod_env_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
     env.in_nested_mod = false;
     env.super_stack.clear();
     env.self_mod = None;
+    env.inline_mod = false;
     apply_file_module_env(env);
     let Some(mut m) = nearest_mod_raw(raw, i) else {
         return;
     };
     env.in_nested_mod = true;
+    env.inline_mod = true;
     env.self_mod = Some(ids[m]);
     loop {
         let Some(pp) = raw[m].parent_idx else {
@@ -346,11 +367,13 @@ pub(crate) fn fill_mod_env_from_snapshot(env: &mut Env, snapshot: &Snapshot, id:
     env.in_nested_mod = false;
     env.super_stack.clear();
     env.self_mod = None;
+    env.inline_mod = false;
     apply_file_module_env(env);
     let Some(mut m) = nearest_mod_rec(snapshot, id) else {
         return;
     };
     env.in_nested_mod = true;
+    env.inline_mod = true;
     env.self_mod = Some(m);
     loop {
         let Some(pp) = snapshot.entities.get(&m).and_then(|r| r.parent) else {

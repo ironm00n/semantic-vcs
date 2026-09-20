@@ -49,6 +49,12 @@ pub struct Env {
     /// File loaded by `mod foo;` → that `mod` entity. Items in the file are
     /// inside the module, not the crate root.
     pub file_of_mod: HashMap<RelPath, EntityId>,
+    /// Declaring file of a `mod foo;` entity (`src/lib.rs` for `mod outer;`).
+    pub mod_decl_file: HashMap<EntityId, RelPath>,
+    /// Parent files for `super::` / `super::super::` out of a file module.
+    pub super_files: Vec<RelPath>,
+    /// Inside an inline `mod inner { }` (not only a file loaded by `mod foo;`).
+    pub inline_mod: bool,
 }
 
 impl Env {
@@ -76,6 +82,13 @@ impl Env {
         let i = depth - 1;
         if let Some(map) = self.super_stack.get(i) {
             return Self::lookup_in_map(Some(map), name, ns);
+        }
+        let skip = usize::from(self.inline_mod);
+        if i < skip {
+            return self.lookup_module(name, ns);
+        }
+        if let Some(file) = self.super_files.get(i - skip) {
+            return Self::lookup_in_map(self.by_file.get(file), name, ns);
         }
         self.lookup_module(name, ns)
     }

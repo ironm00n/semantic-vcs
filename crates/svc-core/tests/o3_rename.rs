@@ -1675,3 +1675,44 @@ fn rename_of_file_module_fn_rewrites_a_sibling() {
         "siblings in the file module must still see each other: {text}"
     );
 }
+
+#[test]
+fn rename_follows_super_super_from_a_nested_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let outer = RelPath::new("src/outer.rs").unwrap();
+    let inner = RelPath::new("src/outer/inner.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"fn parse() {}\nmod outer;\n".to_vec());
+    files.insert(outer.clone(), b"fn parse() {}\nmod inner;\n".to_vec());
+    files.insert(
+        inner.clone(),
+        b"fn f() { super::parse(); super::super::parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let lib_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == lib)
+        .map(|(id, _)| *id)
+        .expect("lib parse");
+    let outer_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == outer)
+        .map(|(id, _)| *id)
+        .expect("outer parse");
+    let next = rename(&store, &snap, outer_parse, "parse_outer").unwrap();
+    let next = rename(&store, &next, lib_parse, "parse_lib").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&inner].clone()).unwrap();
+    assert!(
+        text.contains("super::parse_outer()"),
+        "one super is the parent file module: {text}"
+    );
+    assert!(
+        text.contains("super::super::parse_lib()"),
+        "two supers is the crate root: {text}"
+    );
+}
