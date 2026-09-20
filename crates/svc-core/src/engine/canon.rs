@@ -1439,7 +1439,9 @@ fn bind_use(env: &mut Env, segs: &[String], alias: &str) {
             continue;
         };
         if env.bind_reexports {
-            insert_reexport(env, alias.to_string(), ns, id);
+            if !aliased {
+                insert_reexport(env, alias.to_string(), ns, id);
+            }
             continue;
         }
         if aliased {
