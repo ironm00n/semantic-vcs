@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use svc_core::engine::{add_def_at, delete, edit_def, inline, move_def, relocate, render, rename};
 use svc_core::{
-    ChangeId, EntityId, Error, Kind, Op, OpIx, OpLogEntry, RelPath, Result, Snapshot, SnapshotId,
+    ChangeId, ChangeSet, EntityId, Error, Kind, Op, OpIx, OpLogEntry, RelPath, Result, Snapshot, SnapshotId,
 };
 
 use crate::history::{self, op_entity};
@@ -60,6 +60,9 @@ pub struct Bundle {
     /// blake3 of the rendered tree the first entry starts from; an import checks its own.
     pub base_tree: String,
     pub entries: Vec<BundleEntry>,
+    /// The changesets the entries belong to, so a replayed op keeps its group's name.
+    #[serde(default)]
+    pub changesets: Vec<ChangeSet>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -160,7 +163,15 @@ pub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {
             workspace: repo.redb().op_workspace(*ix)?.filter(|w| !w.is_empty()),
         });
     }
-    Ok(Bundle { base_tree, entries })
+    let mut changesets = Vec::new();
+    for g in entries.iter().filter_map(|b| b.entry.group) {
+        if !changesets.iter().any(|cs: &ChangeSet| cs.id == g)
+            && let Ok(cs) = store.get_changeset(g)
+        {
+            changesets.push(cs);
+        }
+    }
+    Ok(Bundle { base_tree, entries, changesets })
 }
 
 struct Import<'a> {
@@ -354,6 +365,11 @@ pub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {
             &have[..12],
             &bundle.base_tree[..12]
         )));
+    }
+    for cs in &bundle.changesets {
+        if repo.store().get_changeset(cs.id).is_err() {
+            repo.store().put_changeset(cs)?;
+        }
     }
     let mut im = Import { repo, changes: BTreeMap::new(), snaps: BTreeMap::new() };
     if let Some(first) = bundle.entries.first() {

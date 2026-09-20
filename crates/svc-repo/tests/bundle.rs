@@ -45,8 +45,10 @@ fn a_bundle_replays_the_whole_story_into_a_fresh_store_over_the_same_tree() {
     demo_crate(a.path());
     let repo = Repo::init(a.path(), Repo::default_langs()).unwrap();
     svc_repo::new(&repo).unwrap();
+    svc_repo::changeset_begin(&repo, "the agent run", svc_core::Intent::Refactor, None, false).unwrap();
     rename_to(&repo, "parse", "parse_config");
     edit(&repo, "normalize", "fn normalize(s: &str) -> String {\n    s.trim().to_lowercase()\n}");
+    svc_repo::changeset_end(&repo).unwrap();
     // A hand edit to an opaque file, absorbed.
     std::fs::write(a.path().join("config.txt"), "hand-edited\n").unwrap();
     svc_repo::status(&repo).unwrap();
@@ -87,12 +89,15 @@ fn a_bundle_replays_the_whole_story_into_a_fresh_store_over_the_same_tree() {
     let kinds: Vec<String> = log.iter().rev().map(|o| format!("{:?}", o.op).split(' ').next().unwrap().trim_end_matches('{').to_string()).collect();
     let recorded_kinds: Vec<String> = svc_repo::op_log(&repo).unwrap().iter().rev().map(|o| format!("{:?}", o.op).split(' ').next().unwrap().trim_end_matches('{').to_string()).collect();
     assert_eq!(kinds, recorded_kinds);
-    // The replayed lines keep their recorded times and changesets, not the import's.
+    // The replayed lines keep their recorded times and changesets, not the import's — and the
+    // changeset rows travel too, so a group keeps its name.
     let recorded_log = svc_repo::op_log(&repo).unwrap();
     for (got, want) in log.iter().zip(recorded_log.iter()).filter(|(_, w)| w.ix.0 > 0) {
         assert_eq!(got.at, want.at, "op {} keeps its time", want.ix.0);
         assert_eq!(got.group, want.group, "op {} keeps its changeset", want.ix.0);
     }
+    let named: Vec<String> = svc_repo::changesets(&fresh).unwrap().into_iter().map(|c| c.name).collect();
+    assert!(named.contains(&"the agent run".to_string()), "the changeset row travelled: {named:?}");
     let id = svc_repo::resolve_entity(&fresh, "normalize").unwrap();
     let blame = svc_repo::blame(&fresh, id).unwrap();
     assert!(blame.len() >= 3, "added, edited, merged/resolved: {blame:?}");

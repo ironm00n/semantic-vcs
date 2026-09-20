@@ -11,9 +11,9 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use svc_core::engine::render_entity;
-use svc_core::{Conflict, EntityId, Error, Op, OpIx, OpLogEntry, ReviewItem, Result, Snapshot, SnapshotId, Store};
+use svc_core::{Conflict, EntityId, Error, Op, OpIx, OpLogEntry, RelPath, ReviewItem, Result, Snapshot, SnapshotId, Store};
 
-use crate::history::{op_entity, touch};
+use crate::history::{op_entity, touch, touches};
 use crate::repo::Repo;
 
 /// How many ancestor snapshots to list beyond the heads and the root.
@@ -104,6 +104,7 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
             "path": root,
             "description": format!("{} entities, {} operations, {} changes", cur.entities.len(), ops.len(), view.heads.len()),
             "head": view.root,
+            "heads": view.heads.values().collect::<Vec<_>>(),
             "snapshots": snapshots,
             "operations": operations,
             "review_queue": review,
@@ -129,8 +130,29 @@ fn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry) -> Value {
     if let Some(after) = &after {
         m.insert("change".into(), json!(after.change));
     }
+    if let Some(name) = e.group.and_then(|g| store.get_changeset(g).ok()).map(|cs| cs.name) {
+        m.insert("group_name".into(), json!(name));
+    }
+    // Every entity the op touched and every opaque file it changed, so an absorb or a
+    // merge — the ops that carry other people's work — has names and paths too.
+    let before = store.get_snapshot(e.before.root).ok();
+    if let (Some(b), Some(a)) = (&before, &after) {
+        let touched = touches(b, a, e.observed);
+        if !touched.is_empty() {
+            m.insert("subjects".into(), json!(touched));
+        }
+        let changed: Vec<&RelPath> = a
+            .files
+            .iter()
+            .filter(|(p, rec)| b.files.get(*p) != Some(rec))
+            .map(|(p, _)| p)
+            .chain(b.files.keys().filter(|p| !a.files.contains_key(*p)))
+            .collect();
+        if !changed.is_empty() {
+            m.insert("files".into(), json!(changed));
+        }
+    }
     if let (Some(id), Some(after)) = (op_entity(&e.op), &after) {
-        let before = store.get_snapshot(e.before.root).ok();
         let prev = before.as_ref().and_then(|b| b.entities.get(&id));
         let next = after.entities.get(&id);
         let shown = next.or(prev);
