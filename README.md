@@ -157,8 +157,10 @@ shell, web and subagents are disabled. Writes go through `rename`, `add_def`,
 permission. `list_tools` is the proof of the tool set.
 
 ```sh
-SVC_BIN="$PWD/target/debug/svc" OPENROUTER_API_KEY="…" \
-  npx -y @deepseek-ai/dsh@0.1.5-rc.2 --profile acp --patch harness/overlay.yml
+SVC_BIN="$PWD/target/debug/svc" OPENROUTER_API_KEY="…" SVC_MODEL=anthropic/claude-sonnet-5 \
+  svc tui --agent "rename read to read_file and pull the retry check out of validate"
+# or the harness by itself:
+# npx -y @deepseek-ai/dsh@0.1.5-rc.2 --profile acp --patch harness/overlay.yml
 ```
 
 `svc tui --agent "<task>"` runs that task inside the review UI; the run is one
@@ -200,9 +202,11 @@ Hackathon prototype. Not a git replacement.
   busy` after a bounded wait); each checkout undoes only its own operations.
 - **Sync** moves a changeset between clones on the same tree (a fresh clone,
   or one that took the previous push); notes alone land on any tree.
-- **Live models.** With `deepseek-chat`, a run sometimes stops after the
-  first operation; the TUI's `p` continues the same session. The scripted
-  agent is the deterministic gate.
+- **Live models.** `SVC_MODEL=anthropic/claude-sonnet-5` (via OpenRouter) made the
+  three operations of the agent task in 16–18 s, 3/3 runs; `deepseek-chat`, the
+  overlay's default, narrates the calls as prose instead of making them, and a
+  run that stops early is continued with the TUI's `p`. The scripted agent is
+  the deterministic gate (`demo/recordings/live-sonnet5.jsonl` is a real run's log).
 
 ## Built with
 
