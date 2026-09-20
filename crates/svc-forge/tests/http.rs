@@ -355,6 +355,8 @@ async fn browser_contract_has_typed_labels_change_navigation_and_entity_filters(
         "Absorbed hand edits: ",
         "s.entity===entity.id",
         "checkouts",
+        "Requested changes on",
+        "the store is the mailbox",
         "What changed, entity by entity",
         "function lineDiff(a,b)",
         "/subjects`",
