@@ -4,6 +4,7 @@
 
 mod app;
 mod data;
+mod syntax;
 
 use std::path::PathBuf;
 use std::time::Duration;

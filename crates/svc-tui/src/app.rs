@@ -14,6 +14,7 @@ use svc_repo::{BlameEntry, ConflictOut, OpOut, Touch};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::data::{Definition, Svc, class_name, conflict_line, describe_op, intent_name, kind_glyph};
+use crate::syntax::source_lines;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Pane {
@@ -339,9 +340,7 @@ impl App {
                 if src.trim().is_empty() {
                     lines.push(Line::from("(empty definition)").dark_gray());
                 } else {
-                    for line in src.lines() {
-                        lines.push(Line::from(line.to_string()));
-                    }
+                    lines.extend(source_lines(&src, &def.file));
                 }
                 let canon = shown.canonical.trim();
                 if !canon.is_empty() {
