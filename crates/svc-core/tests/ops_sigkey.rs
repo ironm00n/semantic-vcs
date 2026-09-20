@@ -92,3 +92,26 @@ fn edit_def_may_not_change_kind() {
     let (next, _) = edit_def(&store, &langs, &snap, foo, b"fn foo() -> u32 { 2 }\n").unwrap();
     assert_eq!(next.entities[&foo].kind, Kind::Fn);
 }
+
+#[test]
+fn snapshot_insert_refuses_a_duplicate_sigkey() {
+    let (_, _, snap) = fixture("fn a() {}\n");
+    let a = lookup_name(&snap, "a").unwrap();
+    let mut rec = snap.entities[&a].clone();
+    rec.name = "a".into();
+    let mut next = snap.clone();
+    let err = next.insert(EntityId::new(), rec).unwrap_err().to_string();
+    assert!(err.contains("already exists"), "{err}");
+}
+
+#[test]
+fn snapshot_insert_refuses_a_missing_file() {
+    let (_, _, snap) = fixture("fn a() {}\n");
+    let a = lookup_name(&snap, "a").unwrap();
+    let mut rec = snap.entities[&a].clone();
+    rec.file = RelPath::new("src/gone.rs").unwrap();
+    rec.name = "b".into();
+    let mut next = snap.clone();
+    let err = next.insert(EntityId::new(), rec).unwrap_err().to_string();
+    assert!(err.contains("no file record"), "{err}");
+}

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{Chunk, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
-use crate::entity::{EntityRecord, FileRecord, Kind, SigKey};
+use crate::entity::EntityRecord;
 use crate::error::{Error, Result};
 use crate::ids::{ChangeId, EntityId, RelPath, resolve_spec};
 use crate::lang::Langs;
@@ -39,52 +39,17 @@ pub fn lookup(snap: &Snapshot, spec: &str) -> Result<EntityId> {
 
 /// Attribute-only: referrers keep `Chunk::Name` holes. No rehash.
 pub fn rename(snap: &Snapshot, id: EntityId, new: &str) -> Result<Snapshot> {
-    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-    refuse_duplicate(
-        snap,
-        id,
-        &SigKey {
-            parent: rec.parent,
-            kind: rec.kind,
-            name: new.to_string(),
-        },
-    )?;
     let mut next = snap.clone();
-    next.entities.get_mut(&id).unwrap().name = new.to_string();
+    next.rename(id, new)?;
     Ok(next)
-}
-
-/// `(parent, kind, name)` is how entities are matched across re-parses and unified in
-/// merge, so a verb may not create a second one. Kinds whose name is synthesised from
-/// position (`impl`, static blocks, `use`) may legitimately repeat and are exempt.
-fn refuse_duplicate(snap: &Snapshot, id: EntityId, key: &SigKey) -> Result<()> {
-    if key.kind.is_synthetic_named() || key.kind == Kind::Opaque {
-        return Ok(());
-    }
-    let clash = snap.entities.iter().find(|(other, r)| {
-        **other != id && r.parent == key.parent && r.kind == key.kind && r.name == key.name
-    });
-    match clash {
-        Some((other, _)) => Err(Error::Other(format!(
-            "{:?} {} already exists under the same parent ({})",
-            key.kind,
-            key.name,
-            other.short()
-        ))),
-        None => Ok(()),
-    }
 }
 
 pub fn relocate(snap: &Snapshot, id: EntityId, file: RelPath, ordinal: u32) -> Result<Snapshot> {
     let mut next = snap.clone();
     // Render iterates `snapshot.files`, not entities. A path that never had a
     // FileRecord would swallow the item on disk even though the entity moved.
-    if !next.files.contains_key(&file) {
-        next.files.insert(file.clone(), FileRecord::default());
-    }
-    let rec = next.entities.get_mut(&id).ok_or(Error::NoSuchEntity(id))?;
-    rec.file = file;
-    rec.ordinal = ordinal;
+    next.ensure_file(file.clone());
+    next.set_file(id, file, ordinal)?;
     Ok(next)
 }
 
@@ -94,22 +59,8 @@ pub fn move_def(
     parent: Option<EntityId>,
     ordinal: Option<u32>,
 ) -> Result<Snapshot> {
-    let cur = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-    refuse_duplicate(
-        snap,
-        id,
-        &SigKey {
-            parent,
-            kind: cur.kind,
-            name: cur.name.clone(),
-        },
-    )?;
     let mut next = snap.clone();
-    let rec = next.entities.get_mut(&id).ok_or(Error::NoSuchEntity(id))?;
-    rec.parent = parent;
-    if let Some(o) = ordinal {
-        rec.ordinal = o;
-    }
+    next.reparent(id, parent, ordinal)?;
     Ok(next)
 }
 
@@ -269,24 +220,12 @@ pub fn add_def_at(
         .ok_or_else(|| Error::NoLanguage(file.clone()))?;
     let definition = add_def_text(parent, definition);
     let mut rec = ingest_one_item("add-def", store, snap, &file, lang, &definition)?;
-    refuse_duplicate(
-        snap,
-        id,
-        &SigKey {
-            parent,
-            kind: rec.kind,
-            name: rec.name.clone(),
-        },
-    )?;
-    let mut next = snap.clone();
     rec.parent = parent;
-    rec.file = file;
+    rec.file = file.clone();
     rec.ordinal = ordinal;
-    next.entities.insert(id, rec);
-    if !next.files.contains_key(&next.entities[&id].file) {
-        next.files
-            .insert(next.entities[&id].file.clone(), Default::default());
-    }
+    let mut next = snap.clone();
+    next.ensure_file(file);
+    next.insert(id, rec)?;
     Ok(next)
 }
 

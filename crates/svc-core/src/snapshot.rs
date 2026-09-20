@@ -154,6 +154,89 @@ impl Snapshot {
             && self.conflicts == other.conflicts
             && self.message == other.message
     }
+
+    /// `(parent, kind, name)` is unique except for kinds whose name is synthesised
+    /// from position (`impl`, static blocks, opaque `use` lines).
+    pub fn insert(&mut self, id: EntityId, rec: EntityRecord) -> Result<()> {
+        if !self.files.contains_key(&rec.file) {
+            return Err(Error::Other(format!("no file record for {}", rec.file)));
+        }
+        refuse_duplicate(self, id, &rec.sig_key())?;
+        self.entities.insert(id, rec);
+        Ok(())
+    }
+
+    pub fn rename(&mut self, id: EntityId, new: &str) -> Result<()> {
+        let rec = self.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+        refuse_duplicate(
+            self,
+            id,
+            &SigKey {
+                parent: rec.parent,
+                kind: rec.kind,
+                name: new.to_string(),
+            },
+        )?;
+        self.entities.get_mut(&id).unwrap().name = new.to_string();
+        Ok(())
+    }
+
+    pub fn reparent(
+        &mut self,
+        id: EntityId,
+        parent: Option<EntityId>,
+        ordinal: Option<u32>,
+    ) -> Result<()> {
+        let rec = self.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+        refuse_duplicate(
+            self,
+            id,
+            &SigKey {
+                parent,
+                kind: rec.kind,
+                name: rec.name.clone(),
+            },
+        )?;
+        let rec = self.entities.get_mut(&id).unwrap();
+        rec.parent = parent;
+        if let Some(o) = ordinal {
+            rec.ordinal = o;
+        }
+        Ok(())
+    }
+
+    pub fn set_file(&mut self, id: EntityId, file: RelPath, ordinal: u32) -> Result<()> {
+        if !self.files.contains_key(&file) {
+            return Err(Error::Other(format!("no file record for {file}")));
+        }
+        let rec = self.entities.get_mut(&id).ok_or(Error::NoSuchEntity(id))?;
+        rec.file = file;
+        rec.ordinal = ordinal;
+        Ok(())
+    }
+
+    pub fn ensure_file(&mut self, file: RelPath) {
+        self.files.entry(file).or_default();
+    }
+}
+
+fn refuse_duplicate(snap: &Snapshot, id: EntityId, key: &SigKey) -> Result<()> {
+    use crate::entity::Kind;
+    if key.kind.is_synthetic_named() || key.kind == Kind::Opaque {
+        return Ok(());
+    }
+    let clash = snap.entities.iter().find(|(other, r)| {
+        **other != id && r.parent == key.parent && r.kind == key.kind && r.name == key.name
+    });
+    match clash {
+        Some((other, _)) => Err(Error::Other(format!(
+            "{:?} {} already exists under the same parent ({})",
+            key.kind,
+            key.name,
+            other.short()
+        ))),
+        None => Ok(()),
+    }
 }
 
 /// Statement-atom identity for matching is the atom's own hash with locals numbered

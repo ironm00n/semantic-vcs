@@ -55,6 +55,16 @@ pub struct FileRecord {
     pub trailing: Vec<u8>,
 }
 
+impl EntityRecord {
+    pub fn sig_key(&self) -> SigKey {
+        SigKey {
+            parent: self.parent,
+            kind: self.kind,
+            name: self.name.clone(),
+        }
+    }
+}
+
 impl Kind {
     pub fn is_synthetic_named(self) -> bool {
         matches!(self, Kind::Impl | Kind::JsStaticBlock)
