@@ -56,22 +56,21 @@ svc playground: $WORK   (a copy of demo/config; \`svc init\` already run)
 
   seeded (except --agent): parse→parse_config→parse_cfg merged into main;
                            load has the line-6 binding conflict on \`raw\`
-  svc tui                  opens on that story — j/k, change log, queue [!]
   svc log / svc op log     current change vs whole journal
   svc blame --entity load  added → edited → the capture
   svc conflicts            the one Binding on \`raw\`
   svc status               entities / semantic / layout, absorbs hand edits
   svc show parse_cfg       canonical stream: \$0 \$1 locals, #read⟨…⟩ entity refs
   svc undo                 one step, whole changeset
-  svc tui                  review UI: j/k, tab, enter, a/r, p, u, q
-                                               (the store is shared: \`svc rename …\` from a second terminal here shows in the tree within a second)
+  svc tui                  opens on that story: revisions first (j/k, evolog below), e entities
+                           (/ filters), o operation log, h/Esc back, tab queue, a/r, u undo, q
+                           the store is shared: \`svc rename …\` from a second terminal shows within a second
   svc workspace add w2 $WORK-w2 ; (cd $WORK-w2 && svc new && svc rename --entity log --new-name log_line)
-                                               a second checkout on the same store, its own change; \`svc workspace list\`; \`svc merge <its change>\`
+                           a second checkout, its own change; \`svc workspace list\`; \`svc merge <its change>\`
   svc tui --agent "$TASK"
-                                               line 9 runs inside the UI (scripted agent; set
-                                               DEEPSEEK_API_KEY=\$(cat ~/.deepseek.key)
-                                               and unset SVC_AGENT_COMMAND for the real model; p continues an ended turn;
-                                               SVC_AGENT_PRESEED=1 puts the entity list in the first prompt, one round trip fewer)
+                           line 9 runs inside the UI (scripted agent). For the real model:
+                           DEEPSEEK_API_KEY=\$(cat ~/.deepseek.key) and unset SVC_AGENT_COMMAND;
+                           p continues an ended turn; SVC_AGENT_PRESEED=1 sends the entity list first
   add --json to any verb for the machine form
 
 EOF
