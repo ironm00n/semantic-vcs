@@ -152,7 +152,37 @@ fn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry, workspace: Option<&str
     if let (Some(b), Some(a)) = (&before, &after) {
         let touched = touches(b, a, e.observed);
         if !touched.is_empty() {
-            m.insert("subjects".into(), json!(touched));
+            // Each touch carries the entity's text on both sides when the op changed it, so
+            // a change page can show an absorb entity by entity. `New` is the init op with
+            // everything "added": its texts are the snapshot's, not a change.
+            let with_text = !matches!(e.op, Op::New { .. } | Op::Describe { .. } | Op::Branch { .. });
+            let subjects: Vec<Value> = touched
+                .iter()
+                .map(|t| {
+                    let mut v = serde_json::to_value(t).unwrap_or(Value::Null);
+                    let Value::Object(sm) = &mut v else { return v };
+                    let prev = b.entities.get(&t.entity);
+                    let next = a.entities.get(&t.entity);
+                    if let Some(r) = next.or(prev) {
+                        sm.insert("kind".into(), json!(r.kind));
+                        sm.insert("file".into(), json!(r.file));
+                    }
+                    if with_text {
+                        let before_text = prev.and_then(|_| source(store, b, t.entity));
+                        let after_text = next.and_then(|_| source(store, a, t.entity));
+                        if before_text != after_text {
+                            if let Some(x) = before_text {
+                                sm.insert("before_source".into(), Value::String(x));
+                            }
+                            if let Some(x) = after_text {
+                                sm.insert("after_source".into(), Value::String(x));
+                            }
+                        }
+                    }
+                    v
+                })
+                .collect();
+            m.insert("subjects".into(), Value::Array(subjects));
         }
         let changed: Vec<&RelPath> = a
             .files

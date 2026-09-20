@@ -125,6 +125,19 @@ pub struct TouchView {
     pub name: String,
     #[serde(default)]
     pub touch: serde_json::Value,
+    #[serde(default, deserialize_with = "null_default")]
+    pub kind: String,
+    #[serde(default, deserialize_with = "null_default")]
+    pub file: String,
+    /// Present only when the op changed this entity's text.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub before_source: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub after_source: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub before_source_html: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub after_source_html: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -247,6 +260,7 @@ fn router(source: CatalogSource) -> Router {
             get(entity_source),
         )
         .route("/api/repositories/{slug}/operations", get(operations))
+        .route("/api/repositories/{slug}/operations/{ix}/subjects", get(operation_subjects))
         .route("/api/repositories/{slug}/reviews", get(reviews))
         .with_state(Arc::new(source))
 }
@@ -311,6 +325,15 @@ fn decorate_operation(operation: &mut OperationView) {
     } else {
         highlight::source_html(&subject.after_source, &subject.file).unwrap_or_default()
     };
+}
+
+/// Highlighted text for every entity an op touched; served per op, not with the
+/// repository, because an absorb can carry hundreds of them.
+fn decorate_subjects(operation: &mut OperationView) {
+    for touch in &mut operation.subjects {
+        touch.before_source_html = highlight::source_html(&touch.before_source, &touch.file).unwrap_or_default();
+        touch.after_source_html = highlight::source_html(&touch.after_source, &touch.file).unwrap_or_default();
+    }
 }
 
 fn decorate_repository(repo: &mut Repository) {
@@ -432,6 +455,30 @@ async fn entity_source(
             Json(entity).into_response()
         }
         None => (StatusCode::NOT_FOUND, "entity source not found").into_response(),
+    }
+}
+
+async fn operation_subjects(
+    State(source): State<AppState>,
+    AxumPath((slug, ix)): AxumPath<(String, u64)>,
+) -> impl IntoResponse {
+    let catalog = match current(&source) {
+        Ok(catalog) => catalog,
+        Err(error) => return error.into_response(),
+    };
+    match catalog.repository(&slug).and_then(|repo| {
+        repo.operations
+            .iter()
+            .enumerate()
+            .find(|(i, op)| op.ix.unwrap_or(*i as u64) == ix)
+            .map(|(_, op)| op)
+    }) {
+        Some(operation) => {
+            let mut operation = operation.clone();
+            decorate_subjects(&mut operation);
+            Json(operation.subjects).into_response()
+        }
+        None => (StatusCode::NOT_FOUND, "operation not found").into_response(),
     }
 }
 

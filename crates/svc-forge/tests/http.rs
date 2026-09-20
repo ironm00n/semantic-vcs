@@ -6,7 +6,9 @@ use svc_core::{
     BytesId, Conflict, ContentId, EntityId, EntityRecord, Intent, Kind, Op, OpIx, OpLogEntry,
     RelPath, ReviewItem, Side, SnapshotId, View,
 };
-use svc_forge::{Catalog, EntityView, OperationSubject, OperationView, Repository, SnapshotView};
+use svc_forge::{
+    Catalog, EntityView, OperationSubject, OperationView, Repository, SnapshotView, TouchView,
+};
 use tower::ServiceExt;
 
 struct TestDir(std::path::PathBuf);
@@ -77,6 +79,31 @@ fn catalog() -> Catalog {
         after_source_html: String::new(),
         touch: serde_json::json!({"Renamed":{"from":"parse","to":"parse_config"}}),
     });
+    rename.workspace = Some("sol".into());
+    rename.subjects = vec![
+        TouchView {
+            entity: entity.to_string(),
+            name: "parse_config".into(),
+            touch: serde_json::json!({"Renamed":{"from":"parse","to":"parse_config"}}),
+            kind: "Fn".into(),
+            file: "src/main.rs".into(),
+            before_source: "fn parse() {}".into(),
+            after_source: "fn parse_config() {}".into(),
+            before_source_html: String::new(),
+            after_source_html: String::new(),
+        },
+        TouchView {
+            entity: EntityId::new().to_string(),
+            name: "caller".into(),
+            touch: serde_json::json!({"Edited":{"observed":"BindingPreserving"}}),
+            kind: "Fn".into(),
+            file: "src/main.rs".into(),
+            before_source: "fn caller() { parse() }".into(),
+            after_source: "fn caller() { parse_config() }".into(),
+            before_source_html: String::new(),
+            after_source_html: String::new(),
+        },
+    ];
     Catalog {
         repositories: vec![Repository {
             slug: "svc".into(),
@@ -224,6 +251,30 @@ async fn populated_repository_response_preserves_semantic_types() {
     );
 }
 
+#[tokio::test]
+async fn operation_subjects_are_served_highlighted_per_op() {
+    let app = svc_forge::app(catalog());
+    let (status, body) = response(app.clone(), "/api/repositories/svc").await;
+    assert_eq!(status, StatusCode::OK);
+    let value: serde_json::Value = serde_json::from_str(&body).unwrap();
+    // The repository carries the touches and the checkout, but not the highlighting.
+    assert_eq!(value["operations"][0]["workspace"], "sol");
+    assert_eq!(value["operations"][0]["subjects"].as_array().unwrap().len(), 2);
+    assert!(value["operations"][0]["subjects"][1]["after_source_html"].is_null());
+    assert!(value["operations"][1]["subjects"].is_null());
+
+    let (status, body) = response(app.clone(), "/api/repositories/svc/operations/7/subjects").await;
+    assert_eq!(status, StatusCode::OK);
+    let touches: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(touches.as_array().unwrap().len(), 2);
+    assert_eq!(touches[1]["name"], "caller");
+    assert!(touches[1]["before_source_html"].as_str().unwrap().contains("syntax-keyword"));
+    assert!(touches[1]["after_source_html"].as_str().unwrap().contains("parse_config"));
+
+    let (status, _) = response(app, "/api/repositories/svc/operations/99/subjects").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
 #[test]
 fn add_and_delete_subjects_accept_null_source_sides() {
     let id = EntityId::new();
@@ -304,6 +355,9 @@ async fn browser_contract_has_typed_labels_change_navigation_and_entity_filters(
         "Absorbed hand edits: ",
         "s.entity===entity.id",
         "checkouts",
+        "What changed, entity by entity",
+        "function lineDiff(a,b)",
+        "/subjects`",
         "filteredEntities",
         "conflictSummary",
         "Delete/edit conflict",
