@@ -31,7 +31,7 @@ enum Command {
     Evolog { change: String }, Show { entity: String }, ListDefs, ShowDef(ShowDefArgs),
     Search { query: String }, Diff { a: String, b: String }, Blame(EntityArg),
     Merge { change: String }, Conflicts,
-    Resolve { conflict: usize, #[arg(long, help = "a = current change, b = merged-in, or base")] take: String },
+    Resolve { conflict: usize, #[arg(long, help = "a = current change, b = merged-in, base, or accept (the code as it stands, for a binding conflict)")] take: String },
     Undo,
     #[command(subcommand)] Op(OpCommand),
     #[command(subcommand)] Changeset(ChangeSetCommand),
@@ -433,7 +433,7 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
             return Some(run_with(cli, &repo).map(|_| "rendered working copy".into()));
         }
         Command::Resolve { conflict, take } => {
-            return Some(run_with(cli, &repo).map(|_| format!("took {take} on conflict {conflict}")));
+            return Some(run_with(cli, &repo).map(|_| if take == "accept" { format!("resolved conflict {conflict}: accepted the code as it stands") } else { format!("took {take} on conflict {conflict}") }));
         }
         Command::Op(OpCommand::Restore { index }) => {
             return Some(run_with(cli, &repo).and_then(|v| {
@@ -710,7 +710,8 @@ fn parse_take(value: &str) -> Result<Take, String> {
         "a" => Ok(Take::A),
         "b" => Ok(Take::B),
         "base" => Ok(Take::Base),
-        _ => Err("--take: a = current change, b = merged-in, or base".into()),
+        "accept" => Ok(Take::Accept),
+        _ => Err("--take: a = current change, b = merged-in, base, or accept (a binding conflict, with the code as it stands)".into()),
     }
 }
 

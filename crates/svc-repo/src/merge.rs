@@ -211,14 +211,18 @@ pub fn resolved_snapshot(store: &dyn Store, cur: &Snapshot, n: usize, take: Take
             Take::A => side_a.entities.get(&id).cloned(),
             Take::B => side_b.entities.get(&id).cloned(),
             Take::Base => base.entities.get(&id).cloned(),
+            Take::Accept => cur.entities.get(&id).cloned(),
         }
     };
 
     let mut next = cur.clone();
     match &conflict {
+        // The code as it stands is the resolution: the author fixed the binding with an
+        // edit-def, or means it; nothing to pick from a side.
+        Conflict::Binding { .. } if take == Take::Accept => {}
         Conflict::Binding { .. } => {
             return Err(Error::Other(
-                "a binding conflict has no side to take; fix the code or `resolve --accept`".into(),
+                "a binding conflict has no side to take; fix the code with edit-def, then `svc resolve <n> --take accept`".into(),
             ));
         }
         Conflict::Attr { id, sides } => {
@@ -226,6 +230,7 @@ pub fn resolved_snapshot(store: &dyn Store, cur: &Snapshot, n: usize, take: Take
                 Take::A => sides.adds().next().cloned(),
                 Take::B => sides.adds().nth(1).cloned(),
                 Take::Base => sides.removes().next().cloned(),
+                Take::Accept => None,
             }
             .ok_or_else(|| Error::Other("that side has no value".into()))?;
             let rec = next.entities.get_mut(id).ok_or(Error::NoSuchEntity(*id))?;
@@ -254,8 +259,8 @@ pub fn resolved_snapshot(store: &dyn Store, cur: &Snapshot, n: usize, take: Take
             let drop = match take {
                 Take::A => *b,
                 Take::B => *a,
-                Take::Base => {
-                    return Err(Error::Other("add/add has no base side".into()));
+                Take::Base | Take::Accept => {
+                    return Err(Error::Other("add/add has no base side; take a or b".into()));
                 }
             };
             next.entities.remove(&drop);

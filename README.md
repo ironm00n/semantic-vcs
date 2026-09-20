@@ -59,8 +59,11 @@ $ svc blame --entity crates/svc-repo/src/bundle.rs:import
   `1 method call .parse(…) left unchanged: receiver types are not resolved`.
   On `tokio`, renaming `asyncify` (30 call sites, 25 files) is one log line.
 - **The merge git gets wrong is a conflict.** See the block below; `svc
-  conflicts` lists it, `svc resolve <n> --take a|b|base` records the choice
-  as an operation, and `svc replay` re-derives the result.
+  conflicts` lists it; a content conflict is resolved with `svc resolve <n>
+  --take a|b|base`, a binding conflict by fixing the code (`svc edit-def`) and
+  then `svc resolve <n> --take accept` — either is an operation, and `svc
+  replay` re-derives the result. `demo/play.sh --merge` sets the merge up for
+  you to run.
 - **Review lives in the repository.** A changeset groups operations; `svc
   review <changeset> --approve|--request-changes|--note`, `svc mail` and `svc
   claim` are operations too. `svc push <changeset> <dir>` carries them to

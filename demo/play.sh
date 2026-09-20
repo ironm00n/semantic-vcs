@@ -5,6 +5,8 @@
 #   cargo build -p svc && demo/play.sh          # a fresh scratch tree, then a shell in it
 #   demo/play.sh --tui                          # same, but open the review UI straight away
 #   demo/play.sh --agent                        # same, with the replay agent running line 9 inside the UI
+#   demo/play.sh --merge                        # same, stopped right before `svc merge a6`: run the
+#                                               # binding-conflict merge yourself, then resolve it
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -x "${CARGO_TARGET_DIR}/debug/svc" ]; then
@@ -40,6 +42,7 @@ seed_story() {
   "$SVC" edit-def --entity load --intent feature --definition "$LOAD_A" --json >/dev/null
   "$SVC" branch b6 --json >/dev/null
   "$SVC" edit-def --entity load --intent feature --definition "$LOAD_B" --json >/dev/null
+  [ "${1:-}" = "--merge" ] && return 0
   "$SVC" merge a6 --json >/dev/null
 }
 
@@ -48,7 +51,24 @@ export SVC_AGENT_COMMAND="node $HERE/replay-agent.mjs $HERE/recordings/line9.ops
 TASK="rename read to read_file and pull the retry check out of validate into its own fn"
 
 if [ "${1:-}" != "--agent" ]; then
-  seed_story || echo "seed failed (playground still usable as init+new)"
+  seed_story "${1:-}" || echo "seed failed (playground still usable as init+new)"
+fi
+if [ "${1:-}" = "--merge" ]; then
+  cat <<EOF
+svc playground: $WORK   — two branches of \`load\` are ready; git would merge them clean and wrong.
+
+  svc merge a6                    the binding conflict on \`raw\`, named with both binders
+  svc conflicts                   list it again
+  svc show load                   the merged text: normalize shadowed raw, log(&raw) means the original
+  svc edit-def --entity load --intent fix --definition "\$(cat fixed.rs)"
+                                  fix the binding (rename the shadow), then
+  svc resolve 0 --take accept     record the code as it stands as the resolution
+  svc log                         the merge and the resolution as two lines
+  git init -q && git add -A >/dev/null && git diff --cached --stat | tail -1
+                                  what git sees of the same tree
+
+EOF
+  exec "${SHELL:-bash}"
 fi
 
 cat <<EOF

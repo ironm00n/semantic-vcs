@@ -188,6 +188,7 @@ pub fn describe_op(op: &Op) -> String {
         Op::Describe { msg } => format!("described: {msg}"),
         Op::Branch { name } => format!("branch {name}"),
         Op::Absorb => "absorbed hand edits".into(),
+        Op::Resolve { conflict, take: svc_core::Take::Accept } => format!("resolved conflict {conflict}: accepted the code as it stands"),
         Op::Resolve { conflict, take } => format!("resolved conflict {conflict}: took {take:?}"),
         Op::Note { to, kind, text } => {
             let dest = match to {

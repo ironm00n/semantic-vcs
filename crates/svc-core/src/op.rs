@@ -116,12 +116,15 @@ pub enum Op {
     },
 }
 
-/// Which side a conflict resolution keeps: the merge's first parent, its second, or the base.
+/// Which side a conflict resolution keeps: the merge's first parent, its second, or the base —
+/// or, for a binding conflict, the code as it now stands (`Accept`: the author fixed or
+/// approved the binding and says so).
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum Take {
     A,
     B,
     Base,
+    Accept,
 }
 
 impl Op {

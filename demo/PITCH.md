@@ -40,9 +40,11 @@ replayed, not staged.
    and the sentence about what it left alone: `207 other mentions of rendered
    left unchanged (strings, comments, unrelated bindings)`. `svc undo` puts it
    back in one step; `git diff --stat` shows what git would have made of it.
-3. The merge: `demo/demo-lines.sh` line 6, or the twin: `svc merge` refuses
-   with the binding conflict above; `svc resolve 0 --take a` records the
-   choice as an operation; `svc conflicts` is empty.
+3. The merge, in a second terminal: `demo/play.sh --merge` leaves the two
+   branches of `load` ready; `svc merge a6` refuses with the binding conflict
+   above; `svc edit-def --entity load …` renames the shadow, `svc resolve 0
+   --take accept` records the code as the resolution; `svc conflicts` is empty
+   and `svc log` shows the merge and the resolution as two operations.
 4. `svc changeset show mail` / `svc inbox` — the review and the mail between
    the agents are operations in the same log; `svc push mail ../clone` moves a
    changeset with its verdicts to another clone.
@@ -115,8 +117,9 @@ list below.
    schema has no `edit`/`write`; the only write tools are svc operations, and
    `edit_def` asks permission. `list_tools` is the proof.
 7. **What does a conflict look like?** A binding conflict names the reference,
-   the binder it meant and the binder it now means; `svc resolve <n> --take
-   a|b|base` records the choice as an operation.
+   the binder it meant and the binder it now means; you fix the code and `svc
+   resolve <n> --take accept` records that as an operation (content conflicts
+   take a side: `--take a|b|base`).
 8. **Why not git objects underneath?** Because the store is what the review
    unit is; every 2026 semantic tool we know keeps git canonical and infers
    entities afterwards. Files are a render; `demo/git-twin` shows git's answer.
