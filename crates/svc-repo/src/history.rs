@@ -181,8 +181,20 @@ pub fn status(repo: &Repo) -> Result<StatusOut> {
             (status_report(repo.store(), &cur, &cur)?, cur, false)
         }
     };
+    // A changed file that has no entities (a script, a manifest, this README) is a file
+    // change, not a "semantic" one: say so instead of counting it as one.
+    let files = report
+        .deltas
+        .iter()
+        .filter(|d| matches!(d, Delta::FileAdded(_) | Delta::FileRemoved(_) | Delta::FileTail { whitespace_only: false, .. }))
+        .count();
+    let summary = if files > 0 && files == report.semantic && report.layout == 0 {
+        format!("no semantic changes; {files} file{} changed outside entities ({} entities)", if files == 1 { "" } else { "s" }, report.entities)
+    } else {
+        report.summary()
+    };
     Ok(StatusOut {
-        summary: report.summary(),
+        summary,
         entities: report.entities,
         layout: report.layout,
         semantic: report.semantic,

@@ -26,25 +26,28 @@ the log line is wrong. `svc merge` re-resolves the merged result and says:
 let raw at :68 (shadowed)`. That is a conflict no line-based tool can see,
 and it is the shape of the bug agents write.
 
-**1:45 — live demo, 2 minutes, on the repository's own history.** All of it
-was built through svc since 02:31 UTC today; the history is checked in and
+**1:45 — live demo, 2 minutes, on the repository's own history.** The last
+twelve hours of it were built through svc; the history is checked in and
 replayed, not staged.
 
-1. `demo/dogfood.sh --tui` — the review UI opens on this repository: 2,259
-   entities, 318 operations in 74 bundles, each with who, when and the verdict.
-   Walk the revisions (`j`/`k`, `Enter`), open the op log (`o`): renames,
-   edit-defs, undos, and the mail the agents sent each other through it.
+1. `demo/dogfood.sh --tui` — the review UI opens on this repository's store:
+   2,426 entities, 318 operations in 74 bundles, each with who, when and the
+   verdict. Walk the revisions (`j`/`k`, `Enter`), open the op log (`o`) and
+   `j` past the latest landings' `new change` / `absorbed hand edits` pairs to
+   the renames, edit-defs, undos, and the mail the agents sent each other.
 2. `q`, then in the shell (`demo/dogfood.sh --shell`): `svc rename --entity
-   crates/svc-repo/src/bundle.rs:rendered --new-name rendered_files` →
-   `renamed rendered → rendered_files`, its 7 mentions rewritten, one log line,
-   and the sentence about what it left alone: `207 other mentions of rendered
-   left unchanged (strings, comments, unrelated bindings)`. `svc undo` puts it
-   back in one step; `git diff --stat` shows what git would have made of it.
+   crates/svc-repo/src/bundle.rs:rendered --new-name rendered_files` prints
+   two lines — `renamed rendered → rendered_files` and `N other mentions of
+   rendered left unchanged (strings, comments, unrelated bindings)` — the
+   callers in bundle.rs now say `rendered_files` (`svc show rendered_files`,
+   or `grep -n rendered_files crates/svc-repo/src/bundle.rs`); `svc undo` puts
+   it back in one step and `svc status` is clean.
 3. The merge, in a second terminal: `demo/play.sh --merge` leaves the two
-   branches of `load` ready; `svc merge a6` refuses with the binding conflict
-   above; `svc edit-def --entity load …` renames the shadow, `svc resolve 0
-   --take accept` records the code as the resolution; `svc conflicts` is empty
-   and `svc log` shows the merge and the resolution as two operations.
+   branches of `load` ready and prints the lines to run; `svc merge a6` refuses
+   with the binding conflict above; `svc edit-def --entity load …` renames the
+   shadow, `svc resolve 0 --take accept` records the code as the resolution;
+   `svc conflicts` is empty and `svc log` shows the merge, the fix and the
+   resolution as three operations.
 4. `svc changeset show mail` / `svc inbox` — the review and the mail between
    the agents are operations in the same log; `svc push mail ../clone` moves a
    changeset with its verdicts to another clone.

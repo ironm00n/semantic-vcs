@@ -88,12 +88,14 @@ async fn run_app(
     wire_log: bool,
 ) -> Result<(), String> {
     let mut app = App::new(svc);
-    // Paint before any `svc` spawn so a slow list-defs cannot look like a hung
-    // alternate screen.
+    // Paint before any `svc` spawn so a slow first read (heads and the op log decode a
+    // snapshot per line; ~3 s on a 300-op store) cannot look like a hung alternate screen.
+    app.status = format!("opening {} — reading the store…", app.svc.root.display());
     terminal
         .draw(|f| app.render(f))
         .map_err(|e| e.to_string())?;
-    app.refresh(); // before the agent can say Ready: the pre-seed needs the entity list
+    app.refresh();
+    app.status.clear(); // before the agent can say Ready: the pre-seed needs the entity list
     let (ev_tx, mut ev_rx) = mpsc::unbounded_channel();
     let mut driver = None;
     let mut changeset_open = false;

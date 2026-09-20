@@ -36,9 +36,12 @@ footer of the UI lists the same keys.
 
 ## The demo, in keys
 
-1. `demo/dogfood.sh --tui` — opens on the current change. `o` — the op log:
-   renames, edit-defs, undos, the agents' mail; `j`×N to the run of
-   `edit-def … [claude]` / `note to checkout supervisor` lines around #190.
+1. `demo/dogfood.sh --tui` — opens on the current change (the first frame says
+   "opening … reading the store" for about 3 s while heads and the op log load). `o` —
+   the op log: its top is the latest landings' `new change` / `absorbed hand
+   edits` pairs (one per landing made by hand); `j` past them to the renames,
+   edit-defs, undos and the agents' mail (`edit-def … [claude]`, `note to
+   checkout supervisor` around #190).
 2. `h`, then `e`, `/`, type `bundle`, `Enter` — the entities of
    `crates/svc-repo/src/bundle.rs`; `j` to `import`; the source and blame on
    the right.

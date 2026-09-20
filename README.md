@@ -7,9 +7,9 @@ Every `fn`, `struct`, `impl`, class or method keeps one identity for life; a
 rename is recorded as a rename; a merge that would silently make a reference
 point at a different binder is a conflict, even when git merges clean and the
 crate still compiles. The working tree is a render of the store, and an agent
-on the included overlay can only write through `svc` operations. This
-repository's own history since 02:31 UTC was made with it: 318 operations in
-74 bundles, opened by the third command below.
+on the included overlay can only write through `svc` operations. The last
+twelve hours of this repository's own history — 318 operations in 74 bundles —
+were made through it, and the third command below opens them.
 
 ## Try it
 
@@ -19,16 +19,11 @@ cargo build -p svc
 demo/dogfood.sh --tui  # this repository's own svc-made history, replayed, in the review UI
 ```
 
-The third command opens `svc tui` on this repository's history: it unpacks
-`artifacts/history-store.tar.xz` — the replayed checkout, 13 MiB — checks it
-against `demo/history` (the bundle list, the op count, a clean tree) and is in
-the UI in a few seconds. The replay itself is the proof: `time
-demo/history/replay.sh /tmp/x` rebuilds the same store from git's trees and
-the bundles in about 9 minutes on our shared VM (74 bundles, 318 operations, 136
-of them absorbed hand edits that re-analyse the tree; `demo/history/pack.sh`
-replayed and packed them in 9.9 min at 10:00 UTC); `SVC_HISTORY_FRESH=1
-demo/dogfood.sh --tui` does that instead of unpacking. `--shell` instead of
-`--tui` opens a shell in that checkout.
+The third command unpacks `artifacts/history-store.tar.xz` (the replayed
+checkout, 13 MiB), checks it against `demo/history` (bundle list, op count,
+clean tree) and opens `svc tui` on it in about 2 s. The replay is the proof:
+`demo/history/replay.sh <dir>` rebuilds the same store from git's trees and
+the bundles in about 9 minutes. `--shell` instead of `--tui` gives a shell there.
 
 ## What you will see
 
@@ -40,20 +35,21 @@ the real UI written by `svc-tui --root <checkout> --svg <file> --keys o`.
 ```text
 $ svc op log
 #213 absorbed hand edits
-#199 edit-def open_with⟨8f4511f6⟩ (declared feature, observed binding-preserving) ✓  [claude]
+#199 edit-def open_with⟨…⟩ (declared feature, observed binding-preserving) ✓  [claude]
 #194 note to checkout supervisor: "landed qkyvkunv 6fddc064 (Touch::Rebound + mail-sync fixes …"  [claude]
 #175 undo  [claude]
 #110 renamed hex4 → short_hex  [codex]
 
 $ svc blame --entity crates/svc-repo/src/bundle.rs:import
-#172 change 91e5f023 edited (binding-preserving) — edit-def import⟨86564d5f⟩ (declared fix, unchecked)
-#160 change 91e5f023 relocated crates/svc-repo/src/bundle.rs#25 → crates/svc-repo/src/bundle.rs#28
+#172 change ⟨…⟩ edited (binding-preserving) — edit-def import⟨…⟩ (declared fix, unchecked)
+#160 change ⟨…⟩ relocated crates/svc-repo/src/bundle.rs#25 → crates/svc-repo/src/bundle.rs#28
 ```
 
 - **History in operations.** `svc op log` is a journal of named operations —
   rename, edit-def, add-def, undo, note — each with who made it, when, and the
   classifier's verdict, not a diff inferred afterwards. `svc blame` on an
-  entity lists the operations that touched it. (In the TUI: `j`/`k` and `Enter`
+  entity lists the operations that touched it; hand edits absorbed by `svc
+  status` show as `edited (unclassified)` there. (In the TUI: `j`/`k` and `Enter`
   through revisions, `e` entities, `o` the op log, `u` undo, `q` quit.)
 - **A rename follows.** `svc rename --entity parse --new-name parse_config`
   rewrites every resolved mention and says what it could not resolve:
@@ -70,7 +66,7 @@ $ svc blame --entity crates/svc-repo/src/bundle.rs:import
   claim` are operations too. `svc push <changeset> <dir>` carries them to
   another clone, which then prints the same `svc changeset show`. The
   coordination between the agents that built this repository ran through it
-  from 06:33 UTC (the notes are in the replayed history).
+  for the last eight hours (the notes are in the replayed history).
 - **Replay is the proof.** `demo/history/replay.sh <dir>` refuses any bundle
   whose recorded trees do not reproduce; when today's engine computes an old
   operation differently, the recorded files supply the tree and the line says so
@@ -133,7 +129,7 @@ build -p svc` gets:
 
 | what | number | command |
 |---|---|---|
-| this repository ingested | 2,259 entities in 208 files, 2.6 s | `svc init` at the repo root (`demo/selfhost-full.sh` does it in a copy) |
+| this repository ingested | 2,477 entities, 2.6–4.6 s depending on load | `svc init` at the repo root (`demo/selfhost-full.sh` does it in a copy) |
 | its own history replayed | 74 bundles, 318 operations, every tree as recorded, ≈9 min | `time demo/history/replay.sh <dir>` |
 | … or opened from the shipped pack | seconds, verified against the bundles | `demo/dogfood.sh --tui` |
 | the rendered tree still builds | `cargo test --workspace` from an empty checkout: 0 failures | `demo/selfhost-full.sh` |
@@ -169,12 +165,13 @@ changeset, so `svc undo` reverts it in one step. Without a model key,
 
 ## Verbs
 
-`status` (absorbs hand edits into the current change), `log`, `op log`, `show`,
-`blame`, `evolog`, `heads`, `rename`, `move`, `relocate`, `extract`, `inline`,
-`add-def`, `edit-def`, `delete`, `undo`, `op restore`, `new`, `describe`,
-`branch`, `merge`, `conflicts`, `resolve`, `replay`, `changeset begin|end|
-reopen|show|list`, `review`, `mail`, `inbox`, `claim`, `release`, `push`,
-`pull`, `workspace add|list`, `history export|import`, `forge export`, `tui`.
+`status` (absorbs hand edits into the current change), `list-defs`, `show`,
+`show-def`, `search`, `log`, `op log`, `blame`, `evolog`, `heads`, `rename`,
+`move`, `relocate`, `extract`, `inline`, `add-def`, `edit-def`, `delete`, `undo`,
+`op restore`, `new`, `describe`, `branch`, `merge`, `conflicts`, `resolve`,
+`replay`, `changeset begin|end|reopen|status|show|list`, `review`, `mail`,
+`inbox`, `claim`, `release`, `push`, `pull`, `workspace add|list|forget|
+update-stale`, `history export|import`, `forge export`, `tui`.
 The verbs people read at the expo print a sentence; the rest print JSON;
 `--json` on any verb is the machine form.
 
@@ -210,9 +207,9 @@ Hackathon prototype. Not a git replacement.
 
 ## Built with
 
-svc itself: this repository's changes since 02:31 UTC were made through
-`svc` verbs and are the 74 bundles in `demo/history/` (318 operations), the
-agents' coordination through `svc mail` from 06:33 UTC. HackMIT 2026. Codex,
+svc itself: the last twelve hours of this repository's changes were made
+through `svc` verbs and are the 74 bundles in `demo/history/` (318
+operations); the agents coordinated through `svc mail` for the last eight. HackMIT 2026. Codex,
 Claude Code, Muse, Cursor, Devin, Warp and DeepSeek Harness. Rust,
 tree-sitter (Rust and JavaScript), redb, postcard, BLAKE3, similar, clap,
 ratatui, agent-client-protocol, axum, Node.js,
