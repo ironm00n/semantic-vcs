@@ -42,6 +42,10 @@ seed_story() {
   "$SVC" edit-def --entity load --intent feature --definition "$LOAD_A" --json >/dev/null
   "$SVC" branch b6 --json >/dev/null
   "$SVC" edit-def --entity load --intent feature --definition "$LOAD_B" --json >/dev/null
+  # The resolution for --merge: the merged body with the shadow renamed, so log(&raw)
+  # means the original again. Kept outside the tree so svc does not absorb a second `load`.
+  FIXED="$(mktemp /tmp/svc-play-fixed.XXXXXX)"
+  item load | sed 's/    let cfg = parse_cfg(\&raw)?;/    let normalized = normalize(\&raw);\n    let cfg = parse_cfg(\&normalized)?;/' > "$FIXED"
   [ "${1:-}" = "--merge" ] && return 0
   "$SVC" merge a6 --json >/dev/null
 }
@@ -60,8 +64,8 @@ svc playground: $WORK   — two branches of \`load\` are ready; git would merge 
   svc merge a6                    the binding conflict on \`raw\`, named with both binders
   svc conflicts                   list it again
   svc show load                   the merged text: normalize shadowed raw, log(&raw) means the original
-  svc edit-def --entity load --intent fix --definition "\$(cat fixed.rs)"
-                                  fix the binding (rename the shadow), then
+  svc edit-def --entity load --intent fix --definition "\$(cat $FIXED)"
+                                  fix the binding (the shadow renamed \`normalized\`), then
   svc resolve 0 --take accept     record the code as it stands as the resolution
   svc log                         the merge and the resolution as two lines
   git init -q && git add -A >/dev/null && git diff --cached --stat | tail -1
