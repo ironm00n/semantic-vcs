@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{Bytes, Chunk, Content, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
-use crate::entity::{EntityRecord, SigKey};
+use crate::entity::{EntityRecord, Kind, SigKey};
 use crate::error::{Error, Result};
 use crate::ids::{ByteRange, ChangeId, EntityId, RelPath, resolve_spec};
 use crate::lang::{Lang, Langs};
@@ -551,7 +551,19 @@ pub fn edit_def(
         .for_path(&rec.file)
         .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
     let definition = item_text(store, snap, id, definition)?;
-    let (root_old, part) = ingest_item_tree("edit-def", store, snap, &rec.file, lang, &definition)?;
+    let parent_kind = rec
+        .parent
+        .and_then(|p| snap.entities.get(&p))
+        .map(|r| r.kind);
+    let (root_old, part) = ingest_item_tree(
+        "edit-def",
+        store,
+        snap,
+        &rec.file,
+        lang,
+        parent_kind,
+        &definition,
+    )?;
     let mapped = remap_tree(store, part.entities, root_old, id, Some(snap))?;
     let new_rec = mapped
         .get(&id)
@@ -663,8 +675,20 @@ pub fn add_def_at(
     let lang = langs
         .for_path(&file)
         .ok_or_else(|| Error::NoLanguage(file.clone()))?;
-    let definition = add_def_text(parent, definition);
-    let (root_old, part) = ingest_item_tree("add-def", store, snap, &file, lang, &definition)?;
+    let indent = parent
+        .map(|p| sibling_indent(store, snap, p))
+        .unwrap_or_default();
+    let definition = add_def_text(parent, &indent, definition);
+    let parent_kind = parent.and_then(|p| snap.entities.get(&p)).map(|r| r.kind);
+    let (root_old, part) = ingest_item_tree(
+        "add-def",
+        store,
+        snap,
+        &file,
+        lang,
+        parent_kind,
+        &definition,
+    )?;
     let mapped = remap_tree(store, part.entities, root_old, id, None)?;
     let mut next = snap.clone();
     next.ensure_file(file.clone());
@@ -923,14 +947,25 @@ fn insert_child_chunk(
     } else {
         split_close_brace(src, &mut chunks)
     };
-    let extra_start = src.len() as u32;
-    src.extend_from_slice(b"\n");
-    let extra = ByteRange {
-        start: extra_start,
-        end: src.len() as u32,
+    // A member's bytes end at its last token; whatever follows must begin on a new
+    // line. The next sibling carries its own leading newline, and so does the parent's
+    // closing text in every rendered file — only a bare `}` (split_close_brace) or a
+    // literal that starts mid-line needs one added here.
+    let next_starts_on_new_line = match chunks.get(insert_at) {
+        Some(Chunk::Child(_)) => true,
+        Some(Chunk::Literal(r)) => src.get(r.start as usize) == Some(&b'\n'),
+        Some(Chunk::Name(_)) | None => false,
     };
     chunks.insert(insert_at, Chunk::Child(id));
-    chunks.insert(insert_at + 1, Chunk::Literal(extra));
+    if !next_starts_on_new_line {
+        let extra_start = src.len() as u32;
+        src.extend_from_slice(b"\n");
+        let extra = ByteRange {
+            start: extra_start,
+            end: src.len() as u32,
+        };
+        chunks.insert(insert_at + 1, Chunk::Literal(extra));
+    }
     chunks
 }
 
@@ -1069,22 +1104,31 @@ pub fn redefine(
 /// The one item a verb body must be: parses without error nodes, exactly one root
 /// entity. Ingest itself is lenient (a checked-in file may be mid-edit); the typed
 /// write path is not.
+/// Parse and ingest one definition. Under a parent whose members do not parse on their
+/// own (a JS class), the text is wrapped in the language's member shell and the member,
+/// not the shell, is returned as the root.
 fn ingest_item_tree(
     verb: &str,
     store: &dyn Store,
     snap: &Snapshot,
     file: &RelPath,
     lang: &dyn crate::lang::Lang,
+    parent_kind: Option<Kind>,
     text: &[u8],
 ) -> Result<(EntityId, Snapshot)> {
-    if super::parse(text, lang)?.root_node().has_error() {
+    let shell = parent_kind.and_then(|k| lang.member_shell(k));
+    let wrapped: Vec<u8> = match shell {
+        Some((open, close)) => [open.as_bytes(), text, close.as_bytes()].concat(),
+        None => text.to_vec(),
+    };
+    if super::parse(&wrapped, lang)?.root_node().has_error() {
         return Err(Error::Parse(format!(
             "{verb} definition does not parse as {}",
             lang.name()
         )));
     }
-    let part = ingest_file_with_env(
-        text,
+    let mut part = ingest_file_with_env(
+        &wrapped,
         file.clone(),
         lang,
         store,
@@ -1097,12 +1141,30 @@ fn ingest_item_tree(
         .filter(|(_, r)| r.parent.is_none())
         .map(|(id, _)| *id)
         .collect();
-    match roots.as_slice() {
-        [id] => Ok((*id, part)),
-        _ => Err(Error::Other(format!(
+    let [root] = roots.as_slice() else {
+        return Err(Error::Other(format!(
             "{verb} definition must parse to exactly one item"
-        ))),
+        )));
+    };
+    let root = *root;
+    if shell.is_none() {
+        return Ok((root, part));
     }
+    let members: Vec<EntityId> = part
+        .entities
+        .iter()
+        .filter(|(_, r)| r.parent == Some(root))
+        .map(|(id, _)| *id)
+        .collect();
+    let [member] = members.as_slice() else {
+        return Err(Error::Other(format!(
+            "{verb} definition must be exactly one member"
+        )));
+    };
+    let member = *member;
+    part.entities.remove(&root);
+    part.entities.get_mut(&member).unwrap().parent = None;
+    Ok((member, part))
 }
 
 fn derived_id(parent: EntityId, rec: &EntityRecord) -> EntityId {
@@ -1234,10 +1296,31 @@ fn item_text(store: &dyn Store, snap: &Snapshot, id: EntityId, text: &[u8]) -> R
     Ok(out)
 }
 
+/// Indentation of `parent`'s existing members (the whitespace after the last newline
+/// before the first member's text); four spaces when it has none yet.
+fn sibling_indent(store: &dyn Store, snap: &Snapshot, parent: EntityId) -> Vec<u8> {
+    let first = snap
+        .entities
+        .iter()
+        .filter(|(_, r)| r.parent == Some(parent))
+        .min_by_key(|(_, r)| r.ordinal)
+        .map(|(id, _)| *id);
+    let indent = first
+        .and_then(|id| render_entity(snap, store, id, false).ok())
+        .and_then(|(bytes, _)| {
+            let lead = bytes.iter().take_while(|b| b.is_ascii_whitespace()).count();
+            let last_nl = bytes[..lead].iter().rposition(|b| *b == b'\n')?;
+            Some(bytes[last_nl + 1..lead].to_vec())
+        });
+    indent
+        .filter(|i| !i.is_empty())
+        .unwrap_or_else(|| b"    ".to_vec())
+}
+
 /// A new item needs a blank line before it or render glues `}fn` / `;fn`. Nested items
 /// (an impl method, a class member) are also indented one level, since the body an
 /// agent passes is written at column 0.
-fn add_def_text(parent: Option<EntityId>, text: &[u8]) -> Vec<u8> {
+fn add_def_text(parent: Option<EntityId>, indent: &[u8], text: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
     let bare = !text.first().is_some_and(|b| b.is_ascii_whitespace());
     if bare {
@@ -1249,7 +1332,7 @@ fn add_def_text(parent: Option<EntityId>, text: &[u8]) -> Vec<u8> {
                 out.push(b'\n');
             }
             if !line.is_empty() {
-                out.extend_from_slice(b"    ");
+                out.extend_from_slice(indent);
                 out.extend_from_slice(line);
             }
         }

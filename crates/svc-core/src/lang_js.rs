@@ -466,4 +466,8 @@ impl Lang for JsLang {
     fn trivia_kinds(&self) -> &'static [&'static str] {
         &["comment"]
     }
+
+    fn member_shell(&self, parent: Kind) -> Option<(&'static str, &'static str)> {
+        matches!(parent, Kind::JsClass).then_some(("class __svc_shell__ {", "\n}\n"))
+    }
 }

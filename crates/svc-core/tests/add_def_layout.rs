@@ -41,9 +41,9 @@ fn nested_add_def_is_on_its_own_indented_line() {
     );
     assert!(
         out.contains(
-            "    }\n\n    pub fn is_empty(&self) -> bool {\n        self.0.is_empty()\n    }\n"
+            "    }\n\n    pub fn is_empty(&self) -> bool {\n        self.0.is_empty()\n    }\n}\n"
         ),
-        "{out}"
+        "no blank line before the closing brace:\n{out}"
     );
     let reparsed = snapshot_files(
         &store,

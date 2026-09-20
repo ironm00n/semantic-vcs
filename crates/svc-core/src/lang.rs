@@ -168,6 +168,13 @@ pub trait Lang: Send + Sync {
     fn opaque_nodes(&self) -> &'static [&'static str];
     fn commutative_parents(&self) -> &'static [CommutativeRule];
     fn trivia_kinds(&self) -> &'static [&'static str];
+    /// Text to wrap a lone member in so it parses, when a definition is added to or edited
+    /// under a parent of `parent` kind: a JS method is not a program on its own, a Rust
+    /// impl method is an item. `None` means the member parses standalone.
+    fn member_shell(&self, _parent: Kind) -> Option<(&'static str, &'static str)> {
+        None
+    }
+
     /// Leaf node kinds whose text is a literal (numbers, strings, chars, booleans);
     /// canonicalisation keeps their text as `Token::Lit`.
     fn literal_kinds(&self) -> &'static [&'static str] {
