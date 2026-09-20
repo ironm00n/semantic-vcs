@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::content::Namespace;
@@ -11,8 +11,14 @@ pub struct Env {
     /// File-root and nested defs keyed by the file they live in. A same-file
     /// `fn hex32` beats a same-named item in another crate when resolving.
     pub by_file: Arc<HashMap<RelPath, HashMap<(String, Namespace), EntityId>>>,
-    /// Same-named items in `crates/<pkg>/**` share this map. File wins, then crate, then repo.
+    /// Same-named items in `crates/<pkg>/**` share this map. File wins, then a
+    /// name unique in the crate, then a name unique in the repo; collisions are Free.
     pub by_crate: Arc<HashMap<String, HashMap<(String, Namespace), EntityId>>>,
+    /// Crate-level names that appear in more than one file. A third file must not
+    /// bind last-wins (DOGFOOD: two file-level items with one name in one crate).
+    pub crate_ambiguous: Arc<HashMap<String, HashSet<(String, Namespace)>>>,
+    /// Repo-wide names that appear under more than one definition.
+    pub names_ambiguous: Arc<HashSet<(String, Namespace)>>,
     /// Inherent methods of the impl/class this item is being resolved in.
     /// `self.foo()` / `Self::foo()` / `this.foo()` look here, not in `names`
     /// (a free `fn foo` is a different target).
@@ -28,8 +34,14 @@ impl Env {
                 return Some(id);
             }
             if let Some(krate) = crate_key(file) {
-                if let Some(id) = Self::lookup_in_map(self.by_crate.get(krate), name, ns) {
-                    return Some(id);
+                if !self
+                    .crate_ambiguous
+                    .get(krate)
+                    .is_some_and(|s| Self::is_ambiguous(s, name, ns))
+                {
+                    if let Some(id) = Self::lookup_in_map(self.by_crate.get(krate), name, ns) {
+                        return Some(id);
+                    }
                 }
             }
         }
@@ -37,7 +49,15 @@ impl Env {
     }
 
     pub fn lookup_global(&self, name: &str, ns: Namespace) -> Option<EntityId> {
+        if Self::is_ambiguous(&self.names_ambiguous, name, ns) {
+            return None;
+        }
         Self::lookup_in_map(Some(self.names.as_ref()), name, ns)
+    }
+
+    fn is_ambiguous(set: &HashSet<(String, Namespace)>, name: &str, ns: Namespace) -> bool {
+        set.contains(&(name.to_string(), ns))
+            || set.contains(&(name.to_string(), Namespace::Any))
     }
 
     fn lookup_in_map(
@@ -52,7 +72,30 @@ impl Env {
     }
 
     pub fn insert(&mut self, name: impl Into<String>, ns: Namespace, id: EntityId) {
-        Arc::make_mut(&mut self.names).insert((name.into(), ns), id);
+        let name = name.into();
+        Self::record(
+            Arc::make_mut(&mut self.names),
+            Arc::make_mut(&mut self.names_ambiguous),
+            &name,
+            ns,
+            id,
+        );
+    }
+
+    fn record(
+        map: &mut HashMap<(String, Namespace), EntityId>,
+        amb: &mut HashSet<(String, Namespace)>,
+        name: &str,
+        ns: Namespace,
+        id: EntityId,
+    ) {
+        let key = (name.to_string(), ns);
+        if let Some(old) = map.get(&key) {
+            if *old != id {
+                amb.insert(key.clone());
+            }
+        }
+        map.insert(key, id);
     }
 
     pub fn insert_def(&mut self, name: impl Into<String>, kind: Kind, id: EntityId) {
@@ -81,10 +124,7 @@ impl Env {
                     .or_default()
                     .insert((name.clone(), *ns), id);
                 if let Some(krate) = crate_key(file) {
-                    Arc::make_mut(&mut self.by_crate)
-                        .entry(krate.to_string())
-                        .or_default()
-                        .insert((name.clone(), *ns), id);
+                    self.insert_crate(krate, &name, *ns, id);
                 }
             }
         }
@@ -96,12 +136,27 @@ impl Env {
                     .or_default()
                     .insert((name.clone(), Namespace::Value), id);
                 if let Some(krate) = crate_key(file) {
-                    Arc::make_mut(&mut self.by_crate)
-                        .entry(krate.to_string())
-                        .or_default()
-                        .insert((name.clone(), Namespace::Value), id);
+                    self.insert_crate(krate, &name, Namespace::Value, id);
                 }
             }
+        }
+    }
+
+    fn insert_crate(&mut self, krate: &str, name: &str, ns: Namespace, id: EntityId) {
+        let key = (name.to_string(), ns);
+        let collision = {
+            let map = Arc::make_mut(&mut self.by_crate)
+                .entry(krate.to_string())
+                .or_default();
+            let hit = map.get(&key).copied().filter(|old| *old != id);
+            map.insert(key.clone(), id);
+            hit
+        };
+        if collision.is_some() {
+            Arc::make_mut(&mut self.crate_ambiguous)
+                .entry(krate.to_string())
+                .or_default()
+                .insert(key);
         }
     }
 

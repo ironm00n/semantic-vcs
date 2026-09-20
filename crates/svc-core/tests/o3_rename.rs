@@ -598,6 +598,43 @@ fn rename_same_named_fn_in_the_same_crate_rewrites_only_that_file() {
 }
 
 #[test]
+fn unique_crate_name_rewrites_a_sibling_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let a = RelPath::new("crates/pkg/src/a.rs").unwrap();
+    let b = RelPath::new("crates/pkg/src/b.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(a.clone(), b"fn helper() {}\n".to_vec());
+    files.insert(b.clone(), b"fn go() { helper(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = named_in_file(&snap, "helper", &a);
+    let next = rename(&snap, id, "helper_renamed").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let b_txt = String::from_utf8(rendered.files[&b].clone()).unwrap();
+    assert!(b_txt.contains("helper_renamed();"), "{b_txt}");
+}
+
+#[test]
+fn ambiguous_crate_name_is_free_in_a_third_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let a = RelPath::new("crates/pkg/src/a.rs").unwrap();
+    let b = RelPath::new("crates/pkg/src/b.rs").unwrap();
+    let c = RelPath::new("crates/pkg/src/c.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(a.clone(), b"fn parse() {}\n".to_vec());
+    files.insert(b.clone(), b"fn parse() {}\n".to_vec());
+    files.insert(c.clone(), b"fn go() { parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = named_in_file(&snap, "parse", &b);
+    let next = rename(&snap, id, "parse_b").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let c_txt = String::from_utf8(rendered.files[&c].clone()).unwrap();
+    assert!(c_txt.contains("parse();"), "{c_txt}");
+    assert!(!c_txt.contains("parse_b"), "{c_txt}");
+}
+
+#[test]
 fn absorb_does_not_bind_a_deleted_same_file_def() {
     let store = MemStore::new();
     let langs = rust_langs();
