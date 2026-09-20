@@ -272,6 +272,7 @@ async fn browser_contract_has_typed_labels_change_navigation_and_entity_filters(
     assert_eq!(status, StatusCode::OK);
     for contract in [
         "semantic development history",
+        "word==='entity'?'entities'",
         "buildChanges",
         "renderChangeList",
         "renderChangeDetail",
