@@ -213,6 +213,7 @@ pub struct LineCol {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String")]
 pub struct RelPath(String);
 
 impl RelPath {
@@ -241,6 +242,14 @@ impl RelPath {
 impl std::fmt::Debug for RelPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "RelPath({:?})", self.0)
+    }
+}
+
+impl TryFrom<String> for RelPath {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value).map_err(|path| format!("invalid relative path: {:?}", path))
     }
 }
 
@@ -309,6 +318,48 @@ fn parse_hex32(s: &str) -> std::result::Result<[u8; 32], String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+
+    const INVALID_REL_PATHS: &[&str] = &[
+        "", "/absolute.rs", ".", "..", "../escape.rs", "src/../escape.rs",
+        "src/./lib.rs", "src//lib.rs", "src/", "src\\lib.rs", "src/\0lib.rs",
+    ];
+
+    #[test]
+    fn rel_path_json_rejects_invalid_paths_and_map_keys() {
+        for &text in INVALID_REL_PATHS {
+            assert!(RelPath::new(text).is_err());
+            let json = serde_json::to_string(text).unwrap();
+            assert!(serde_json::from_str::<RelPath>(&json).is_err(), "{text:?}");
+            let map = serde_json::to_string(&BTreeMap::from([(text, 1u8)])).unwrap();
+            assert!(serde_json::from_str::<BTreeMap<RelPath, u8>>(&map).is_err(), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn rel_path_postcard_rejects_invalid_paths() {
+        for &text in INVALID_REL_PATHS {
+            assert!(RelPath::new(text).is_err());
+            let encoded = postcard::to_stdvec(text).unwrap();
+            assert!(postcard::from_bytes::<RelPath>(&encoded).is_err(), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn rel_path_preserves_valid_wire_encodings_and_map_keys() {
+        for text in ["src/lib.rs", ".svcignore", "folder with spaces/café.rs"] {
+            let path = RelPath::new(text).unwrap();
+            let json = serde_json::to_string(&path).unwrap();
+            assert_eq!(json, serde_json::to_string(text).unwrap());
+            assert_eq!(serde_json::from_str::<RelPath>(&json).unwrap(), path);
+            let encoded = postcard::to_stdvec(&path).unwrap();
+            assert_eq!(encoded, postcard::to_stdvec(text).unwrap());
+            assert_eq!(postcard::from_bytes::<RelPath>(&encoded).unwrap(), path);
+            let map = BTreeMap::from([(path, 1u8)]);
+            let json = serde_json::to_string(&map).unwrap();
+            assert_eq!(serde_json::from_str::<BTreeMap<RelPath, u8>>(&json).unwrap(), map);
+        }
+    }
 
     #[test]
     fn spec_matches_short_prefix_and_dashless_uuid_case_insensitively() {
