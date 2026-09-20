@@ -161,6 +161,10 @@ fn include_paths_of(node: tree_sitter::Node<'_>, src: &[u8]) -> Vec<String> {
     out
 }
 
+pub(crate) fn file_include_paths(node: tree_sitter::Node<'_>, src: &[u8]) -> Vec<String> {
+    include_paths_of(node, src)
+}
+
 fn collect_include_paths(
     node: tree_sitter::Node<'_>,
     src: &[u8],

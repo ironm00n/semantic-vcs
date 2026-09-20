@@ -77,6 +77,7 @@ pub(crate) fn env_from_snapshot_store(snapshot: &Snapshot, store: &dyn Store) ->
     let mut env = env_from_snapshot(snapshot);
     fill_path_file_modules_from_snapshot(&mut env, snapshot, store);
     fill_include_file_modules_from_snapshot(&mut env, snapshot, store);
+    fill_file_module_includes_from_snapshot(&mut env, snapshot, store);
     fill_macro_exports_from_snapshot(&mut env, snapshot, store);
     env
 }
@@ -174,6 +175,58 @@ fn fill_include_file_modules_from_snapshot(
             attach_included_file(env, snapshot, *id, &rec.file, cand);
         }
     }
+}
+
+/// `mod foo;` file with a file-root `include!("body.rs")` — postcard has no
+/// include list on the file, so recover from stored bytes.
+fn fill_file_module_includes_from_snapshot(
+    env: &mut Env,
+    snapshot: &Snapshot,
+    store: &dyn Store,
+) {
+    let fom = env.file_of_mod.clone();
+    for (path, mod_id) in fom {
+        if path.extension() != Some("rs") {
+            continue;
+        }
+        let src = approx_file_src(snapshot, store, &path);
+        if src.is_empty() {
+            continue;
+        }
+        let Ok(tree) = parse(&src, &crate::RustLang) else {
+            continue;
+        };
+        for inc in extract::file_include_paths(tree.root_node(), &src) {
+            let Some(cand) = resolve_path_attr(&path, &inc) else {
+                continue;
+            };
+            if !snapshot.files.contains_key(&cand) {
+                continue;
+            }
+            attach_included_file(env, snapshot, mod_id, &path, cand);
+        }
+    }
+}
+
+fn approx_file_src(snapshot: &Snapshot, store: &dyn Store, path: &RelPath) -> Vec<u8> {
+    let mut items: Vec<_> = snapshot
+        .entities
+        .values()
+        .filter(|r| r.file == *path && r.parent.is_none())
+        .collect();
+    items.sort_by_key(|r| r.ordinal);
+    let mut out = Vec::new();
+    for rec in items {
+        if let Some(s) = rec_src(store, rec) {
+            out.extend_from_slice(s.as_bytes());
+        }
+    }
+    if let Some(fr) = snapshot.files.get(path) {
+        if let Ok(t) = fr.tail(store) {
+            out.extend(t);
+        }
+    }
+    out
 }
 
 /// Postcard cannot persist `#[macro_export]` / `#[macro_use]`. Recover them from
@@ -641,6 +694,50 @@ fn link_file_modules(
         }
     }
     env.file_of_mod.extend(file_of_mod);
+}
+
+/// `mod foo;` + `src/foo.rs` containing `include!("body.rs")` splices body
+/// items into `foo`, same as `mod foo { include!("body.rs"); }`.
+fn link_file_root_includes(
+    env: &mut Env,
+    files: &[(&RelPath, &[u8], &tree_sitter::Tree, &[RawEntity], &[EntityId])],
+) {
+    let by_path: HashMap<&RelPath, (&[RawEntity], &[EntityId])> = files
+        .iter()
+        .map(|(p, _, _, raw, ids)| (*p, (*raw, *ids)))
+        .collect();
+    let fom = env.file_of_mod.clone();
+    for (path, src, tree, _, _) in files {
+        let Some(&mod_id) = fom.get(*path) else {
+            continue;
+        };
+        for inc in extract::file_include_paths(tree.root_node(), src) {
+            let Some(cand) = resolve_path_attr(path, &inc) else {
+                continue;
+            };
+            let Some((raw, ids)) = by_path.get(&cand) else {
+                continue;
+            };
+            if env
+                .file_of_mod
+                .get(&cand)
+                .is_some_and(|existing| *existing != mod_id)
+            {
+                continue;
+            }
+            env.file_of_mod.insert(cand.clone(), mod_id);
+            env.mod_decl_file.insert(mod_id, (*path).clone());
+            for (i, ent) in raw.iter().enumerate() {
+                if ent.parent_idx.is_some()
+                    || is_inherent_raw(raw, i)
+                    || is_block_local_raw(raw, i)
+                {
+                    continue;
+                }
+                env.insert_mod_child(mod_id, &ent.name, ent.kind, ids[i]);
+            }
+        }
+    }
 }
 
 fn link_file_modules_from_raw(env: &mut Env, path: &RelPath, raw: &[RawEntity], ids: &[EntityId]) {
@@ -1157,6 +1254,20 @@ pub fn snapshot_files_reusing(
             .map(|p| (&p.path, p.raw.as_slice(), p.ids.as_slice()))
             .collect();
         link_file_modules(&mut env, &views);
+        let include_views: Vec<(&RelPath, &[u8], &tree_sitter::Tree, &[RawEntity], &[EntityId])> =
+            parsed
+                .iter()
+                .map(|p| {
+                    (
+                        &p.path,
+                        p.src,
+                        &p.tree,
+                        p.raw.as_slice(),
+                        p.ids.as_slice(),
+                    )
+                })
+                .collect();
+        link_file_root_includes(&mut env, &include_views);
         export_file_module_macro_use(&mut env, &views);
     }
     {
