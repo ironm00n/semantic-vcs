@@ -708,7 +708,7 @@ impl Store for RedbStore {
         hits.dedup();
         match hits.len() {
             1 => Ok(hits[0]),
-            0 => Err(Error::NotFound(format!("prefix {prefix}"))),
+            0 => Err(Error::NotFound(format!("change {prefix} (svc heads lists the changes; a name from svc branch or an id prefix)"))),
             _ => Err(Error::AmbiguousPrefix {
                 prefix: prefix.into(),
                 candidates: hits,

@@ -107,8 +107,8 @@ pub fn add(repo: &Repo, name: &str, path: &Path, at: Option<ChangeId>) -> Result
     if repo.store.workspace_row(name)?.is_some() {
         return Err(Error::Other(format!("workspace {name:?} already exists")));
     }
-    std::fs::create_dir_all(path).map_err(Error::backend)?;
-    let path = path.canonicalize().map_err(Error::backend)?;
+    std::fs::create_dir_all(path).map_err(|e| Error::Other(format!("cannot create {}: {e}", path.display())))?;
+    let path = path.canonicalize().map_err(|e| Error::Other(format!("cannot resolve {}: {e}", path.display())))?;
     // An interrupted add (pointer written, row not yet) may be resumed in place: the only
     // things allowed in the directory are its own pointer and the copied ignore file.
     let expected_pointer = WorkspacePointer {

@@ -269,8 +269,8 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
         }
         Command::History(HistoryCommand::Import { file }) => {
             return Some((|| {
-                let text = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
-                let b: svc_repo::bundle::Bundle = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                let text = std::fs::read_to_string(file).map_err(|e| format!("cannot read {}: {e}", file.display()))?;
+                let b: svc_repo::bundle::Bundle = serde_json::from_str(&text).map_err(|e| format!("{} is not a history bundle ({e})", file.display()))?;
                 let r = svc_repo::bundle::import(&repo, &b).map_err(|e| e.to_string())?;
                 Ok(match r.diverged_at {
                     Some(at) => format!("replayed {} ops: diverged at #{}", r.applied, at.0),
@@ -424,7 +424,7 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
         }
         Command::Checkout { snapshot } => {
             return Some((|| {
-                let id = snapshot.parse::<SnapshotId>().map_err(|e| e.to_string())?;
+                let id = snapshot.parse::<SnapshotId>().map_err(|e| format!("{snapshot} is not a snapshot id ({e}); svc heads and svc evolog <change> list them in full"))?;
                 checkout(&repo, id).map_err(|e| e.to_string())?;
                 Ok(format!("checked out {snapshot}"))
             })());
@@ -622,8 +622,8 @@ fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
             }
         }
         Command::History(HistoryCommand::Import { file }) => {
-            let text = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
-            let b: svc_repo::bundle::Bundle = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+            let text = std::fs::read_to_string(file).map_err(|e| format!("cannot read {}: {e}", file.display()))?;
+            let b: svc_repo::bundle::Bundle = serde_json::from_str(&text).map_err(|e| format!("{} is not a history bundle ({e})", file.display()))?;
             let r = svc_repo::bundle::import(repo, &b).map_err(|e| e.to_string())?;
             serde_json::to_value(&r).map_err(|e| e.to_string())
         }
@@ -668,7 +668,7 @@ fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
             value(Ok(report))
         }
         Command::Checkout { snapshot } => {
-            let id = snapshot.parse::<SnapshotId>().map_err(|e| e.to_string())?;
+            let id = snapshot.parse::<SnapshotId>().map_err(|e| format!("{snapshot} is not a snapshot id ({e}); svc heads and svc evolog <change> list them in full"))?;
             value(checkout(&repo, id))
         }
         Command::Render => { let snapshot = repo.current().map_err(|e| e.to_string())?; repo.render_to_disk(&snapshot).map_err(|e| e.to_string())?; Ok(json!({"rendered": true})) }
