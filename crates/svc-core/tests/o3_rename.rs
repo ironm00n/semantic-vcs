@@ -4488,3 +4488,75 @@ fn edit_def_follows_nested_include_in_a_file_module() {
         "edit-def must attach nested include! in a file module: {text}"
     );
 }
+
+#[test]
+fn rename_follows_file_module_declared_in_an_included_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let bar = RelPath::new("src/bar.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod foo;\nfn f() { crate::foo::bar::parse(); }\n".to_vec());
+    files.insert(foo, b"include!(\"a.rs\");\n".to_vec());
+    files.insert(a, b"pub mod bar;\n".to_vec());
+    files.insert(bar, b"pub fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::foo::bar::parse_file()"),
+        "mod bar; inside an included file must attach bar.rs: {text}"
+    );
+}
+
+#[test]
+fn edit_def_follows_file_module_declared_in_an_included_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let bar = RelPath::new("src/bar.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod foo;\nfn f() {}\n".to_vec());
+    files.insert(foo, b"include!(\"a.rs\");\n".to_vec());
+    files.insert(a, b"pub mod bar;\n".to_vec());
+    files.insert(bar, b"pub fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let f = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "f")
+        .map(|(id, _)| *id)
+        .expect("f");
+    let (next, _) = edit_def(
+        &store,
+        &langs,
+        &snap,
+        f,
+        b"fn f() { crate::foo::bar::parse(); }\n",
+    )
+    .unwrap();
+    let next = rename(&store, &next, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::foo::bar::parse_file()"),
+        "edit-def must attach mod bar; from an included file: {text}"
+    );
+}

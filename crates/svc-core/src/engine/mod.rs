@@ -141,6 +141,7 @@ fn attach_included_file(
     }
     env.file_of_mod.insert(cand.clone(), mod_id);
     env.mod_decl_file.entry(mod_id).or_insert_with(|| decl.clone());
+    env.include_splices.insert(cand.clone());
     for (cid, crec) in &snapshot.entities {
         if crec.file != cand {
             continue;
@@ -151,6 +152,58 @@ fn attach_included_file(
         env.insert_mod_child(mod_id, &crec.name, crec.kind, *cid);
     }
 }
+
+/// `mod bar;` in an `include!`d file — rustc loads `bar.rs` next to that file.
+fn attach_unowned_mods_from_snapshot(
+    env: &mut Env,
+    snapshot: &Snapshot,
+    store: &dyn Store,
+    spliced: &RelPath,
+    pending: &mut Vec<(RelPath, EntityId)>,
+) {
+    let mods: Vec<(EntityId, String, Option<String>)> = snapshot
+        .entities
+        .iter()
+        .filter(|(_, rec)| rec.file == *spliced && rec.kind == Kind::Mod && rec.parent.is_none())
+        .filter(|(id, _)| !snapshot.entities.values().any(|c| c.parent == Some(**id)))
+        .map(|(id, rec)| {
+            let attr = rec_src(store, rec).and_then(|s| extract::bytes_path_attr(&s));
+            (*id, rec.name.clone(), attr)
+        })
+        .collect();
+    for (id, name, attr) in mods {
+        let cands = if let Some(a) = attr {
+            resolve_path_attr(spliced, &a).into_iter().collect()
+        } else {
+            same_dir_mod_paths(spliced, &name)
+        };
+        for cand in cands {
+            if !snapshot.files.contains_key(&cand) {
+                continue;
+            }
+            if env
+                .file_of_mod
+                .get(&cand)
+                .is_some_and(|existing| *existing != id)
+            {
+                continue;
+            }
+            env.file_of_mod.insert(cand.clone(), id);
+            env.mod_decl_file.entry(id).or_insert_with(|| spliced.clone());
+            for (cid, crec) in &snapshot.entities {
+                if crec.file != cand {
+                    continue;
+                }
+                if crec.parent.is_some() || is_inherent_rec(snapshot, crec) {
+                    continue;
+                }
+                env.insert_mod_child(id, &crec.name, crec.kind, *cid);
+            }
+            pending.push((cand, id));
+        }
+    }
+}
+
 
 /// `mod foo { include!("x.rs"); }` — postcard cannot persist the include path.
 fn fill_include_file_modules_from_snapshot(
@@ -210,6 +263,9 @@ fn fill_file_module_includes_from_snapshot(
             }
             attach_included_file(env, snapshot, mod_id, &path, cand.clone());
             pending.push((cand, mod_id));
+        }
+        if env.include_splices.contains(&path) {
+            attach_unowned_mods_from_snapshot(env, snapshot, store, &path, &mut pending);
         }
     }
 }
@@ -629,6 +685,30 @@ fn file_module_paths(parent_file: &RelPath, inline: &[String], name: &str) -> Ve
         .collect()
 }
 
+/// rustc `UnownedViaInclude`: `mod bar;` in an `include!`d file loads
+/// `bar.rs` next to that file, not `<stem>/bar.rs`.
+fn same_dir_mod_paths(parent_file: &RelPath, name: &str) -> Vec<RelPath> {
+    let path = parent_file.as_str();
+    let dir = match path.rfind('/') {
+        Some(i) => &path[..i],
+        None => "",
+    };
+    let rs = if dir.is_empty() {
+        format!("{name}.rs")
+    } else {
+        format!("{dir}/{name}.rs")
+    };
+    let modrs = if dir.is_empty() {
+        format!("{name}/mod.rs")
+    } else {
+        format!("{dir}/{name}/mod.rs")
+    };
+    [&rs, &modrs]
+        .into_iter()
+        .filter_map(|p| RelPath::new(p.to_string()).ok())
+        .collect()
+}
+
 fn resolve_path_attr(parent_file: &RelPath, attr: &str) -> Option<RelPath> {
     let attr = attr.trim().trim_start_matches("./");
     if attr.is_empty() {
@@ -677,14 +757,16 @@ fn link_file_modules(
                     &ent.name,
                 ));
             }
-            for inc in &ent.include_paths {
-                if let Some(p) = resolve_path_attr(path, inc) {
-                    cands.push(p);
-                }
-            }
             for cand in cands {
                 file_of_mod.insert(cand, ids[i]);
                 env.mod_decl_file.insert(ids[i], (*path).clone());
+            }
+            for inc in &ent.include_paths {
+                if let Some(p) = resolve_path_attr(path, inc) {
+                    file_of_mod.insert(p.clone(), ids[i]);
+                    env.mod_decl_file.entry(ids[i]).or_insert_with(|| (*path).clone());
+                    env.include_splices.insert(p);
+                }
             }
         }
     }
@@ -744,6 +826,7 @@ fn link_file_root_includes(
             }
             env.file_of_mod.insert(cand.clone(), mod_id);
             env.mod_decl_file.entry(mod_id).or_insert_with(|| path.clone());
+            env.include_splices.insert(cand.clone());
             for (i, ent) in raw.iter().enumerate() {
                 if ent.parent_idx.is_some()
                     || is_inherent_raw(raw, i)
@@ -752,6 +835,57 @@ fn link_file_root_includes(
                     continue;
                 }
                 env.insert_mod_child(mod_id, &ent.name, ent.kind, ids[i]);
+            }
+            pending.push(cand);
+        }
+        if env.include_splices.contains(&path) {
+            if let Some((raw, ids)) = by_path.get(&path) {
+                attach_unowned_mods_raw(env, &by_path, &path, raw, ids, &mut pending);
+            }
+        }
+    }
+}
+
+fn attach_unowned_mods_raw(
+    env: &mut Env,
+    by_path: &HashMap<&RelPath, (&[RawEntity], &[EntityId])>,
+    spliced: &RelPath,
+    raw: &[RawEntity],
+    ids: &[EntityId],
+    pending: &mut Vec<RelPath>,
+) {
+    for (i, ent) in raw.iter().enumerate() {
+        if ent.kind != Kind::Mod || ent.parent_idx.is_some() || !ent.children.is_empty() {
+            continue;
+        }
+        let cands = if let Some(attr) = ent.path_attr.as_deref() {
+            resolve_path_attr(spliced, attr).into_iter().collect()
+        } else {
+            same_dir_mod_paths(spliced, &ent.name)
+        };
+        for cand in cands {
+            let Some((sraw, sids)) = by_path.get(&cand) else {
+                continue;
+            };
+            if env
+                .file_of_mod
+                .get(&cand)
+                .is_some_and(|existing| *existing != ids[i])
+            {
+                continue;
+            }
+            env.file_of_mod.insert(cand.clone(), ids[i]);
+            env.mod_decl_file
+                .entry(ids[i])
+                .or_insert_with(|| spliced.clone());
+            for (j, sent) in sraw.iter().enumerate() {
+                if sent.parent_idx.is_some()
+                    || is_inherent_raw(sraw, j)
+                    || is_block_local_raw(sraw, j)
+                {
+                    continue;
+                }
+                env.insert_mod_child(ids[i], &sent.name, sent.kind, sids[j]);
             }
             pending.push(cand);
         }

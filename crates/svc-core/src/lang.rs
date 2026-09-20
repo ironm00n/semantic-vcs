@@ -81,6 +81,9 @@ pub struct Env {
     /// `#[macro_export]` names. rustc injects them at the crate root, so a
     /// file module's nested-mod isolation still sees `parse!()`.
     pub macro_exports: Arc<HashMap<String, EntityId>>,
+    /// Files spliced in by `include!` (`UnownedViaInclude`). `mod bar;` there
+    /// loads `bar.rs` next to that file, not `<stem>/bar.rs`.
+    pub include_splices: HashSet<RelPath>,
 }
 
 impl Env {
