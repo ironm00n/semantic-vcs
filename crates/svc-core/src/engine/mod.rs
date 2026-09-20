@@ -289,21 +289,60 @@ fn insert_mod_child_rec(env: &mut Env, snapshot: &Snapshot, id: EntityId, rec: &
     env.insert_mod_child(p, &rec.name, rec.kind, id);
 }
 
+/// Ancestors that are `mod outer { … }` in the same file — rustc loads
+/// `mod inner;` there from `outer/inner.rs`, not `inner.rs` next to the file.
+fn enclosing_inline_mods_raw(raw: &[RawEntity], i: usize) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut walk = raw[i].parent_idx;
+    while let Some(p) = walk {
+        if raw[p].kind == Kind::Mod {
+            names.push(raw[p].name.clone());
+        }
+        walk = raw[p].parent_idx;
+    }
+    names.reverse();
+    names
+}
+
+fn enclosing_inline_mods_rec(snapshot: &Snapshot, id: EntityId) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut walk = snapshot.entities.get(&id).and_then(|r| r.parent);
+    while let Some(pid) = walk {
+        let Some(prec) = snapshot.entities.get(&pid) else {
+            break;
+        };
+        if prec.kind == Kind::Mod {
+            names.push(prec.name.clone());
+        }
+        walk = prec.parent;
+    }
+    names.reverse();
+    names
+}
+
 /// `mod foo;` in `src/lib.rs` loads `src/foo.rs` or `src/foo/mod.rs`.
-fn file_module_paths(parent_file: &RelPath, name: &str) -> Vec<RelPath> {
+/// `mod outer { mod foo; }` in that file loads `src/outer/foo.rs`.
+fn file_module_paths(parent_file: &RelPath, inline: &[String], name: &str) -> Vec<RelPath> {
     let path = parent_file.as_str();
     let (dir, file) = match path.rfind('/') {
         Some(i) => (&path[..i], &path[i + 1..]),
         None => ("", path),
     };
     let stem = file.rsplit_once('.').map(|(s, _)| s).unwrap_or(file);
-    let base = if matches!(stem, "mod" | "lib" | "main") {
+    let mut base = if matches!(stem, "mod" | "lib" | "main") {
         dir.to_string()
     } else if dir.is_empty() {
         stem.to_string()
     } else {
         format!("{dir}/{stem}")
     };
+    for seg in inline {
+        base = if base.is_empty() {
+            seg.clone()
+        } else {
+            format!("{base}/{seg}")
+        };
+    }
     let rs = if base.is_empty() {
         format!("{name}.rs")
     } else {
@@ -361,7 +400,7 @@ fn link_file_modules(
             {
                 vec![p]
             } else {
-                file_module_paths(path, &ent.name)
+                file_module_paths(path, &enclosing_inline_mods_raw(raw, i), &ent.name)
             };
             for cand in cands {
                 file_of_mod.insert(cand, ids[i]);
@@ -396,7 +435,11 @@ fn link_file_modules_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
         if snapshot.entities.values().any(|c| c.parent == Some(*id)) {
             continue;
         }
-        for cand in file_module_paths(&rec.file, &rec.name) {
+        for cand in file_module_paths(
+            &rec.file,
+            &enclosing_inline_mods_rec(snapshot, *id),
+            &rec.name,
+        ) {
             file_of_mod.insert(cand, *id);
             env.mod_decl_file.insert(*id, rec.file.clone());
         }
@@ -414,7 +457,11 @@ fn link_file_modules_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
         if snapshot.entities.values().any(|c| c.parent == Some(*id)) {
             continue;
         }
-        let std = file_module_paths(&rec.file, &rec.name);
+        let std = file_module_paths(
+            &rec.file,
+            &enclosing_inline_mods_rec(snapshot, *id),
+            &rec.name,
+        );
         if std.iter().any(|p| present.contains(p)) {
             continue;
         }

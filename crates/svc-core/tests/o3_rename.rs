@@ -2973,3 +2973,40 @@ fn rename_follows_raw_string_path_attr_inside_a_macro() {
         "call through a raw-string #[path] module must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_file_module_declared_inside_an_inline_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let inner = RelPath::new("src/outer/inner.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"mod outer {\n    mod inner;\n}\nmod caller;\n".to_vec(),
+    );
+    files.insert(inner.clone(), b"pub fn parse() {}\n".to_vec());
+    files.insert(
+        caller.clone(),
+        b"use crate::outer::inner::parse;\npub fn f() { parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == inner)
+        .map(|(id, _)| *id)
+        .expect("inner parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("use crate::outer::inner::parse_file;"),
+        "file module under an inline parent must attach: {text}"
+    );
+    assert!(
+        text.contains("parse_file();"),
+        "call through an inline-parent file module must follow: {text}"
+    );
+}
