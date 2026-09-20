@@ -302,9 +302,11 @@ pub fn log(repo: &Repo, change: Option<ChangeId>) -> Result<Vec<OpOut>> {
         None => repo.current_change()?,
     };
     let store = repo.store();
+    // An op is on the change when it moved its head, or left the root on that head (a
+    // note); the view says so without decoding a snapshot per op.
     let on_change = |e: &OpLogEntry| {
         e.before.heads.get(&change) != e.after.heads.get(&change)
-            || store.get_snapshot(e.after.root).is_ok_and(|s| s.change == change)
+            || e.after.heads.get(&change) == Some(&e.after.root)
     };
     Ok(store
         .ops(OpIx(0), true)?
