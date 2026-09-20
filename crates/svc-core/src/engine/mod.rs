@@ -266,6 +266,16 @@ fn is_block_local_raw(raw: &[RawEntity], i: usize) -> bool {
         .is_some_and(|p| hosts_block_items(raw[p].kind))
 }
 
+fn skip_crate_occupy_raw(raw: &[RawEntity], i: usize) -> bool {
+    if is_inherent_raw(raw, i) {
+        return true;
+    }
+    if !is_block_local_raw(raw, i) {
+        return false;
+    }
+    !(raw[i].kind == Kind::Macro && raw[i].macro_export)
+}
+
 fn insert_mod_child_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
     let Some(pi) = raw[i].parent_idx else {
         return;
@@ -913,10 +923,13 @@ pub fn snapshot_files_reusing(
     for p in &parsed {
         for (i, ent) in p.raw.iter().enumerate() {
             insert_mod_child_raw(&mut env, &p.raw, &p.ids, i);
-            if is_inherent_raw(&p.raw, i) || is_block_local_raw(&p.raw, i) {
+            if skip_crate_occupy_raw(&p.raw, i) {
                 continue;
             }
             env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));
+            if ent.kind == Kind::Macro && ent.macro_export {
+                env.export_macro(&ent.name, p.ids[i]);
+            }
         }
     }
     {
@@ -1078,10 +1091,13 @@ pub fn ingest_file_prev(
     let mut env = extra.clone();
     for (i, ent) in raw.iter().enumerate() {
         insert_mod_child_raw(&mut env, &raw, &ids, i);
-        if is_inherent_raw(&raw, i) || is_block_local_raw(&raw, i) {
+        if skip_crate_occupy_raw(&raw, i) {
             continue;
         }
         env.insert_def_in(&ent.name, ent.kind, ids[i], Some(&path));
+        if ent.kind == Kind::Macro && ent.macro_export {
+            env.export_macro(&ent.name, ids[i]);
+        }
     }
     link_file_modules_from_raw(&mut env, &path, &raw, &ids);
     let (entities, file) = materialize(src, path.clone(), lang, store, &tree, &raw, &ids, &env)?;

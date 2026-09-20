@@ -78,6 +78,9 @@ pub struct Env {
     pub mods: HashSet<EntityId>,
     /// `use a as b` / `pub use a as b` — `b` is a local spelling, not the entity's name.
     pub alias_spellings: HashSet<String>,
+    /// `#[macro_export]` names. rustc injects them at the crate root, so a
+    /// file module's nested-mod isolation still sees `parse!()`.
+    pub macro_exports: Arc<HashMap<String, EntityId>>,
 }
 
 impl Env {
@@ -95,6 +98,11 @@ impl Env {
         }
         if self.use_aliases.contains(name) {
             return None;
+        }
+        if ns == Namespace::Value {
+            if let Some(&id) = self.macro_exports.get(name) {
+                return Some(id);
+            }
         }
         if self.in_nested_mod {
             return None;
@@ -322,6 +330,10 @@ impl Env {
         if primary {
             primaries.insert(key);
         }
+    }
+
+    pub fn export_macro(&mut self, name: impl Into<String>, id: EntityId) {
+        Arc::make_mut(&mut self.macro_exports).insert(name.into(), id);
     }
 
     pub fn insert_def(&mut self, name: impl Into<String>, kind: Kind, id: EntityId) {
@@ -624,6 +636,9 @@ pub struct RawEntity {
     pub children: Vec<usize>,
     /// `#[path = "bar.rs"]` on `mod foo;` — the file that is this module.
     pub path_attr: Option<String>,
+    /// `#[macro_export]` — rustc puts the macro at the crate root even when
+    /// the definition sits in a nested module.
+    pub macro_export: bool,
 }
 
 #[derive(Clone, Debug, Default)]

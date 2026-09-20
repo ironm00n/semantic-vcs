@@ -3414,3 +3414,91 @@ fn rename_follows_macros_2_inside_a_brace_body_macro_mod() {
         "macros 2.0 in a brace-body macro mod must walk: {text}"
     );
 }
+
+#[test]
+fn rename_follows_macro_export_from_an_inline_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"mod fs {\n    #[macro_export]\n    macro_rules! parse { () => {}; }\n}\nmod caller;\n".to_vec(),
+    );
+    files.insert(caller.clone(), b"fn f() { parse!(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "#[macro_export] in an inline mod must occupy the crate root: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_macro_export_inside_a_brace_body_macro_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"m! { pub mod fs { #[macro_export] macro_rules! parse { () => {}; } } }\nmod caller;\n".to_vec(),
+    );
+    files.insert(caller.clone(), b"fn f() { parse!(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "#[macro_export] in a brace-body macro mod must occupy the crate root: {text}"
+    );
+}
+
+#[test]
+fn rename_does_not_export_a_nested_macro_without_macro_export() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"mod fs {\n    macro_rules! parse { () => {}; }\n}\nmod caller;\n".to_vec(),
+    );
+    files.insert(caller.clone(), b"fn f() { parse!(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("parse!();"),
+        "a nested macro without #[macro_export] is not crate-root: {text}"
+    );
+    assert!(
+        !text.contains("parse_file"),
+        "must not steal crate-root via a private nested macro: {text}"
+    );
+}

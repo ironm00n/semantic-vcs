@@ -155,6 +155,64 @@ fn path_eq_literal(attr: &str) -> Option<String> {
     parse_path_lit(rest)
 }
 
+fn attr_is_macro_export(attr: &str) -> bool {
+    let inner = attr
+        .trim()
+        .strip_prefix("#[")
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(attr.trim())
+        .trim();
+    inner == "macro_export" || inner.starts_with("macro_export(")
+}
+
+fn token_tree_is_macro_export(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    let text = node_text(src, node);
+    let t = text.trim();
+    t == "[macro_export]" || t.starts_with("[macro_export(")
+}
+
+fn has_macro_export(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    let mut prev = node.prev_named_sibling();
+    while let Some(p) = prev {
+        match p.kind() {
+            "attribute_item" if attr_is_macro_export(&node_text(src, p)) => return true,
+            "visibility_modifier" | "pub" => {}
+            "token_tree" if token_tree_is_macro_export(p, src) => return true,
+            _ => break,
+        }
+        prev = p.prev_named_sibling();
+    }
+    let mut c = node.walk();
+    for ch in node.named_children(&mut c) {
+        if ch.kind() == "attribute_item" && attr_is_macro_export(&node_text(src, ch)) {
+            return true;
+        }
+    }
+    false
+}
+
+fn preceding_macro_export(kids: &[tree_sitter::Node<'_>], f: usize, src: &[u8]) -> bool {
+    let mut k = f;
+    while k > 0 {
+        k -= 1;
+        match kids[k].kind() {
+            "pub" | "visibility_modifier" | "!" | "#" => {}
+            "attribute_item" if attr_is_macro_export(&node_text(src, kids[k])) => return true,
+            "token_tree" if token_tree_is_macro_export(kids[k], src) => return true,
+            _ => break,
+        }
+    }
+    false
+}
+
+fn mark_macro_export(raw: &mut [RawEntity], export: bool) {
+    if export && let Some(ent) = raw.last_mut() {
+        if ent.kind == Kind::Macro {
+            ent.macro_export = true;
+        }
+    }
+}
+
 fn emit<'a>(
     node: tree_sitter::Node<'a>,
     src: &[u8],
@@ -179,12 +237,16 @@ fn emit<'a>(
         parent_idx,
         children: Vec::new(),
         path_attr: None,
+        macro_export: false,
     });
     nodes.push(node);
     if kind == Kind::Mod {
         if let Some(p) = path_attr_of(node, src) {
             raw[idx].path_attr = Some(p);
         }
+    }
+    if kind == Kind::Macro {
+        raw[idx].macro_export = has_macro_export(node, src);
     }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
@@ -436,6 +498,7 @@ fn collect_macro_mod_decls<'a>(
                     raw,
                     nodes,
                 );
+                mark_macro_export(raw, preceding_macro_export(&kids, f, src));
                 i = m + 1;
                 if i < kids.len() && kids[i].kind() == "token_tree" {
                     i += 1;
@@ -459,6 +522,7 @@ fn collect_macro_mod_decls<'a>(
                 raw,
                 nodes,
             );
+            mark_macro_export(raw, preceding_macro_export(&kids, f, src));
             i = f + 2;
             while i < kids.len() && kids[i].kind() == "token_tree" {
                 i += 1;
