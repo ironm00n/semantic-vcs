@@ -297,9 +297,8 @@ impl Import<'_> {
                     self.changes.insert(recorded, out.change);
                 }
             }
-            // An undo and an `op restore` are both logged as Undo; what they did is the view
-            // they left, so restore that view with its ids mapped.
-            Op::Undo => {
+            // Undo and restore both set a recorded view; restore the mapped ids.
+            Op::Undo | Op::Restore { .. } => {
                 let mut view = repo.view()?;
                 if let Some(root) = self.snaps.get(&e.after.root) {
                     view.root = *root;
@@ -309,7 +308,7 @@ impl Import<'_> {
                         view.heads.insert(self.change(*change), *mapped);
                     }
                 }
-                repo.restore_view(&view, Op::Undo)?;
+                repo.restore_view(&view, e.op.clone())?;
             }
             Op::Resolve { conflict, take } => {
                 merge::resolve(repo, *conflict as usize, *take)?;

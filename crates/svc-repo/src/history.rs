@@ -423,7 +423,7 @@ pub fn op_restore(repo: &Repo, ix: OpIx) -> Result<MutationOut> {
         .find(|(i, _)| *i == ix)
         .map(|(_, e)| e)
         .ok_or_else(|| Error::NotFound(format!("op {}", ix.0)))?;
-    let m = repo.restore_view(&entry.after, Op::Undo)?;
+    let m = repo.restore_view(&entry.after, Op::Restore { at: ix.0 })?;
     MutationOut::of(repo, m)
 }
 

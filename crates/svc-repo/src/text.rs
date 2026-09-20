@@ -68,6 +68,7 @@ pub fn op(snap: &Snapshot, e: &OpOut) -> String {
         Op::EditDef { id, .. } => format!("edit-def {}", subj(*id)),
         Op::Merge { other } => format!("merged change {}", other.short()),
         Op::Undo => "undo".into(),
+        Op::Restore { at } => format!("restored op {at}"),
         Op::New { change } => format!("new change {}", change.short()),
         Op::Describe { msg } => format!("described: {msg:?}"),
         Op::Branch { name } => format!("branch {name}"),

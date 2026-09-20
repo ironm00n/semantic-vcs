@@ -155,7 +155,7 @@ impl Replay<'_> {
                 let snap = merged_snapshot(&self.store, self.langs, base_id, cur_id, other_id, c)?;
                 self.commit(&snap)?;
             }
-            Op::Undo => self.restore(&e.after)?,
+            Op::Undo | Op::Restore { .. } => self.restore(&e.after)?,
             Op::Resolve { conflict, take } => {
                 let (next, _) = crate::merge::resolved_snapshot(&self.store, &cur, *conflict as usize, *take)?;
                 self.amend(&cur, next)?;

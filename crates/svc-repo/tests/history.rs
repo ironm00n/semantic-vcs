@@ -189,6 +189,10 @@ fn repeated_undo_walks_back_and_op_restore_is_the_redo() {
     // Redo is `op restore <n>`: the view as it stood right after op n.
     svc_repo::op_restore(&repo, OpIx(2)).unwrap();
     assert_eq!(repo.view().unwrap().root, v2.root);
+    assert!(matches!(
+        svc_repo::op_log(&repo).unwrap()[0].op,
+        Op::Restore { at: 2 }
+    ));
 }
 
 #[test]

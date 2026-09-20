@@ -63,6 +63,11 @@ pub enum Op {
         other: ChangeId,
     },
     Undo,
+    /// `svc op restore <n>`: return to the view as it stood right after op `n`.
+    /// Distinct from `Undo` so the log names the verb (PLAN: restore was logged as undo).
+    Restore {
+        at: u64,
+    },
     New {
         change: ChangeId,
     },
@@ -129,6 +134,15 @@ mod tests {
             }
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn restore_json_round_trips_the_op_index() {
+        let op = Op::Restore { at: 3 };
+        let v = serde_json::to_value(&op).unwrap();
+        assert_eq!(v, serde_json::json!({"Restore":{"at":3}}));
+        let back: Op = serde_json::from_value(v).unwrap();
+        assert!(matches!(back, Op::Restore { at: 3 }));
     }
 }
 
