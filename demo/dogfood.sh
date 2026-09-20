@@ -3,8 +3,10 @@
 #
 #   cargo build -p svc
 #   demo/dogfood.sh                         # prepare, verify, and print the scratch path
-#   demo/dogfood.sh --tui                   # open the revision-first review UI
-#   demo/dogfood.sh --shell                 # enter the prepared checkout
+#   demo/dogfood.sh --tui                   # open the review UI on this repository's real
+#                                           # svc-made history (demo/history, replayed)
+#   demo/dogfood.sh --shell                 # a shell in that replayed checkout
+#   demo/dogfood.sh --story --tui           # the scripted story below instead (no bundles needed)
 #   demo/dogfood.sh --agent "task"          # run an agent inside the review UI
 #   demo/dogfood.sh --tui path/to/svc
 set -euo pipefail
@@ -12,8 +14,10 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 MODE=check
+STORY=
 TASK="Using svc tools only, rename describe_op to describe_operation. Do not edit files directly."
 
+if [ "${1:-}" = "--story" ]; then STORY=1; shift; fi
 case "${1:-}" in
   --tui|--shell)
     MODE="${1#--}"
@@ -38,6 +42,23 @@ SVC="$(cd "$(dirname "$SVC")" && pwd)/$(basename "$SVC")"
 [ -x "$SVC" ] || { echo "no svc binary at $SVC (run: cargo build -p svc)"; exit 2; }
 command -v cargo >/dev/null || { echo "cargo is required"; exit 2; }
 command -v jq >/dev/null || { echo "jq is required"; exit 2; }
+
+# The real thing first: this repository's own history, made through svc and kept as
+# bundles, replayed into one store. The scripted story below is the fallback (--story,
+# or when there are no bundles yet).
+if [ -z "$STORY" ] && [ "$MODE" != check ] && [ "$MODE" != agent ] && ls "$HERE"/history/[0-9]*.json >/dev/null 2>&1; then
+  HIST="$(mktemp -d /tmp/svc-history.XXXXXX)"
+  "$HERE/history/replay.sh" "$HIST" "$SVC" || { echo "history did not replay; scratch at $HIST"; exit 1; }
+  cd "$HIST"
+  echo
+  echo "this repository's svc-made history, replayed into $HIST/.svc"
+  echo "TUI keys: j/k revisions, e entities, / filter, o oplog, h/Esc revisions, tab queue, q quit"
+  export PATH="$(dirname "$SVC"):$PATH"
+  case "$MODE" in
+    tui) exec "$SVC" tui ;;
+    shell) exec "${SHELL:-bash}" ;;
+  esac
+fi
 
 WORK="$(mktemp -d /tmp/svc-dogfood.XXXXXX)"
 REPO="$WORK/repo"
