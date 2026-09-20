@@ -837,8 +837,8 @@ fn is_rust_nonlocal_ident(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool 
 
 /// `RedbStore::open` is not a free `fn open`. Type-relative names stay Free
 /// (SPEC §9) unless they are same-impl inherent methods (earlier) or the
-/// qualifier is `Self` / the enclosing impl or trait (`S::Item` / `T::Item`
-/// is the associated type, not a free `Item`). `use crate::a::f` still binds.
+/// qualifier is `Self` / the enclosing impl or trait (`S::Item` / `T::Item` /
+/// `Tr::Item` in `impl Tr for S` is the associated type, not a free `Item`).
 fn is_type_qualified_ref(
     node: tree_sitter::Node<'_>,
     src: &[u8],
@@ -873,7 +873,9 @@ fn is_type_qualified_ref(
     if matches!(name, "crate" | "super" | "self" | "Self") {
         return false;
     }
-    if Some(name.as_bytes()) == enclosing_impl_type_name(node, src) {
+    if Some(name.as_bytes()) == enclosing_impl_type_name(node, src)
+        || Some(name.as_bytes()) == enclosing_impl_trait_name(node, src)
+    {
         return false;
     }
     env.lookup_global(name, Namespace::Type).is_some()
@@ -1047,7 +1049,10 @@ fn rust_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
         return false;
     }
     let path_text = &src[start..end];
-    if path_text != b"Self" && Some(path_text) != enclosing_impl_type_name(node, src) {
+    if path_text != b"Self"
+        && Some(path_text) != enclosing_impl_type_name(node, src)
+        && Some(path_text) != enclosing_impl_trait_name(node, src)
+    {
         return false;
     }
     true
@@ -1073,6 +1078,25 @@ fn enclosing_impl_type_name<'a>(
             return parent
                 .child_by_field_name("name")
                 .and_then(|n| impl_type_base_name(n, src));
+        }
+        node = parent;
+    }
+}
+
+/// The trait in `impl Trait for S`, so `Tr::Item` / `Tr::foo` inside that impl
+/// bind like `Self::Item` / `Self::foo`.
+fn enclosing_impl_trait_name<'a>(
+    mut node: tree_sitter::Node<'a>,
+    src: &'a [u8],
+) -> Option<&'a [u8]> {
+    loop {
+        let Some(parent) = node.parent() else {
+            return None;
+        };
+        if parent.kind() == "impl_item" {
+            return parent
+                .child_by_field_name("trait")
+                .and_then(|ty| impl_type_base_name(ty, src));
         }
         node = parent;
     }
