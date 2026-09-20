@@ -174,12 +174,13 @@ pub fn snapshot_files(
     }
     let mut parsed = Vec::new();
     let mut opaque = BTreeMap::new();
+    let mut prev_ids = prev_ids(prev);
     for (path, src) in files {
         match langs.for_path(path) {
             Some(lang) => {
                 let tree = parse(src, lang)?;
                 let raw = extract(&tree, src, lang)?;
-                let ids = assign_ids(&raw, path, prev);
+                let ids = assign_ids(&raw, path, &mut prev_ids);
                 parsed.push(Parsed {
                     path: path.clone(),
                     src,
@@ -269,7 +270,7 @@ pub fn ingest_file_prev(
 ) -> Result<Snapshot> {
     let tree = parse(src, lang)?;
     let raw = extract(&tree, src, lang)?;
-    let ids = assign_ids(&raw, &path, prev);
+    let ids = assign_ids(&raw, &path, &mut prev_ids(prev));
     let mut env = extra.clone();
     let defs: Vec<_> = raw
         .iter()
@@ -359,26 +360,30 @@ fn materialize(
 
 /// Reuse ids from `prev` by SigKey: nested items match under their parent, file-level
 /// items only within `file` (two files may each define `fn hex32`).
-fn assign_ids(raw: &[RawEntity], file: &RelPath, prev: Option<&Snapshot>) -> Vec<EntityId> {
+/// The previous snapshot's ids by signature, each list in id order: a re-ingested entity
+/// keeps its id, and two same-signature entities take theirs in the order they had.
+/// Built once per ingest; a lookup per raw entity instead of a scan of every record.
+type PrevIds = BTreeMap<SigKey, std::collections::VecDeque<EntityId>>;
+
+fn prev_ids(prev: Option<&Snapshot>) -> PrevIds {
+    let mut by_sig = PrevIds::new();
+    if let Some(prev) = prev {
+        for (id, rec) in &prev.entities {
+            by_sig.entry(rec.sig_key()).or_default().push_back(*id);
+        }
+    }
+    by_sig
+}
+
+fn assign_ids(raw: &[RawEntity], file: &RelPath, prev: &mut PrevIds) -> Vec<EntityId> {
     let mut ids = Vec::with_capacity(raw.len());
-    let mut used = BTreeMap::new();
     for ent in raw {
         let parent = ent.parent_idx.map(|p| ids[p]);
-        let reuse = prev.and_then(|p| {
-            p.entities.iter().find_map(|(id, rec)| {
-                if used.contains_key(id) {
-                    return None;
-                }
-                (rec.sig_key() == SigKey::new(parent, file, ent.kind, ent.name.clone()))
-                    .then_some(*id)
-            })
-        });
-        let id = reuse.unwrap_or_else(EntityId::new);
-        if let Some(prev) = prev
-            && let Some(rec) = prev.entities.get(&id)
-        {
-            used.insert(id, rec.content);
-        }
+        let key = SigKey::new(parent, file, ent.kind, ent.name.clone());
+        let id = prev
+            .get_mut(&key)
+            .and_then(|same| same.pop_front())
+            .unwrap_or_else(EntityId::new);
         ids.push(id);
     }
     ids

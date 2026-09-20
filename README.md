@@ -183,6 +183,8 @@ Hackathon prototype. Not a git replacement.
   `macro_rules!` bodies are not analysed.
 - **Non-language files** (`Cargo.toml`, lockfiles, this README) are stored
   as opaque byte records so a checkout still builds. They are not entities.
+- **Regular files only.** Symlinks, FIFOs, sockets and devices are not
+  tracked, and a file name that is not UTF-8 is refused by name.
 - **Classifier** checks surviving-reference capture, not "did the agent do
   the task."
 - **Concurrency:** named checkouts share one store (redb multi-writer: any

@@ -109,7 +109,29 @@ pub fn add(repo: &Repo, name: &str, path: &Path, at: Option<ChangeId>) -> Result
     }
     std::fs::create_dir_all(path).map_err(Error::backend)?;
     let path = path.canonicalize().map_err(Error::backend)?;
-    if std::fs::read_dir(&path).map_err(Error::backend)?.next().is_some() {
+    // An interrupted add (pointer written, row not yet) may be resumed in place: the only
+    // things allowed in the directory are its own pointer and the copied ignore file.
+    let expected_pointer = WorkspacePointer {
+        store: repo.store_path().to_path_buf(),
+        name: name.to_string(),
+    };
+    for entry in std::fs::read_dir(&path).map_err(Error::backend)? {
+        let entry = entry.map_err(Error::backend)?;
+        let file_name = entry.file_name();
+        if file_name == IGNORE_FILE {
+            continue;
+        }
+        if file_name == POINTER_FILE {
+            match WorkspacePointer::read(&path)? {
+                Some(p) if p == expected_pointer => continue,
+                _ => {
+                    return Err(Error::Other(format!(
+                        "{} already points at another store or workspace",
+                        path.join(POINTER_FILE).display()
+                    )));
+                }
+            }
+        }
         return Err(Error::Other(format!("{} is not empty", path.display())));
     }
     if repo.store.workspaces()?.iter().any(|(_, r)| r.path == path) {
@@ -122,12 +144,9 @@ pub fn add(repo: &Repo, name: &str, path: &Path, at: Option<ChangeId>) -> Result
     let snapshot = store.get_snapshot(snapshot_id)?;
 
     // Pointer first: a crash after this leaves a directory `discover` rejects loudly
-    // ("workspace not found") rather than a row pointing at nothing.
-    WorkspacePointer {
-        store: repo.store_path().to_path_buf(),
-        name: name.to_string(),
-    }
-    .write(&path)?;
+    // ("workspace not found") rather than a row pointing at nothing, and the check above
+    // lets the same `add` be run again to finish.
+    expected_pointer.write(&path)?;
     if let Ok(ignore) = std::fs::read(repo.root_dir().join(IGNORE_FILE)) {
         std::fs::write(path.join(IGNORE_FILE), ignore).map_err(Error::backend)?;
     }

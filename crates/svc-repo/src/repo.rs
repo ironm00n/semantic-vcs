@@ -199,6 +199,20 @@ impl Repo {
         };
         let checkout_lock = Self::checkout_lock(&lock_path, wait)?;
         let store = RedbStore::open(&store_path)?.with_workspace(workspace.as_deref())?;
+        // A pointer names a workspace; only the directory the store registered for that
+        // name is its working copy. Anything else opened as it would absorb its own files
+        // into that change.
+        if let Some(name) = &workspace {
+            let registered = store.workspace_row(name)?.map(|r| r.path).unwrap_or_default();
+            let here = root.canonicalize().map_err(Error::backend)?;
+            if registered != here {
+                return Err(Error::Other(format!(
+                    "{} names workspace {name:?}, which is registered at {}; this directory is not that checkout",
+                    root.join(POINTER_FILE).display(),
+                    registered.display()
+                )));
+            }
+        }
         let repo = Self {
             root: root.to_path_buf(),
             store_path,
@@ -427,18 +441,20 @@ impl Repo {
         }
         self.refuse_if_stale()?;
         let cur = self.current()?;
-        let files = self.tracked_files()?;
-        let next = self.snapshot_files(&files, Some(&cur), cur.change)?;
-        if next.content_eq(&cur) {
-            return Ok(None);
-        }
         let before = self.view()?;
         let (group, _) = self.open_group()?;
+        // Staged before the re-snapshot, so its blobs ride in the one publish transaction
+        // instead of one fsync each (2,265 entities: 20 s → 3 s).
         self.store.stage(Some(&before));
-        let staged = (|| -> Result<(SnapshotId, OpLogEntry)> {
+        let staged = (|| -> Result<Option<(SnapshotId, OpLogEntry)>> {
+            let files = self.tracked_files()?;
+            let next = self.snapshot_files(&files, Some(&cur), cur.change)?;
+            if next.content_eq(&cur) {
+                return Ok(None);
+            }
             let id = self.amend(&cur, next)?;
             let after = self.view()?;
-            Ok((
+            Ok(Some((
                 id,
                 OpLogEntry {
                     op: Op::Absorb,
@@ -448,17 +464,22 @@ impl Repo {
                     before,
                     after,
                 },
-            ))
+            )))
         })();
-        let (id, entry) = match staged {
-            Ok(value) => value,
+        match staged {
+            Ok(Some((id, entry))) => {
+                self.store.append_op(&entry)?;
+                Ok(Some((cur, id)))
+            }
+            Ok(None) => {
+                self.store.discard_staged();
+                Ok(None)
+            }
             Err(error) => {
                 self.store.discard_staged();
-                return Err(error);
+                Err(error)
             }
-        };
-        self.store.append_op(&entry)?;
-        Ok(Some((cur, id)))
+        }
     }
 
     /// Writes `snapshot`, points its change's head and `root` at it.
@@ -535,8 +556,12 @@ impl Repo {
         self.store.stage(Some(&before));
         let staged = (|| -> Result<OpLogEntry> {
             self.store.set_render_pending(true)?;
+            // Heads already where `view` wants them are neither written nor compared at
+            // publish, so another checkout moving one of those meanwhile is not a conflict.
             for (change, snap) in &view.heads {
-                self.store.set_head(*change, *snap)?;
+                if before.heads.get(change) != Some(snap) {
+                    self.store.set_head(*change, *snap)?;
+                }
             }
             self.store.set_root(view.root)?;
             let after = self.view()?;

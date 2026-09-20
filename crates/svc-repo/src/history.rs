@@ -392,8 +392,17 @@ pub fn undo(repo: &Repo) -> Result<MutationOut> {
     if target.before.heads.is_empty() {
         return Err(Error::Other("cannot undo init".into()));
     }
-    let before = target.before.clone();
-    let m = repo.restore_view(&before, Op::Undo)?;
+    // Only what the undone ops moved goes back: this checkout's root and the heads whose
+    // value differs across the range. Another checkout's head that moved since is its
+    // business, not something an undo here may rewind.
+    let mut view = repo.view()?;
+    view.root = target.before.root;
+    for (change, snap) in &target.before.heads {
+        if last.after.heads.get(change) != Some(snap) {
+            view.heads.insert(*change, *snap);
+        }
+    }
+    let m = repo.restore_view(&view, Op::Undo)?;
     MutationOut::of(repo, m)
 }
 

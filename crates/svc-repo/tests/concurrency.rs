@@ -276,3 +276,36 @@ fn same_change_in_two_checkouts_makes_the_loser_stale_until_updated() {
     workspace::update_stale(&wb).unwrap();
     assert_eq!(wb.current().unwrap().message, "from a");
 }
+
+#[test]
+fn undo_in_one_checkout_never_rewinds_another_checkouts_head() {
+    let (a, repo) = fresh();
+    svc_repo::new(&repo).unwrap();
+    let b = tempfile::tempdir().unwrap();
+    workspace::add(&repo, "twin", b.path(), None).unwrap();
+    let twin = open(b.path());
+    svc_repo::new(&twin).unwrap();
+    let twin_change = twin.current_change().unwrap();
+
+    rename_read(&repo, "from_a"); // A's op: its `before` view holds the twin's head of that moment
+    rename_read(&twin, "from_b_1");
+    let id = svc_repo::resolve_entity(&twin, "from_b_1").unwrap();
+    twin.mutate(Op::Rename { id, new: "from_b_2".into() }, None, |repo, cur| {
+        let mut next = cur.clone();
+        next.entities.get_mut(&id).unwrap().name = "from_b_2".into();
+        repo.amend(cur, next)
+    })
+    .unwrap(); // the twin has moved on since A's op
+    let twin_head = twin.store().head(twin_change).unwrap();
+
+    svc_repo::undo(&repo).expect("A undoes its own rename; the twin's head is not its business");
+    assert_eq!(std::fs::read_to_string(a.path().join("src/lib.rs")).unwrap(), LIB, "A's rename is undone");
+    assert_eq!(repo.store().head(twin_change).unwrap(), twin_head, "the twin's head stayed where the twin left it");
+    assert!(!twin.is_stale().unwrap());
+    assert!(std::fs::read_to_string(b.path().join("src/lib.rs")).unwrap().contains("fn from_b_2("));
+    // And the twin's own undo walks back one of its own renames only.
+    svc_repo::undo(&twin).unwrap();
+    assert!(std::fs::read_to_string(b.path().join("src/lib.rs")).unwrap().contains("fn from_b_1("));
+    assert_eq!(std::fs::read_to_string(a.path().join("src/lib.rs")).unwrap(), LIB);
+    assert!(svc_repo::replay(&repo).unwrap().ok());
+}
