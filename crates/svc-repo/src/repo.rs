@@ -547,6 +547,8 @@ impl Repo {
                 std::fs::remove_file(path).map_err(Error::backend)?;
             }
         }
+        // What was just written is what the next clean check compares against.
+        self.store.set_rendered_hashes(snapshot.id(), &file_hashes(&rendered))?;
         Ok(())
     }
 
