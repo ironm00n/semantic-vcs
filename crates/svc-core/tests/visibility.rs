@@ -686,3 +686,41 @@ fn rust_unbraced_const_generic_arg_does_not_see_outer_local() {
         "unbraced const generic arg must not see the local: {refs:?}"
     );
 }
+
+#[test]
+fn rust_hrtb_lifetime_is_a_slot() {
+    let src = "fn f() { let _: for<'a> fn(&'a u8); }\n";
+    let refs = rust_item_refs(src);
+    assert!(
+        refs.iter()
+            .any(|(n, ident)| n == "'a" && matches!(ident, IdentRef::Local(_, Namespace::Lifetime))),
+        "HRTB 'a must be a slot in the fn type: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_hrtb_lifetime_does_not_leak_past_the_fn_type() {
+    let src = "fn f() { let _: for<'a> fn(&'a u8); let _: &'a u8; }\n";
+    let refs = rust_item_refs(src);
+    let lifetimes: Vec<_> = refs.iter().filter(|(n, _)| n == "'a").cloned().collect();
+    assert_eq!(lifetimes.len(), 2, "{refs:?}");
+    assert!(
+        matches!(lifetimes[0].1, IdentRef::Local(_, Namespace::Lifetime)),
+        "fn-type use is the HRTB binder: {refs:?}"
+    );
+    assert!(
+        matches!(lifetimes[1].1, IdentRef::Free(_)),
+        "a later type must not see the HRTB binder: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_hrtb_trait_bound_lifetime_is_a_slot() {
+    let src = "fn f<T: for<'a> Fn(&'a u8)>() {}\n";
+    let refs = rust_item_refs(src);
+    assert!(
+        refs.iter()
+            .any(|(n, ident)| n == "'a" && matches!(ident, IdentRef::Local(_, Namespace::Lifetime))),
+        "for<'a> Trait must bind 'a in the bound: {refs:?}"
+    );
+}

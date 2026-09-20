@@ -298,6 +298,17 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
         "type_identifier" => vec![Role::Reference {
             namespace: Namespace::Type,
         }],
+        "lifetime"
+            if node
+                .parent()
+                .is_some_and(|p| p.kind() == "for_lifetimes") =>
+        {
+            vec![Role::Binder {
+                namespace: Namespace::Lifetime,
+                visibility: Visibility::Whole,
+                locator: Locator::Itself,
+            }]
+        }
         "lifetime" => vec![Role::Reference {
             namespace: Namespace::Lifetime,
         }],
@@ -379,6 +390,10 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
                 class: BinderClass::Label,
                 when: When::Always,
             }],
+        }],
+        "function_type" | "higher_ranked_trait_bound" => vec![Role::Scope {
+            opens: &[Namespace::Lifetime],
+            barriers: &[],
         }],
         _ => vec![],
     }

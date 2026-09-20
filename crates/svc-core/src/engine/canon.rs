@@ -1056,6 +1056,13 @@ fn is_opaque_node(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
 fn binder_class(node: tree_sitter::Node<'_>) -> BinderClass {
     match node.kind() {
         "type_parameter" | "lifetime_parameter" | "const_parameter" => BinderClass::Generic,
+        "lifetime"
+            if node
+                .parent()
+                .is_some_and(|p| p.kind() == "for_lifetimes") =>
+        {
+            BinderClass::Generic
+        }
         "label" | "statement_identifier" => BinderClass::Label,
         _ => BinderClass::Local,
     }
