@@ -1479,3 +1479,35 @@ fn rename_follows_self_mod_path() {
         "self::inner::parse must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_crate_mod_mod_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"mod a {\n    mod b {\n        fn parse() {}\n    }\n}\nmod inner {\n    fn f() { crate::a::b::parse(); }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let b_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.parent.is_some_and(|p| {
+                    snap.entities.get(&p).is_some_and(|pr| pr.name == "b")
+                })
+        })
+        .map(|(id, _)| *id)
+        .expect("a::b::parse");
+    let next = rename(&store, &snap, b_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("crate::a::b::parse_file()"),
+        "crate::a::b::parse must follow: {text}"
+    );
+}
