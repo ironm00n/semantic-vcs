@@ -167,3 +167,63 @@ fn relocate_rejects_an_escape_path_with_a_reason() {
     );
     assert!(abs.contains("invalid --file /tmp/moved.rs"), "{abs}");
 }
+
+#[test]
+fn mutating_text_names_this_checkout_op_not_the_log_head() {
+    let dir = fixture();
+    text(dir.path(), &["init"]);
+    text(dir.path(), &["new"]);
+    let dest = tempfile::tempdir().expect("workspace dest");
+    text(
+        dir.path(),
+        &[
+            "workspace",
+            "add",
+            "w2",
+            dest.path().to_str().expect("utf8 path"),
+        ],
+    );
+    text(dest.path(), &["new"]);
+    let load = text(dest.path(), &["show-def", "--entity", "load"]);
+    let load_edit = load.replacen('{', "{\n    // w2", 1);
+    let w2 = text(
+        dest.path(),
+        &[
+            "edit-def",
+            "--entity",
+            "load",
+            "--intent",
+            "docs",
+            "--definition",
+            &load_edit,
+        ],
+    );
+    let parse = text(dir.path(), &["show-def", "--entity", "parse"]);
+    let parse_edit = parse.replacen('{', "{\n    // w1", 1);
+    let w1 = text(
+        dir.path(),
+        &[
+            "edit-def",
+            "--entity",
+            "parse",
+            "--intent",
+            "docs",
+            "--definition",
+            &parse_edit,
+        ],
+    );
+    assert!(w2.contains("edit-def load"), "{w2}");
+    assert!(w1.contains("edit-def parse"), "{w1}");
+    assert!(!w1.contains("edit-def load"), "{w1}");
+    let n2 = w2
+        .trim_start_matches('#')
+        .split_whitespace()
+        .next()
+        .unwrap_or("");
+    let n1 = w1
+        .trim_start_matches('#')
+        .split_whitespace()
+        .next()
+        .unwrap_or("");
+    assert_ne!(n1, n2, "each checkout must print its own op ix\n{w1}\n{w2}");
+}

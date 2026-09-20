@@ -249,12 +249,7 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
         | Command::AddDef(_)
         | Command::Delete(_)
         | Command::EditDef(_) => {
-            // Run the verb, then read back what it recorded: the newest op-log line.
-            return Some(run_with(cli, &repo).and_then(|_| {
-                let snap = repo.current().map_err(|e| e.to_string())?;
-                let entries = op_log(&repo).map_err(|e| e.to_string())?;
-                Ok(entries.first().map(|e| text::op(&snap, e)).unwrap_or_default())
-            }));
+            return Some(run_with(cli, &repo).and_then(|v| text_of_this_op(&repo, &v)));
         }
         Command::Rename(args) => {
             return Some(rename_cmd(&repo, args).map(|v| {
@@ -354,10 +349,14 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
             return Some(run_with(cli, &repo).map(|_| format!("took {take} on conflict {conflict}")));
         }
         Command::Op(OpCommand::Restore { index }) => {
-            return Some(run_with(cli, &repo).and_then(|_| {
-                let snap = repo.current().map_err(|e| e.to_string())?;
-                let entries = op_log(&repo).map_err(|e| e.to_string())?;
-                Ok(entries.first().map(|e| text::op(&snap, e)).unwrap_or_else(|| format!("restored op {index}")))
+            return Some(run_with(cli, &repo).and_then(|v| {
+                text_of_this_op(&repo, &v).map(|s| {
+                    if s.is_empty() {
+                        format!("restored op {index}")
+                    } else {
+                        s
+                    }
+                })
             }));
         }
         Command::Diff { a, b } => {
@@ -585,6 +584,19 @@ fn mutation_value(m: svc_repo::Mutation) -> Result<Value, String> {
         "flagged": m.entry.flagged(),
         "closed_stale_changeset": m.closed_stale_changeset,
     }))
+}
+
+/// The sentence for *this* verb's op (`m.ix` / MutationOut.ix), not `op_log().first()`
+/// (newest in the shared journal — wrong when two checkouts publish at once).
+fn text_of_this_op(repo: &Repo, v: &Value) -> Result<String, String> {
+    use svc_repo::text;
+    let snap = repo.current().map_err(|e| e.to_string())?;
+    let entries = op_log(repo).map_err(|e| e.to_string())?;
+    let want = v["op"].as_u64().or_else(|| v["ix"].as_u64());
+    let entry = want
+        .and_then(|n| entries.iter().find(|e| e.ix.0 == n))
+        .or_else(|| entries.first());
+    Ok(entry.map(|e| text::op(&snap, e)).unwrap_or_default())
 }
 
 fn search(repo: &Repo, query: &str) -> Result<Value, String> {
