@@ -265,9 +265,12 @@ fn collect<'a>(
         );
         return;
     }
-    if lang.name() == "rust" && node.kind() == "token_tree" && parent_idx.is_none() {
-        collect_macro_mod_decls(node, src, lang, parent_idx, raw, nodes);
-        return;
+    if lang.name() == "rust" && node.kind() == "token_tree" {
+        let under_macro_def = parent_idx.is_some_and(|p| raw[p].kind == Kind::Macro);
+        if !under_macro_def {
+            collect_macro_mod_decls(node, src, lang, parent_idx, raw, nodes);
+            return;
+        }
     }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
@@ -276,9 +279,10 @@ fn collect<'a>(
 }
 
 /// `cfg_fs! { pub mod fs; }` does not parse a `mod_item` — the grammar leaves
-/// `pub`/`mod`/`fs`/`;` as token-tree children. Without a Mod entity, `src/fs/`
-/// never attaches and `crate::fs::f` cannot walk, while a unique last segment
-/// on a `use` line still rewrites (breaking the crate).
+/// `pub`/`mod`/`fs`/`;` as token-tree children. File-root invocations mint the
+/// Mod so `src/fs/` attaches. The same soup inside `mod outer { … }` must mint
+/// a child of that module so `src/outer/fs.rs` attaches. Token trees under a
+/// `macro_definition` stay matcher/body, not declarations.
 fn collect_macro_mod_decls<'a>(
     node: tree_sitter::Node<'a>,
     src: &[u8],

@@ -3010,3 +3010,51 @@ fn rename_follows_file_module_declared_inside_an_inline_mod() {
         "call through an inline-parent file module must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_macro_declared_file_module_inside_an_inline_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let fs = RelPath::new("src/outer/fs.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod outer {\n    macro_rules! m { ($($item:item)*) => { $($item)* }; }\n    m! { pub mod fs; }\n}\nmod caller;\n"
+            .to_vec(),
+    );
+    files.insert(fs.clone(), b"pub fn parse() {}\n".to_vec());
+    files.insert(
+        caller.clone(),
+        b"use crate::outer::fs::parse;\npub fn f() { parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == fs)
+        .map(|(id, _)| *id)
+        .expect("fs parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    let lib_text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("use crate::outer::fs::parse_file;"),
+        "macro-declared mod inside an inline parent must attach: {text}"
+    );
+    assert!(
+        text.contains("parse_file();"),
+        "call through a nested macro-declared module must follow: {text}"
+    );
+    assert!(
+        lib_text.contains("m! { pub mod fs; }"),
+        "wrapping invocation must still render once: {lib_text}"
+    );
+    assert_eq!(
+        lib_text.matches("pub mod fs").count(),
+        1,
+        "must not emit a second mod item: {lib_text}"
+    );
+}
