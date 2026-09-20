@@ -13,8 +13,8 @@ landing order, from git's trees; `demo/dogfood.sh --tui` opens on it.
    `base=100 1 100jj log -r 569 --no-graph -T "commit_id.short(8)")` — main moves while you work.
 2. Make the change with svc verbs; `svc status` absorbs hand edits to opaque files.
 3. `svc history export --since 1 --out demo/history/NNNN-<base git sha>-<change>.json`
-   (NNNN = the next number; until the CLI arm lands:
-   `cargo run -q -p svc-repo --example history -- export 1 <that path>`).
+   (NNNN: the next number, a hint only — replay orders bundles by how deep the base
+   commit sits in history, so two agents picking the same number is harmless).
 4. Land the change and the bundle together; the description carries the `svc log` lines.
 
 ## Replaying

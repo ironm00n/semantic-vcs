@@ -25,9 +25,17 @@ fi
 mkdir -p "$DIR"
 DIR="$(cd "$DIR" && pwd)"
 cd "$DIR"
+# Landing order is the base commit's depth in history, not the file name: two agents
+# can pick the same number, and a later base always sits deeper on main.
+ordered="$(for bundle in "$HERE"/[0-9][0-9][0-9][0-9]-*.json; do
+  [ -e "$bundle" ] || continue
+  base="$(basename "$bundle" .json | cut -d- -f2)"
+  depth="$(git --git-dir="$GITDIR" rev-list --count "$base" 2>/dev/null || echo 0)"
+  printf "%08d %s\n" "$depth" "$bundle"
+done | sort | cut -d" " -f2-)"
+[ -n "$ordered" ] || { echo "no bundles in $HERE"; exit 2; }
 n=0
-for bundle in "$HERE"/[0-9][0-9][0-9][0-9]-*.json; do
-  [ -e "$bundle" ] || { echo "no bundles in $HERE"; exit 2; }
+for bundle in $ordered; do
   name="$(basename "$bundle" .json)"
   base="$(echo "$name" | cut -d- -f2)"
   # git's tree at the base: replace every tracked file, drop the ones no longer there.
