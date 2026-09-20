@@ -1601,7 +1601,19 @@ fn super_glob_at(env: &Env, depth: usize) -> Option<HashMap<(String, Namespace),
     }
     let file_i = if env.inline_mod { rest - 1 } else { rest };
     let file = env.super_files.get(file_i)?;
-    merge_file_glob(env, file)
+    let mut map = merge_file_glob(env, file).unwrap_or_default();
+    if env.include_splices.contains(file) {
+        if let Some(&m) = env.file_of_mod.get(file) {
+            if let Some(more) = glob_mod(env, m) {
+                map.extend(more);
+            }
+        }
+    }
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
 }
 
 fn bind_use(env: &mut Env, segs: &[String], alias: &str) {

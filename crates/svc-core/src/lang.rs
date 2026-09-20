@@ -133,7 +133,18 @@ impl Env {
         }
         let file_i = if self.inline_mod { rest - 1 } else { rest };
         if let Some(file) = self.super_files.get(file_i) {
-            return self.lookup_file(file, name, ns);
+            if let Some(id) = self.lookup_file(file, name, ns) {
+                return Some(id);
+            }
+            // `mod bar;` may live in an include! splice; `super::` is still the
+            // parent module, whose items sit on other files of that module.
+            if self.include_splices.contains(file) {
+                if let Some(&m) = self.file_of_mod.get(file) {
+                    if let Some(id) = self.lookup_in_mod(m, name, ns) {
+                        return Some(id);
+                    }
+                }
+            }
         }
         self.lookup_module(name, ns)
     }

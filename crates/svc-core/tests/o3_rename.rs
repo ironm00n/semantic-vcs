@@ -4560,3 +4560,97 @@ fn edit_def_follows_file_module_declared_in_an_included_file() {
         "edit-def must attach mod bar; from an included file: {text}"
     );
 }
+
+#[test]
+fn rename_follows_super_from_mod_declared_in_an_included_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let bar = RelPath::new("src/bar.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib, b"mod foo;\n".to_vec());
+    files.insert(foo, b"fn parse() {}\ninclude!(\"a.rs\");\n".to_vec());
+    files.insert(a, b"pub mod bar;\n".to_vec());
+    files.insert(bar.clone(), b"fn f() { super::parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&bar].clone()).unwrap();
+    assert!(
+        text.contains("super::parse_file()"),
+        "super:: from bar.rs declared in an included file is foo: {text}"
+    );
+}
+
+#[test]
+fn edit_def_follows_super_from_mod_declared_in_an_included_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let bar = RelPath::new("src/bar.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib, b"mod foo;\n".to_vec());
+    files.insert(foo, b"fn parse() {}\ninclude!(\"a.rs\");\n".to_vec());
+    files.insert(a, b"pub mod bar;\n".to_vec());
+    files.insert(bar.clone(), b"fn f() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let f = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "f")
+        .map(|(id, _)| *id)
+        .expect("f");
+    let (next, _) = edit_def(&store, &langs, &snap, f, b"fn f() { super::parse(); }\n").unwrap();
+    let next = rename(&store, &next, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&bar].clone()).unwrap();
+    assert!(
+        text.contains("super::parse_file()"),
+        "edit-def super:: from bar.rs declared in an included file is foo: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_use_super_from_mod_declared_in_an_included_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let bar = RelPath::new("src/bar.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib, b"mod foo;\n".to_vec());
+    files.insert(foo, b"fn parse() {}\ninclude!(\"a.rs\");\n".to_vec());
+    files.insert(a, b"pub mod bar;\n".to_vec());
+    files.insert(bar.clone(), b"use super::*;\nfn f() { parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&bar].clone()).unwrap();
+    assert!(
+        text.contains("parse_file()"),
+        "use super::* from bar.rs declared in an included file must see foo: {text}"
+    );
+}
