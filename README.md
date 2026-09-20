@@ -173,8 +173,9 @@ Hackathon prototype. Not a git replacement.
   mention. Method, field, and trait-item resolution needs types; the store
   shape does not. `svc rename` reports the misses.
 - **Rust and JavaScript.** JS import/export across files is not modeled.
-- **Macros are opaque token trees.** Identifiers inside `foo!(x)` are not
-  locals.
+- **Macros.** Arguments of a macro call resolve like any other code (`vec![x]`
+  uses the local `x`, as rustc says — the compiler oracle O9 enforces it);
+  `macro_rules!` bodies are not analysed.
 - **Non-language files** (`Cargo.toml`, lockfiles, this README) are stored
   as opaque byte records so a checkout still builds. They are not entities.
 - **Classifier** checks surviving-reference capture, not "did the agent do
