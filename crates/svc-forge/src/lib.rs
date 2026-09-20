@@ -47,7 +47,7 @@ pub struct Repository {
     #[serde(default)]
     pub snapshots: Vec<SnapshotView>,
     #[serde(default)]
-    pub operations: Vec<OpLogEntry>,
+    pub operations: Vec<OperationView>,
     #[serde(default)]
     pub review_queue: Vec<ReviewItem>,
 }
@@ -68,8 +68,53 @@ pub struct SnapshotView {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EntityView {
     pub id: String,
+    #[serde(default)]
+    pub source: String,
     #[serde(flatten)]
     pub record: EntityRecord,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct OperationSubject {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub before_name: String,
+    #[serde(default)]
+    pub after_name: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub file: String,
+    #[serde(default)]
+    pub before_source: String,
+    #[serde(default)]
+    pub after_source: String,
+    #[serde(default)]
+    pub touch: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OperationView {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ix: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub change: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject: Option<OperationSubject>,
+    #[serde(flatten)]
+    pub entry: OpLogEntry,
+}
+
+impl From<OpLogEntry> for OperationView {
+    fn from(entry: OpLogEntry) -> Self {
+        Self {
+            ix: None,
+            change: None,
+            subject: None,
+            entry,
+        }
+    }
 }
 
 impl Catalog {

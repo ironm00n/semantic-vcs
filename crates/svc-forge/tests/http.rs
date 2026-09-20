@@ -6,7 +6,9 @@ use svc_core::{
     BytesId, Conflict, ContentId, EntityId, EntityRecord, Intent, Kind, Op, OpIx,
     OpLogEntry, RelPath, ReviewItem, Side, SnapshotId, View,
 };
-use svc_forge::{Catalog, EntityView, Repository, SnapshotView};
+use svc_forge::{
+    Catalog, EntityView, OperationSubject, OperationView, Repository, SnapshotView,
+};
 use tower::ServiceExt;
 
 struct TestDir(std::path::PathBuf);
@@ -35,7 +37,7 @@ impl Drop for TestDir {
     }
 }
 
-fn op(operation: Op) -> OpLogEntry {
+fn op(operation: Op) -> OperationView {
     let view = View {
         root: SnapshotId([1; 32]),
         heads: Default::default(),
@@ -48,14 +50,32 @@ fn op(operation: Op) -> OpLogEntry {
         before: view.clone(),
         after: view,
     }
+    .into()
 }
 
 fn catalog() -> Catalog {
+    let entity = EntityId::new();
     let conflict = Conflict::DeleteEdit {
         id: EntityId::new(),
         deleted_by: Side::A,
         edited_by: Side::B,
     };
+    let mut rename = op(Op::Rename {
+        id: entity,
+        new: "parse_config".into(),
+    });
+    rename.ix = Some(7);
+    rename.change = Some("c2".into());
+    rename.subject = Some(OperationSubject {
+        id: entity.to_string(),
+        before_name: "parse".into(),
+        after_name: "parse_config".into(),
+        kind: "Fn".into(),
+        file: "src/main.rs".into(),
+        before_source: "fn parse() {}".into(),
+        after_source: "fn parse_config() {}".into(),
+        touch: serde_json::json!({"Renamed":{"from":"parse","to":"parse_config"}}),
+    });
     Catalog {
         repositories: vec![Repository {
             slug: "svc".into(),
@@ -63,16 +83,10 @@ fn catalog() -> Catalog {
             path: "/tmp/svc".into(),
             description: "semantic vcs".into(),
             head: "s2".into(),
-            operations: vec![
-                op(Op::Rename {
-                    id: EntityId::new(),
-                    new: "parse_config".into(),
-                }),
-                op(Op::Undo),
-            ],
+            operations: vec![rename, op(Op::Undo)],
             review_queue: vec![
                 ReviewItem::EditReview {
-                    op: OpIx(0),
+                    op: OpIx(7),
                     declared: Intent::Fix,
                     observed: None,
                     ask_id: None,
@@ -96,7 +110,8 @@ fn catalog() -> Catalog {
                     message: "rename parser".into(),
                     parents: vec!["s1".into()],
                     entities: vec![EntityView {
-                        id: EntityId::new().to_string(),
+                        id: entity.to_string(),
+                        source: "fn parse_config() {}".into(),
                         record: EntityRecord {
                             name: "parse_config".into(),
                             kind: Kind::Fn,
@@ -171,11 +186,18 @@ async fn populated_repository_response_preserves_semantic_types() {
         value["snapshots"][1]["entities"][0]["name"],
         "parse_config"
     );
+    assert_eq!(
+        value["snapshots"][1]["entities"][0]["source"],
+        "fn parse_config() {}"
+    );
     assert!(value["snapshots"][1]["conflicts"][0]["DeleteEdit"].is_object());
     assert_eq!(
         value["operations"][0]["op"]["Rename"]["new"],
         "parse_config"
     );
+    assert_eq!(value["operations"][0]["ix"], 7);
+    assert_eq!(value["operations"][0]["change"], "c2");
+    assert_eq!(value["operations"][0]["subject"]["before_name"], "parse");
     assert_eq!(value["operations"][1]["op"], "Undo");
     assert!(value["review_queue"][0]["EditReview"].is_object());
     assert!(value["review_queue"][1]["BindingConflict"].is_object());
@@ -186,24 +208,29 @@ async fn browser_contract_has_typed_labels_change_navigation_and_entity_filters(
     let (status, html) = response(svc_forge::app(catalog()), "/").await;
     assert_eq!(status, StatusCode::OK);
     for contract in [
-        "typeof op==='string'?op",
-        "operation #${index}",
-        "Edit operation #${esc(payload.op??'?')}",
-        "Changes & head",
-        "data-snapshot",
-        "selectSnapshot",
+        "semantic development history",
+        "buildChanges",
+        "renderChangeList",
+        "renderChangeDetail",
+        "operationIx",
+        "Renamed ${before} → ${after}",
+        "Typed operations",
+        "sourceDiff",
+        "Current source",
+        "Entity history",
+        "Review queue",
         "entity-query",
         "entity-kind",
+        "include-synthetic",
         "PAGE_SIZE=100",
         "filteredEntities",
         "conflictSummary",
         "Delete/edit conflict",
-        "Binding safety review",
         "selectEntity",
         "Parent reference",
         "Content identity",
-        "Raw entity record",
-        "@media(max-width:760px)",
+        "Technical record",
+        "@media(max-width:900px)",
         "overflow-wrap:anywhere",
         "word-break:break-word",
     ] {
