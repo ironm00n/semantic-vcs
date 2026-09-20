@@ -379,10 +379,22 @@ fn collect_refs<'a>(
                 || is_type_qualified_ref(node, src, lang, env)
             {
                 refs.push((r, IdentRef::Free(name.into())));
-            } else if let Some(id) = if is_crate_path(node, src, lang) {
-                env.lookup_module(&name, ns)
-            } else if let Some(depth) = super_depth(node, src, lang) {
-                env.lookup_super(&name, ns, depth)
+            } else if let Some(id) = if let Some(segs) = crate_path_segs(node, src, lang) {
+                env.lookup_crate_path(&segs, ns).or_else(|| {
+                    if under_use_tree(node) {
+                        env.lookup_module(&name, ns)
+                    } else {
+                        None
+                    }
+                })
+            } else if let Some((depth, segs)) = super_path_parts(node, src, lang) {
+                env.lookup_super_path(depth, &segs, ns).or_else(|| {
+                    if under_use_tree(node) {
+                        env.lookup_module(&name, ns)
+                    } else {
+                        None
+                    }
+                })
             } else {
                 env.lookup(&name, ns)
             } {
@@ -911,6 +923,13 @@ fn is_type_qualified_ref(
     if under_use_tree(node) {
         return false;
     }
+    if let Some(root) = scoped_path_root(node) {
+        let root_name =
+            std::str::from_utf8(&src[root.start_byte()..root.end_byte()]).unwrap_or("");
+        if matches!(root_name, "crate" | "super" | "self") {
+            return false;
+        }
+    }
     let Some(parent) = node.parent() else {
         return false;
     };
@@ -1005,20 +1024,43 @@ fn is_crate_path(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> bo
     path_root_is(node, src, lang, "crate")
 }
 
-fn super_depth(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> Option<usize> {
+fn crate_path_segs(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> Option<Vec<String>> {
+    if !is_crate_path(node, src, lang) {
+        return None;
+    }
+    let mut segs = scoped_path_idents(node, src)?;
+    if segs.first().map(String::as_str) != Some("crate") {
+        return None;
+    }
+    segs.remove(0);
+    Some(segs)
+}
+
+fn super_path_parts(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+) -> Option<(usize, Vec<String>)> {
     if lang.name() != "rust" {
         return None;
     }
+    let segs = scoped_path_idents(node, src)?;
+    let depth = segs.iter().take_while(|s| s.as_str() == "super").count();
+    if depth == 0 {
+        return None;
+    }
+    Some((depth, segs[depth..].to_vec()))
+}
+
+fn scoped_path_idents(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<Vec<String>> {
     let parent = node.parent()?;
     if !matches!(parent.kind(), "scoped_identifier" | "scoped_type_identifier") {
         return None;
     }
     let path = parent.child_by_field_name("path")?;
-    let segs = path_idents(path, src);
-    if segs.is_empty() || !segs.iter().all(|s| s == "super") {
-        return None;
-    }
-    Some(segs.len())
+    let mut segs = path_idents(path, src);
+    segs.push(node_text(node, src));
+    Some(segs)
 }
 
 fn path_idents(node: tree_sitter::Node<'_>, src: &[u8]) -> Vec<String> {

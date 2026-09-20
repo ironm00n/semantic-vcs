@@ -42,6 +42,8 @@ pub struct Env {
     /// `super` (the parent of the enclosing mod). Past the last nested mod,
     /// [`Self::lookup_super`] falls through to [`Self::lookup_module`].
     pub super_stack: Vec<HashMap<(String, Namespace), EntityId>>,
+    /// Children of each `mod` entity, for `crate::outer::parse` / `super::inner::f`.
+    pub mod_items: HashMap<EntityId, HashMap<(String, Namespace), EntityId>>,
 }
 
 impl Env {
@@ -66,6 +68,46 @@ impl Env {
             return Self::lookup_in_map(Some(map), name, ns);
         }
         self.lookup_module(name, ns)
+    }
+
+    /// `crate::a::b` — `a` is crate-root, then each segment is a child of that mod.
+    pub fn lookup_crate_path(&self, segs: &[String], ns: Namespace) -> Option<EntityId> {
+        if segs.is_empty() {
+            return None;
+        }
+        if segs.len() == 1 {
+            return self.lookup_module(&segs[0], ns);
+        }
+        let start = self.lookup_module(&segs[0], Namespace::Type)?;
+        self.walk_mod_path(start, &segs[1..], ns)
+    }
+
+    /// `super::a::b` after `depth` `super::` prefixes.
+    pub fn lookup_super_path(
+        &self,
+        depth: usize,
+        segs: &[String],
+        ns: Namespace,
+    ) -> Option<EntityId> {
+        if segs.is_empty() {
+            return None;
+        }
+        if segs.len() == 1 {
+            return self.lookup_super(&segs[0], ns, depth);
+        }
+        let start = self.lookup_super(&segs[0], Namespace::Type, depth)?;
+        self.walk_mod_path(start, &segs[1..], ns)
+    }
+
+    fn walk_mod_path(&self, start: EntityId, rest: &[String], ns: Namespace) -> Option<EntityId> {
+        if rest.is_empty() {
+            return Some(start);
+        }
+        let mut id = start;
+        for s in &rest[..rest.len() - 1] {
+            id = Self::lookup_in_map(self.mod_items.get(&id), s, Namespace::Type)?;
+        }
+        Self::lookup_in_map(self.mod_items.get(&id), rest.last()?, ns)
     }
 
     /// File / crate / repo names, skipping nested-mod isolation. `crate::f`
@@ -250,6 +292,17 @@ impl Env {
         for ns in namespaces_for(kind) {
             self.nested_items.insert((name.clone(), *ns), id);
         }
+    }
+
+    pub fn insert_mod_child(
+        &mut self,
+        parent: EntityId,
+        name: impl Into<String>,
+        kind: Kind,
+        id: EntityId,
+    ) {
+        let map = self.mod_items.entry(parent).or_default();
+        Self::insert_super_level(map, name, kind, id);
     }
 
     pub fn insert_super_level(

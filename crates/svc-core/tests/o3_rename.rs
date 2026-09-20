@@ -1356,3 +1356,94 @@ fn rename_follows_super_super_path_inside_a_nested_mod() {
         "super::super::parse must follow: {text}"
     );
 }
+
+#[test]
+fn rename_of_file_level_fn_does_not_rewrite_a_crate_mod_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn parse() {}\nmod outer {\n    fn parse() {}\n}\nmod inner {\n    fn f() { crate::outer::parse(); }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let file_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.parent.is_none())
+        .map(|(id, _)| *id)
+        .expect("file-level parse");
+    let next = rename(&store, &snap, file_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("crate::outer::parse()"),
+        "crate::outer::parse is not the file-level fn: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_crate_mod_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn parse() {}\nmod outer {\n    fn parse() {}\n}\nmod inner {\n    fn f() { crate::outer::parse(); }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let outer_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.parent.is_some_and(|p| {
+                    snap.entities.get(&p).is_some_and(|pr| pr.name == "outer")
+                })
+        })
+        .map(|(id, _)| *id)
+        .expect("outer::parse");
+    let next = rename(&store, &snap, outer_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("crate::outer::parse_file()"),
+        "crate::outer::parse must follow the nested item: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_super_mod_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"mod a {\n    mod inner {\n        fn parse() {}\n    }\n    mod b {\n        fn f() { super::inner::parse(); }\n    }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let inner_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.parent.is_some_and(|p| {
+                    snap.entities.get(&p).is_some_and(|pr| pr.name == "inner")
+                })
+        })
+        .map(|(id, _)| *id)
+        .expect("inner::parse");
+    let next = rename(&store, &snap, inner_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("super::inner::parse_file()"),
+        "super::inner::parse must follow: {text}"
+    );
+}

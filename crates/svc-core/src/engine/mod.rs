@@ -60,6 +60,7 @@ pub fn js_extract_refined_kinds(src: &str) -> Result<Vec<(String, crate::entity:
 pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     let mut env = Env::default();
     for (id, rec) in &snapshot.entities {
+        insert_mod_child_rec(&mut env, snapshot, *id, rec);
         if is_inherent_rec(snapshot, rec) || is_block_local_rec(snapshot, rec) {
             continue;
         }
@@ -162,6 +163,29 @@ fn is_block_local_raw(raw: &[RawEntity], i: usize) -> bool {
     raw[i]
         .parent_idx
         .is_some_and(|p| hosts_block_items(raw[p].kind))
+}
+
+fn insert_mod_child_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
+    let Some(pi) = raw[i].parent_idx else {
+        return;
+    };
+    if raw[pi].kind != Kind::Mod || is_inherent_raw(raw, i) {
+        return;
+    }
+    env.insert_mod_child(ids[pi], &raw[i].name, raw[i].kind, ids[i]);
+}
+
+fn insert_mod_child_rec(env: &mut Env, snapshot: &Snapshot, id: EntityId, rec: &EntityRecord) {
+    let Some(p) = rec.parent else {
+        return;
+    };
+    let Some(prec) = snapshot.entities.get(&p) else {
+        return;
+    };
+    if prec.kind != Kind::Mod || is_inherent_rec(snapshot, rec) {
+        return;
+    }
+    env.insert_mod_child(p, &rec.name, rec.kind, id);
 }
 
 fn nearest_mod_raw(raw: &[RawEntity], i: usize) -> Option<usize> {
@@ -462,6 +486,7 @@ pub fn snapshot_files_reusing(
     let mut env = Env::default();
     for p in &parsed {
         for (i, ent) in p.raw.iter().enumerate() {
+            insert_mod_child_raw(&mut env, &p.raw, &p.ids, i);
             if is_inherent_raw(&p.raw, i) || is_block_local_raw(&p.raw, i) {
                 continue;
             }
@@ -565,6 +590,7 @@ pub fn ingest_file_prev(
     let ids = assign_ids(&raw, &path, &mut prev_ids(prev), prev);
     let mut env = extra.clone();
     for (i, ent) in raw.iter().enumerate() {
+        insert_mod_child_raw(&mut env, &raw, &ids, i);
         if is_inherent_raw(&raw, i) || is_block_local_raw(&raw, i) {
             continue;
         }
