@@ -381,8 +381,8 @@ fn collect_refs<'a>(
                 refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(id) = if is_crate_path(node, src, lang) {
                 env.lookup_module(&name, ns)
-            } else if is_super_path(node, src, lang) {
-                env.lookup_super(&name, ns)
+            } else if let Some(depth) = super_depth(node, src, lang) {
+                env.lookup_super(&name, ns, depth)
             } else {
                 env.lookup(&name, ns)
             } {
@@ -1005,8 +1005,54 @@ fn is_crate_path(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> bo
     path_root_is(node, src, lang, "crate")
 }
 
-fn is_super_path(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> bool {
-    path_root_is(node, src, lang, "super")
+fn super_depth(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> Option<usize> {
+    if lang.name() != "rust" {
+        return None;
+    }
+    let parent = node.parent()?;
+    if !matches!(parent.kind(), "scoped_identifier" | "scoped_type_identifier") {
+        return None;
+    }
+    let path = parent.child_by_field_name("path")?;
+    let segs = path_idents(path, src);
+    if segs.is_empty() || !segs.iter().all(|s| s == "super") {
+        return None;
+    }
+    Some(segs.len())
+}
+
+fn path_idents(node: tree_sitter::Node<'_>, src: &[u8]) -> Vec<String> {
+    match node.kind() {
+        "scoped_identifier" | "scoped_type_identifier" => {
+            let mut segs = node
+                .child_by_field_name("path")
+                .map(|p| path_idents(p, src))
+                .unwrap_or_default();
+            if let Some(name) = node.child_by_field_name("name") {
+                segs.push(node_text(name, src));
+            }
+            segs
+        }
+        "bracketed_type" => node
+            .named_child(0)
+            .map(|n| path_idents(n, src))
+            .unwrap_or_default(),
+        "qualified_type" => node
+            .child_by_field_name("type")
+            .map(|n| path_idents(n, src))
+            .unwrap_or_default(),
+        "generic_type" => node
+            .child_by_field_name("type")
+            .map(|n| path_idents(n, src))
+            .unwrap_or_default(),
+        _ => vec![node_text(node, src)],
+    }
+}
+
+fn node_text(node: tree_sitter::Node<'_>, src: &[u8]) -> String {
+    std::str::from_utf8(&src[node.start_byte()..node.end_byte()])
+        .unwrap_or("")
+        .to_string()
 }
 
 fn path_root_is(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang, want: &str) -> bool {

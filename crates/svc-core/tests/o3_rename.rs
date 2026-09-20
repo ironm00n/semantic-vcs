@@ -1292,3 +1292,67 @@ fn rename_of_mod_fn_rewrites_an_impl_method_call() {
         "impl method in the same mod must see the sibling: {text}"
     );
 }
+
+#[test]
+fn rename_follows_self_path_inside_a_nested_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"mod inner {\n    fn parse() {}\n    fn f() { self::parse(); }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let inner_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.parent.is_some_and(|p| {
+                    snap.entities.get(&p).is_some_and(|pr| pr.name == "inner")
+                })
+        })
+        .map(|(id, _)| *id)
+        .expect("inner::parse");
+    let next = rename(&store, &snap, inner_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("self::parse_file()"),
+        "self::parse inside the nested mod must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_super_super_path_inside_a_nested_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"mod a {\n    fn parse() {}\n    mod b {\n        mod c {\n            fn f() { super::super::parse(); }\n        }\n    }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let a_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.parent.is_some_and(|p| {
+                    snap.entities.get(&p).is_some_and(|pr| pr.name == "a")
+                })
+        })
+        .map(|(id, _)| *id)
+        .expect("a::parse");
+    let next = rename(&store, &snap, a_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("super::super::parse_file()"),
+        "super::super::parse must follow: {text}"
+    );
+}

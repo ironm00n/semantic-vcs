@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::content::{Bytes, Content, IdentRef};
 use crate::entity::{EntityRecord, FileRecord, Kind, SigKey};
@@ -191,48 +191,54 @@ fn nearest_mod_rec(snapshot: &Snapshot, id: EntityId) -> Option<EntityId> {
 
 fn fill_mod_env_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
     env.in_nested_mod = false;
-    env.super_is_parent_mod = false;
-    env.super_items.clear();
-    let Some(m) = nearest_mod_raw(raw, i) else {
+    env.super_stack.clear();
+    let Some(mut m) = nearest_mod_raw(raw, i) else {
         return;
     };
     env.in_nested_mod = true;
-    let Some(pp) = raw[m].parent_idx else {
-        return;
-    };
-    if raw[pp].kind != Kind::Mod {
-        return;
-    }
-    env.super_is_parent_mod = true;
-    for (j, ch) in raw.iter().enumerate() {
-        if ch.parent_idx == Some(pp) && is_block_local_raw(raw, j) {
-            env.insert_super(&ch.name, ch.kind, ids[j]);
+    loop {
+        let Some(pp) = raw[m].parent_idx else {
+            break;
+        };
+        if raw[pp].kind != Kind::Mod {
+            break;
         }
+        let mut map = HashMap::new();
+        for (j, ch) in raw.iter().enumerate() {
+            if ch.parent_idx == Some(pp) && is_block_local_raw(raw, j) {
+                Env::insert_super_level(&mut map, &ch.name, ch.kind, ids[j]);
+            }
+        }
+        env.super_stack.push(map);
+        m = pp;
     }
 }
 
 pub(crate) fn fill_mod_env_from_snapshot(env: &mut Env, snapshot: &Snapshot, id: EntityId) {
     env.in_nested_mod = false;
-    env.super_is_parent_mod = false;
-    env.super_items.clear();
-    let Some(m) = nearest_mod_rec(snapshot, id) else {
+    env.super_stack.clear();
+    let Some(mut m) = nearest_mod_rec(snapshot, id) else {
         return;
     };
     env.in_nested_mod = true;
-    let Some(pp) = snapshot.entities.get(&m).and_then(|r| r.parent) else {
-        return;
-    };
-    let Some(prec) = snapshot.entities.get(&pp) else {
-        return;
-    };
-    if prec.kind != Kind::Mod {
-        return;
-    }
-    env.super_is_parent_mod = true;
-    for (cid, crec) in &snapshot.entities {
-        if crec.parent == Some(pp) && is_block_local_rec(snapshot, crec) {
-            env.insert_super(&crec.name, crec.kind, *cid);
+    loop {
+        let Some(pp) = snapshot.entities.get(&m).and_then(|r| r.parent) else {
+            break;
+        };
+        let Some(prec) = snapshot.entities.get(&pp) else {
+            break;
+        };
+        if prec.kind != Kind::Mod {
+            break;
         }
+        let mut map = HashMap::new();
+        for (cid, crec) in &snapshot.entities {
+            if crec.parent == Some(pp) && is_block_local_rec(snapshot, crec) {
+                Env::insert_super_level(&mut map, &crec.name, crec.kind, *cid);
+            }
+        }
+        env.super_stack.push(map);
+        m = pp;
     }
 }
 

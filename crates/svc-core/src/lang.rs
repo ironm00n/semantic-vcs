@@ -38,13 +38,10 @@ pub struct Env {
     /// Inside `mod inner { … }`, bare names are the module's own items only.
     /// `crate::` still uses [`Self::lookup_module`].
     pub in_nested_mod: bool,
-    /// Items of the parent module, for `super::f` when that parent is itself a
-    /// `mod`. Empty when `super` is the file (then [`Self::lookup_super`] falls
-    /// through to [`Self::lookup_module`]).
-    pub super_items: HashMap<(String, Namespace), EntityId>,
-    /// Parent of the enclosing `mod` is another `mod`, so `super::` must not
-    /// fall through to the crate.
-    pub super_is_parent_mod: bool,
+    /// Parent-mod maps for `super::` / `super::super::` / … Index 0 is one
+    /// `super` (the parent of the enclosing mod). Past the last nested mod,
+    /// [`Self::lookup_super`] falls through to [`Self::lookup_module`].
+    pub super_stack: Vec<HashMap<(String, Namespace), EntityId>>,
 }
 
 impl Env {
@@ -58,13 +55,15 @@ impl Env {
         self.lookup_module(name, ns)
     }
 
-    /// `super::f` — parent-mod items, or the file/crate when `super` is the crate root.
-    pub fn lookup_super(&self, name: &str, ns: Namespace) -> Option<EntityId> {
-        if let Some(id) = Self::lookup_in_map(Some(&self.super_items), name, ns) {
-            return Some(id);
-        }
-        if self.super_is_parent_mod {
+    /// `super::f` (`depth` 1) / `super::super::f` (`depth` 2). Past the last
+    /// nested parent module, this is the crate root.
+    pub fn lookup_super(&self, name: &str, ns: Namespace, depth: usize) -> Option<EntityId> {
+        if depth == 0 {
             return None;
+        }
+        let i = depth - 1;
+        if let Some(map) = self.super_stack.get(i) {
+            return Self::lookup_in_map(Some(map), name, ns);
         }
         self.lookup_module(name, ns)
     }
@@ -253,10 +252,15 @@ impl Env {
         }
     }
 
-    pub fn insert_super(&mut self, name: impl Into<String>, kind: Kind, id: EntityId) {
+    pub fn insert_super_level(
+        map: &mut HashMap<(String, Namespace), EntityId>,
+        name: impl Into<String>,
+        kind: Kind,
+        id: EntityId,
+    ) {
         let name = name.into();
         for ns in namespaces_for(kind) {
-            self.super_items.insert((name.clone(), *ns), id);
+            map.insert((name.clone(), *ns), id);
         }
     }
 }
