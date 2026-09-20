@@ -53,4 +53,5 @@ for bundle in $ordered; do
   echo "PASS  $name: $applied ops replayed, every tree as recorded"
   n=$((n + 1))
 done
-echo "$n bundle(s); $("$SVC" op log --json | jq length) ops in $DIR/.svc"
+"$SVC" forge export --json >/dev/null 2>&1   # the catalog the forge serves, beside the store
+echo "$n bundle(s); $("$SVC" op log --json | jq length) ops in $DIR/.svc (forge catalog: .svc/forge.json)"
