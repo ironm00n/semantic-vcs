@@ -62,6 +62,7 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     let defs: Vec<_> = snapshot
         .entities
         .iter()
+        .filter(|(_, rec)| !is_inherent_rec(snapshot, rec))
         .map(|(id, rec)| (rec.name.as_str(), rec.kind, *id))
         .collect();
     env.insert_defs(&defs);
@@ -89,6 +90,40 @@ pub(crate) fn fill_self_methods_from_snapshot(
 
 fn is_callable_member(kind: Kind) -> bool {
     matches!(kind, Kind::Fn | Kind::JsMethod | Kind::JsStaticMethod)
+}
+
+/// Inherent methods live in `self_methods`, not the flat Value env. A free
+/// `fn read` and `impl S { fn read(&self) }` are different targets: `read()`
+/// is the free fn, `self.read()` is the method.
+fn is_inherent_member(kind: Kind, parent_kind: Kind) -> bool {
+    match parent_kind {
+        Kind::Impl | Kind::Trait => matches!(kind, Kind::Fn),
+        Kind::JsClass => matches!(
+            kind,
+            Kind::JsMethod
+                | Kind::JsStaticMethod
+                | Kind::JsGetter
+                | Kind::JsSetter
+                | Kind::JsField
+                | Kind::JsStaticField
+        ),
+        _ => false,
+    }
+}
+
+fn is_inherent_rec(snapshot: &Snapshot, rec: &EntityRecord) -> bool {
+    rec.parent.is_some_and(|p| {
+        snapshot
+            .entities
+            .get(&p)
+            .is_some_and(|par| is_inherent_member(rec.kind, par.kind))
+    })
+}
+
+fn is_inherent_raw(raw: &[RawEntity], i: usize) -> bool {
+    raw[i]
+        .parent_idx
+        .is_some_and(|p| is_inherent_member(raw[i].kind, raw[p].kind))
 }
 
 pub fn resolve(
@@ -193,10 +228,9 @@ pub fn snapshot_files(
     let defs: Vec<_> = parsed
         .iter()
         .flat_map(|p| {
-            p.raw
-                .iter()
-                .enumerate()
-                .map(|(i, ent)| (ent.name.as_str(), ent.kind, p.ids[i]))
+            p.raw.iter().enumerate().filter_map(|(i, ent)| {
+                (!is_inherent_raw(&p.raw, i)).then_some((ent.name.as_str(), ent.kind, p.ids[i]))
+            })
         })
         .collect();
     env.insert_defs(&defs);
@@ -267,7 +301,9 @@ pub fn ingest_file_prev(
     let defs: Vec<_> = raw
         .iter()
         .enumerate()
-        .map(|(i, ent)| (ent.name.as_str(), ent.kind, ids[i]))
+        .filter_map(|(i, ent)| {
+            (!is_inherent_raw(&raw, i)).then_some((ent.name.as_str(), ent.kind, ids[i]))
+        })
         .collect();
     env.insert_defs(&defs);
     let (entities, file) = materialize(src, path.clone(), lang, store, &tree, &raw, &ids, &env)?;

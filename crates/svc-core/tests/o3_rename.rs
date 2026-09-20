@@ -421,3 +421,83 @@ impl<T> Wrap<T> {
     assert!(text.contains("Wrap::create()"), "{text}");
     assert!(!text.contains("Wrap::make()"), "{text}");
 }
+
+#[test]
+fn bare_call_inside_impl_is_the_free_fn_not_the_method() {
+    const SRC: &str = r#"
+fn read() {}
+struct S;
+impl S {
+    fn read(&self) {}
+    fn load(&self) {
+        read();
+        self.read();
+    }
+}
+"#;
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, SRC.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let impl_id = snap
+        .entities
+        .iter()
+        .find(|(_, rec)| rec.kind == svc_core::Kind::Impl)
+        .map(|(id, _)| *id)
+        .expect("impl");
+    let free = named_child(&snap, "read", None);
+    let method = named_child(&snap, "read", Some(impl_id));
+    let load = lookup_name(&snap, "load").unwrap();
+    let content = store.get_content(snap.entities[&load].content).unwrap();
+    let entity_hits: Vec<EntityId> = content
+        .tokens
+        .iter()
+        .filter_map(|t| match t {
+            Token::Ident(IdentRef::Entity(id)) => Some(*id),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        entity_hits.contains(&free),
+        "bare read() must be the free fn, got {entity_hits:?} tokens {:?}",
+        content.tokens
+    );
+    assert!(
+        entity_hits.contains(&method),
+        "self.read() must be the method, got {entity_hits:?}"
+    );
+
+    let renamed_free = rename(&snap, free, "fetch").unwrap();
+    let text = String::from_utf8(
+        render(&renamed_free, &store, &langs, false)
+            .unwrap()
+            .files
+            .values()
+            .next()
+            .unwrap()
+            .clone(),
+    )
+    .unwrap();
+    assert!(text.contains("fn fetch()"), "{text}");
+    assert!(text.contains("        fetch();"), "{text}");
+    assert!(text.contains("        self.read();"), "{text}");
+    assert!(text.contains("    fn read(&self)"), "{text}");
+
+    let renamed_method = rename(&snap, method, "pull").unwrap();
+    let text = String::from_utf8(
+        render(&renamed_method, &store, &langs, false)
+            .unwrap()
+            .files
+            .values()
+            .next()
+            .unwrap()
+            .clone(),
+    )
+    .unwrap();
+    assert!(text.contains("    fn pull(&self)"), "{text}");
+    assert!(text.contains("        self.pull();"), "{text}");
+    assert!(text.contains("        read();"), "{text}");
+    assert!(text.contains("fn read()"), "{text}");
+}
