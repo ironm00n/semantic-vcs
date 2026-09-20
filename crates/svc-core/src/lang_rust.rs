@@ -85,6 +85,14 @@ const ENTITY_KINDS: &[EntityKindRule] = &[
         body_field: None,
         children_field: None,
     },
+    // `type Item;` in a trait is not `type_item` (`type Item = T`).
+    EntityKindRule {
+        node_kind: "associated_type",
+        kind: Kind::TypeAlias,
+        name_field: Some("name"),
+        body_field: None,
+        children_field: None,
+    },
     EntityKindRule {
         node_kind: "macro_definition",
         kind: Kind::Macro,

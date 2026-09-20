@@ -935,3 +935,30 @@ fn type_path_open_is_not_the_free_fn() {
     assert!(store_txt.contains("crate::open_store()"), "{store_txt}");
     assert!(sync_txt.contains("fn open_store"), "{sync_txt}");
 }
+
+#[test]
+fn same_impl_type_path_open_is_not_the_free_fn() {
+    // `S::open` inside `impl S` is still type-relative when `open` is not an
+    // associated item. The enclosing-impl exemption for `S::Item` must not
+    // bind it to a free `fn open`.
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn open() {}\nstruct S;\nimpl S {\n    fn f() { let _ = S::open(); }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let open = named_in_file(&snap, "open", &path);
+    let next = rename(&store, &snap, open, "opened").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("fn opened()"), "{text}");
+    assert!(
+        text.contains("S::open()"),
+        "type path must stay Free: {text}"
+    );
+    assert!(!text.contains("S::opened()"), "{text}");
+}

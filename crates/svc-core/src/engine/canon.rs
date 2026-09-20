@@ -837,8 +837,8 @@ fn is_rust_nonlocal_ident(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool 
 
 /// `RedbStore::open` is not a free `fn open`. Type-relative names stay Free
 /// (SPEC §9) unless they are same-impl inherent methods (earlier) or the
-/// qualifier is `Self` / the enclosing impl type (`S::Item` is the associated
-/// type, not a free `Item`). `use crate::a::f` still binds.
+/// qualifier is `Self` / the enclosing impl or trait (`S::Item` / `T::Item`
+/// is the associated type, not a free `Item`). `use crate::a::f` still binds.
 fn is_type_qualified_ref(
     node: tree_sitter::Node<'_>,
     src: &[u8],
@@ -1054,7 +1054,8 @@ fn rust_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
 }
 
 /// The `Self` type of the enclosing `impl` (`S` in `impl S` / `impl Trait for S` /
-/// `impl<T> S<T>`). Used so `S::foo()` binds like `Self::foo()`.
+/// `impl<T> S<T>`), or the enclosing trait name (`T` in `trait T`). Used so
+/// `S::foo()` / `T::Item` bind like `Self::foo()` / `Self::Item`.
 fn enclosing_impl_type_name<'a>(
     mut node: tree_sitter::Node<'a>,
     src: &'a [u8],
@@ -1067,6 +1068,11 @@ fn enclosing_impl_type_name<'a>(
             return parent
                 .child_by_field_name("type")
                 .and_then(|ty| impl_type_base_name(ty, src));
+        }
+        if parent.kind() == "trait_item" {
+            return parent
+                .child_by_field_name("name")
+                .and_then(|n| impl_type_base_name(n, src));
         }
         node = parent;
     }

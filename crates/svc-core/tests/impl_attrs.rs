@@ -280,3 +280,46 @@ fn rename_of_associated_const_rewrites_self_and_type_path() {
     assert!(!text.contains("Self::N"), "{text}");
     assert!(!text.contains("S::N"), "{text}");
 }
+
+#[test]
+fn rename_of_trait_associated_type_rewrites_self_and_trait_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"trait T {\n    type Item;\n    fn f() -> Self::Item;\n    fn g() -> T::Item;\n    fn k() -> Item;\n}\ntrait Other {\n    type Item;\n    fn h() -> Other::Item;\n}\nfn free() -> Item { loop {} }\n"
+            .to_vec(),
+    );
+    let s = snap(&store, &files, None);
+    let tr = s
+        .entities
+        .iter()
+        .find(|(_, r)| r.kind == Kind::Trait && r.name == "T")
+        .map(|(id, _)| *id)
+        .expect("trait T");
+    let item = s
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "Item" && r.parent == Some(tr))
+        .map(|(id, _)| *id)
+        .expect("associated type");
+    let next = rename(&store, &s, item, "Elem").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("type Elem;"), "{text}");
+    assert!(text.contains("Self::Elem"), "{text}");
+    assert!(text.contains("T::Elem"), "{text}");
+    assert!(text.contains("fn k() -> Elem"), "{text}");
+    assert!(
+        text.contains("type Item;") && text.contains("Other::Item"),
+        "the other trait's Item must stay: {text}"
+    );
+    assert!(
+        text.contains("fn free() -> Item"),
+        "file-level Item must stay: {text}"
+    );
+    assert!(!text.contains("Self::Item"), "{text}");
+    assert!(!text.contains("T::Item"), "{text}");
+}
