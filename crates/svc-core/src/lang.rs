@@ -66,6 +66,8 @@ pub struct Env {
     pub mod_reexports: HashMap<EntityId, HashMap<(String, Namespace), EntityId>>,
     /// When set, [`crate::engine::canon`] records pub uses into the reexport maps.
     pub bind_reexports: bool,
+    /// Every `mod` entity, so `use a as b; b::parse` is a module path, not Type::name.
+    pub mods: HashSet<EntityId>,
 }
 
 impl Env {
@@ -184,6 +186,22 @@ impl Env {
         self.lookup_in_mod(id, rest.last()?, ns)
     }
 
+    /// `use a as b; b::parse` — `b` names a module, then walk its children.
+    pub fn lookup_aliased_mod_path(&self, segs: &[String], ns: Namespace) -> Option<EntityId> {
+        if segs.len() < 2 {
+            return None;
+        }
+        let start = self.lookup(&segs[0], Namespace::Type)?;
+        if !self.mods.contains(&start) {
+            return None;
+        }
+        self.walk_mod_path(start, &segs[1..], ns)
+    }
+
+    pub fn is_mod(&self, id: EntityId) -> bool {
+        self.mods.contains(&id)
+    }
+
     /// File / crate / repo names, skipping nested-mod isolation. `crate::f`
     /// inside `mod inner` still binds the crate-root item.
     pub fn lookup_module(&self, name: &str, ns: Namespace) -> Option<EntityId> {
@@ -295,6 +313,9 @@ impl Env {
         file: Option<&RelPath>,
     ) {
         let name = name.into();
+        if kind == Kind::Mod {
+            self.mods.insert(id);
+        }
         for ns in namespaces_for(kind) {
             if *ns == Namespace::Value
                 && !is_value_primary(kind)
@@ -375,6 +396,10 @@ impl Env {
         kind: Kind,
         id: EntityId,
     ) {
+        self.mods.insert(parent);
+        if kind == Kind::Mod {
+            self.mods.insert(id);
+        }
         let map = self.mod_items.entry(parent).or_default();
         Self::insert_super_level(map, name, kind, id);
     }

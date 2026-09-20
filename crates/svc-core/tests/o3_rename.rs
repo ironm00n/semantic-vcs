@@ -2317,3 +2317,118 @@ fn rename_follows_use_super_list_from_a_file_module() {
     );
     assert!(text.contains("parse_file();"), "{text}");
 }
+
+#[test]
+fn rename_follows_use_mod_as_then_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod a;\nuse a as b;\nfn f() { b::parse(); }\n".to_vec(),
+    );
+    files.insert(a.clone(), b"fn parse() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let a_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == a)
+        .map(|(id, _)| *id)
+        .expect("a parse");
+    let next = rename(&store, &snap, a_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("b::parse_file()"),
+        "use a as b; b::parse must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_use_crate_mod_as_from_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod a;\nmod foo;\n".to_vec());
+    files.insert(a.clone(), b"fn parse() {}\n".to_vec());
+    files.insert(
+        foo.clone(),
+        b"use crate::a as b;\nfn f() { b::parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let a_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == a)
+        .map(|(id, _)| *id)
+        .expect("a parse");
+    let next = rename(&store, &snap, a_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&foo].clone()).unwrap();
+    assert!(
+        text.contains("b::parse_file()"),
+        "use crate::a as b; b::parse from a file module must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_use_list_self_from_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod a;\nmod foo;\n".to_vec());
+    files.insert(a.clone(), b"fn parse() {}\n".to_vec());
+    files.insert(
+        foo.clone(),
+        b"use crate::a::{self, parse};\nfn f() { a::parse(); parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let a_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == a)
+        .map(|(id, _)| *id)
+        .expect("a parse");
+    let next = rename(&store, &snap, a_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&foo].clone()).unwrap();
+    assert!(
+        text.contains("use crate::a::{self, parse_file};"),
+        "use list self must keep the module and follow parse: {text}"
+    );
+    assert!(text.contains("a::parse_file()"), "{text}");
+    assert!(text.contains("parse_file();"), "{text}");
+}
+
+#[test]
+fn rename_follows_macro_rules_from_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod foo;\nfn f() { parse!(); }\n".to_vec());
+    files.insert(foo.clone(), b"macro_rules! parse { () => {}; }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == foo)
+        .map(|(id, _)| *id)
+        .expect("parse macro");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "macro_rules in a file module must follow at the crate root: {text}"
+    );
+}

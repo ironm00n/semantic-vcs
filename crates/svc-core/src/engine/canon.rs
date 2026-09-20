@@ -407,6 +407,8 @@ fn collect_refs<'a>(
                         None
                     }
                 })
+            } else if let Some(segs) = aliased_mod_segs(node, src, lang) {
+                env.lookup_aliased_mod_path(&segs, ns)
             } else {
                 env.lookup(&name, ns)
             } {
@@ -984,6 +986,12 @@ fn is_type_qualified_ref(
     {
         return false;
     }
+    if env
+        .lookup(name, Namespace::Type)
+        .is_some_and(|id| env.is_mod(id))
+    {
+        return false;
+    }
     env.lookup_global(name, Namespace::Type).is_some()
 }
 
@@ -1043,8 +1051,29 @@ fn is_foreign_scoped_ref(
     if matches!(name, "crate" | "super" | "self" | "Self") {
         return false;
     }
+    if env.lookup(name, Namespace::Type).is_some() || env.lookup(name, Namespace::Value).is_some() {
+        return false;
+    }
     env.lookup_global(name, Namespace::Value).is_none()
         && env.lookup_global(name, Namespace::Type).is_none()
+}
+
+fn aliased_mod_segs(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+) -> Option<Vec<String>> {
+    if lang.name() != "rust" {
+        return None;
+    }
+    let segs = scoped_path_idents(node, src)?;
+    if segs.len() < 2 {
+        return None;
+    }
+    if matches!(segs[0].as_str(), "crate" | "super" | "self" | "Self") {
+        return None;
+    }
+    Some(segs)
 }
 
 fn is_crate_path(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> bool {
@@ -1439,12 +1468,12 @@ fn bind_use(env: &mut Env, segs: &[String], alias: &str) {
             continue;
         };
         if env.bind_reexports {
-            if !aliased {
+            if !aliased || env.is_mod(id) {
                 insert_reexport(env, alias.to_string(), ns, id);
             }
             continue;
         }
-        if aliased {
+        if aliased && !env.is_mod(id) {
             env.use_aliases.insert(alias.to_string());
             continue;
         }
