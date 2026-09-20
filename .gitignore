@@ -5,3 +5,5 @@
 .DS_Store
 .artifacts/
 .codex-finalizer/
+.svc/
+.svc-workspace
