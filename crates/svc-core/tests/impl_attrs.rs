@@ -206,3 +206,40 @@ fn associated_type_in_a_method_sig_is_the_impl_item() {
         "file-level Item must stay: {text}"
     );
 }
+
+#[test]
+fn rename_of_associated_const_rewrites_self_and_type_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"struct S;\nstruct Other;\nimpl S {\n    const N: u8 = 1;\n    fn f() -> u8 { Self::N }\n    fn g() -> u8 { S::N }\n}\nimpl Other {\n    const N: u8 = 2;\n    fn h() -> u8 { Other::N }\n}\nfn free() { let _ = N; }\n"
+            .to_vec(),
+    );
+    let s = snap(&store, &files, None);
+    let (impl_s, _) = impl_named(&s, "impl<S>");
+    let n = s
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "N" && r.parent == Some(impl_s))
+        .map(|(id, _)| *id)
+        .expect("associated const");
+    let next = rename(&store, &s, n, "M").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("const M: u8 = 1"), "{text}");
+    assert!(text.contains("Self::M"), "{text}");
+    assert!(text.contains("S::M"), "{text}");
+    assert!(
+        text.contains("const N: u8 = 2") && text.contains("Other::N"),
+        "the other impl's N must stay: {text}"
+    );
+    assert!(
+        text.contains("let _ = N;"),
+        "bare N outside the impl must stay: {text}"
+    );
+    assert!(!text.contains("Self::N"), "{text}");
+    assert!(!text.contains("S::N"), "{text}");
+}

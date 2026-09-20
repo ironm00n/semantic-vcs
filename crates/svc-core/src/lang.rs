@@ -24,9 +24,9 @@ pub struct Env {
     pub primary: Arc<HashSet<(String, Namespace)>>,
     /// Per-crate primary occupants; same rule as [`Self::primary`].
     pub crate_primary: Arc<HashMap<String, HashSet<(String, Namespace)>>>,
-    /// Inherent methods of the impl/class this item is being resolved in.
-    /// `self.foo()` / `Self::foo()` / `this.foo()` look here, not in `names`
-    /// (a free `fn foo` is a different target).
+    /// Inherent methods and associated consts of the impl/class this item is
+    /// being resolved in. `self.foo()` / `Self::foo` / `Self::N` / `this.foo()`
+    /// look here, not in `names` (a free `fn foo` is a different target).
     pub self_methods: HashMap<String, EntityId>,
     /// Items nested in the function (or JS function/method) being resolved —
     /// `fn f() { fn g() {} g(); }`. They are not in [`Self::by_file`]: a sibling

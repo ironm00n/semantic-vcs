@@ -975,9 +975,9 @@ fn is_opaque_node(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
 }
 
 /// Method name of `self.foo()`, `Self::foo()`, `S::foo()` inside `impl S`, or JS
-/// `this.foo()` — bound to a sibling under the enclosing impl/class, not the
-/// flat Value env (a free `fn foo` is a different target). `x.foo()` stays
-/// Free: that needs types.
+/// `self.foo()` / `Self::foo` / `Self::N` / `this.foo()` — bound to a sibling
+/// under the enclosing impl/class, not the flat Value env (a free `fn foo` is
+/// a different target). `x.foo()` stays Free: that needs types.
 fn is_inherent_method_ref(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
     match node.kind() {
         "field_identifier" => rust_self_field_call(node),
@@ -1046,11 +1046,7 @@ fn rust_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
     if path_text != b"Self" && Some(path_text) != enclosing_impl_type_name(node, src) {
         return false;
     }
-    let Some(grand) = parent.parent() else {
-        return false;
-    };
-    grand.kind() == "call_expression"
-        && grand.child_by_field_name("function").map(|n| n.id()) == Some(parent.id())
+    true
 }
 
 /// The `Self` type of the enclosing `impl` (`S` in `impl S` / `impl Trait for S` /

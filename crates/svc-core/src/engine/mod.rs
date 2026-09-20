@@ -68,8 +68,9 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     env
 }
 
-/// Inherent methods nested under `parent` (an `impl` or class). Empty when the
-/// item is file-root: there is no receiver to bind `self.foo()` against.
+/// Inherent methods nested under `parent` (an `impl` or class), and associated
+/// consts/statics so `Self::N` binds like `Self::foo()`. Empty when the item
+/// is file-root: there is no receiver to bind against.
 pub(crate) fn fill_self_methods_from_snapshot(
     env: &mut Env,
     snapshot: &Snapshot,
@@ -88,7 +89,10 @@ pub(crate) fn fill_self_methods_from_snapshot(
 }
 
 fn is_callable_member(kind: Kind) -> bool {
-    matches!(kind, Kind::Fn | Kind::JsMethod | Kind::JsStaticMethod)
+    matches!(
+        kind,
+        Kind::Fn | Kind::Const | Kind::Static | Kind::JsMethod | Kind::JsStaticMethod
+    )
 }
 
 /// Items nested under `impl`/`trait`/`class` stay out of the file/crate maps.
