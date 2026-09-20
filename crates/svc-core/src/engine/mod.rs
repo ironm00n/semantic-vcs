@@ -91,12 +91,16 @@ fn is_callable_member(kind: Kind) -> bool {
     matches!(kind, Kind::Fn | Kind::JsMethod | Kind::JsStaticMethod)
 }
 
-/// Inherent methods live in `self_methods`, not the flat Value env. A free
-/// `fn read` and `impl S { fn read(&self) }` are different targets: `read()`
-/// is the free fn, `self.read()` is the method.
+/// Items nested under `impl`/`trait`/`class` stay out of the file/crate maps.
+/// Methods live in `self_methods` (`read()` is a free fn, `self.read()` is the
+/// method). Associated consts/types would otherwise collide with a unique
+/// crate-level `parse` the way nested fns and `#[cfg(test)] mod tests` did.
 fn is_inherent_member(kind: Kind, parent_kind: Kind) -> bool {
     match parent_kind {
-        Kind::Impl | Kind::Trait => matches!(kind, Kind::Fn),
+        Kind::Impl | Kind::Trait => matches!(
+            kind,
+            Kind::Fn | Kind::Const | Kind::TypeAlias | Kind::Static | Kind::Macro
+        ),
         Kind::JsClass => matches!(
             kind,
             Kind::JsMethod
@@ -156,9 +160,47 @@ fn is_block_local_raw(raw: &[RawEntity], i: usize) -> bool {
         .is_some_and(|p| hosts_block_items(raw[p].kind))
 }
 
+/// Associated types of the enclosing impl/trait are in scope for signatures
+/// (`fn f() -> Item`) without occupying the file map. Methods stay out: a
+/// bare `f()` is not the sibling method.
+fn fill_associated_types_from_snapshot(env: &mut Env, snapshot: &Snapshot, id: EntityId) {
+    let Some(rec) = snapshot.entities.get(&id) else {
+        return;
+    };
+    let Some(parent) = rec.parent else {
+        return;
+    };
+    let Some(prec) = snapshot.entities.get(&parent) else {
+        return;
+    };
+    if !matches!(prec.kind, Kind::Impl | Kind::Trait) {
+        return;
+    }
+    for (cid, crec) in &snapshot.entities {
+        if crec.parent == Some(parent) && crec.kind == Kind::TypeAlias {
+            env.insert_nested(&crec.name, crec.kind, *cid);
+        }
+    }
+}
+
+fn fill_associated_types_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
+    let Some(p) = raw[i].parent_idx else {
+        return;
+    };
+    if !matches!(raw[p].kind, Kind::Impl | Kind::Trait) {
+        return;
+    }
+    for (j, ch) in raw.iter().enumerate() {
+        if ch.parent_idx == Some(p) && ch.kind == Kind::TypeAlias {
+            env.insert_nested(&ch.name, ch.kind, ids[j]);
+        }
+    }
+}
+
 /// Nested `fn`/`struct`/… under `id` and under enclosing functions, inner last.
 pub(crate) fn fill_nested_items_from_snapshot(env: &mut Env, snapshot: &Snapshot, id: EntityId) {
     env.nested_items.clear();
+    fill_associated_types_from_snapshot(env, snapshot, id);
     let mut chain = vec![id];
     let mut walk = snapshot.entities.get(&id).and_then(|r| r.parent);
     while let Some(pid) = walk {
@@ -183,6 +225,7 @@ pub(crate) fn fill_nested_items_from_snapshot(env: &mut Env, snapshot: &Snapshot
 
 fn fill_nested_items_from_raw(env: &mut Env, raw: &[RawEntity], ids: &[EntityId], i: usize) {
     env.nested_items.clear();
+    fill_associated_types_from_raw(env, raw, ids, i);
     let mut chain = vec![i];
     let mut walk = raw[i].parent_idx;
     while let Some(pi) = walk {
