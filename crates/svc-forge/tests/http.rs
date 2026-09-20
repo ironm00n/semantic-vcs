@@ -187,6 +187,8 @@ async fn browser_contract_has_typed_labels_change_navigation_and_entity_filters(
     assert_eq!(status, StatusCode::OK);
     for contract in [
         "typeof op==='string'?op",
+        "operation #${index}",
+        "Edit operation #${esc(payload.op??'?')}",
         "Changes & head",
         "data-snapshot",
         "selectSnapshot",
