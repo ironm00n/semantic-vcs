@@ -47,6 +47,10 @@ pub enum Chunk {
     Child(EntityId),
     /// Entity-reference hole. `EntityId::SELF` is this entity's own declaration site.
     Name(EntityId),
+    /// `S { item }` is field `item` plus value `item`. Last on purpose: postcard
+    /// writes a variant as its index. Render keeps the field spelling when the
+    /// entity is renamed (`S { item: ITEM }`); matching names stay shorthand.
+    ShorthandName { id: EntityId, field: Box<str> },
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]

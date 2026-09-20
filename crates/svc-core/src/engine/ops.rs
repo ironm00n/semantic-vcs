@@ -305,7 +305,15 @@ fn name_use_sites(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Ve
             .get_bytes_blob(rec.bytes)?
             .chunks()
             .iter()
-            .filter(|c| matches!(c, Chunk::Name(e) if *e == id))
+            .filter(|c| {
+                matches!(
+                    c,
+                    Chunk::Name(e) if *e == id
+                ) || matches!(
+                    c,
+                    Chunk::ShorthandName { id: e, .. } if *e == id
+                )
+            })
             .count();
         for _ in 0..n {
             sites.push(*oid);
@@ -893,6 +901,7 @@ pub fn referrers(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Vec
                 .iter()
                 .any(|c| match c {
                     Chunk::Name(e) => *e == id,
+                    Chunk::ShorthandName { id: e, .. } => *e == id,
                     _ => false,
                 }))
         };
@@ -1013,7 +1022,7 @@ fn insert_child_chunk(
     let next_starts_on_new_line = match chunks.get(insert_at) {
         Some(Chunk::Child(_)) => true,
         Some(Chunk::Literal(r)) => src.get(r.start as usize) == Some(&b'\n'),
-        Some(Chunk::Name(_)) | None => false,
+        Some(Chunk::Name(_) | Chunk::ShorthandName { .. }) | None => false,
     };
     chunks.insert(insert_at, Chunk::Child(id));
     if !next_starts_on_new_line {
@@ -1307,6 +1316,10 @@ fn remap_bytes(bytes: &Bytes, map: &BTreeMap<EntityId, EntityId>) -> Result<Byte
         .map(|c| match c {
             Chunk::Child(id) => Chunk::Child(remap_id(*id, map)),
             Chunk::Name(id) => Chunk::Name(remap_id(*id, map)),
+            Chunk::ShorthandName { id, field } => Chunk::ShorthandName {
+                id: remap_id(*id, map),
+                field: field.clone(),
+            },
             other => other.clone(),
         })
         .collect();

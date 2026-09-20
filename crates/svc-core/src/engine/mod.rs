@@ -270,7 +270,7 @@ pub fn to_bytes(
         item.child_by_field_name("name")
             .map(|n| (extract::byte_range(n), id))
     });
-    bytes::bytes_from_span(src, extent, children, name, resolution)
+    bytes::bytes_from_span(src, extent, children, name, resolution, item)
 }
 
 pub fn canonicalize(
@@ -496,7 +496,7 @@ fn materialize(
             .map(|&c| (raw[c].bytes_range, ids[c]))
             .collect();
         let own_name = ent.name_range.map(|r| (r, EntityId::SELF));
-        let bytes = bytes::bytes_from_span(src, ent.bytes_range, &children, own_name, &res)?;
+        let bytes = bytes::bytes_from_span(src, ent.bytes_range, &children, own_name, &res, node)?;
         let bytes_id = store.put_bytes_blob(&bytes)?;
         let child_spans: Vec<(ByteRange, EntityId)> = ent
             .children

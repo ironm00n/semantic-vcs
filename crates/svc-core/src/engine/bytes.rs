@@ -3,6 +3,8 @@ use crate::error::Result;
 use crate::ids::{ByteRange, EntityId};
 use crate::lang::Resolution;
 
+use super::extract;
+
 #[derive(Clone, Copy)]
 enum Hole {
     Child(EntityId),
@@ -15,6 +17,7 @@ pub fn bytes_from_span(
     children: &[(ByteRange, EntityId)],
     own_name: Option<(ByteRange, EntityId)>,
     resolution: &Resolution,
+    item: tree_sitter::Node<'_>,
 ) -> Result<Bytes> {
     let mut holes: Vec<(ByteRange, Hole)> = children
         .iter()
@@ -46,7 +49,16 @@ pub fn bytes_from_span(
         }
         match hole {
             Hole::Child(id) => chunks.push(Chunk::Child(*id)),
-            Hole::Name(id) => chunks.push(Chunk::Name(*id)),
+            Hole::Name(id) => {
+                if let Some(field) = shorthand_field_spelling(item, src, *r) {
+                    chunks.push(Chunk::ShorthandName {
+                        id: *id,
+                        field,
+                    });
+                } else {
+                    chunks.push(Chunk::Name(*id));
+                }
+            }
         }
         used.push((*r, *hole));
         pos = r.end;
@@ -71,6 +83,25 @@ fn emit_lit(src: &[u8], start: u32, end: u32, out: &mut Vec<u8>, chunks: &mut Ve
     if hi > lo {
         chunks.push(Chunk::Literal(ByteRange { start: lo, end: hi }));
     }
+}
+
+/// `S { item }` wraps a value identifier whose span is also the field name.
+fn shorthand_field_spelling(
+    item: tree_sitter::Node<'_>,
+    src: &[u8],
+    r: ByteRange,
+) -> Option<Box<str>> {
+    let node = extract::find_node(item, r)?;
+    let shorthand = if node.kind() == "shorthand_field_initializer" {
+        true
+    } else {
+        node.parent()
+            .is_some_and(|p| p.kind() == "shorthand_field_initializer")
+    };
+    if !shorthand {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&src[r.start as usize..r.end as usize]).into())
 }
 
 fn remap_locals(

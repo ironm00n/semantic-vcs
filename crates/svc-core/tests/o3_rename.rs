@@ -988,3 +988,49 @@ fn type_binding_name_is_not_a_free_type_alias() {
     );
     assert!(!text.contains("It<Elem ="), "{text}");
 }
+
+#[test]
+fn rename_of_const_does_not_rewrite_shorthand_field_name() {
+    // `S { item }` is field `item` plus value `item`. Renaming the const must
+    // not turn it into `S { ITEM }` (no such field).
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"const item: u8 = 1;\nstruct S { item: u8 }\nfn make() -> S { S { item } }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let c = named_in_file(&snap, "item", &path);
+    let next = rename(&store, &snap, c, "ITEM").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("const ITEM: u8 = 1"), "{text}");
+    assert!(
+        text.contains("S { item: ITEM }") || text.contains("S { item:ITEM }"),
+        "shorthand must expand so the field name stays: {text}"
+    );
+    assert!(!text.contains("S { ITEM }"), "{text}");
+}
+
+#[test]
+fn shorthand_field_init_roundtrips_when_names_match() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"const item: u8 = 1;\nstruct S { item: u8 }\nfn make() -> S { S { item } }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let rendered = render(&snap, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("S { item }"),
+        "matching names must stay shorthand: {text}"
+    );
+    assert!(!text.contains("S { item: item"), "{text}");
+}

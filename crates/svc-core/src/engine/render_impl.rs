@@ -108,6 +108,44 @@ fn expand(
                     ));
                 }
             }
+            Chunk::ShorthandName { id: nid, field } => {
+                let name = if *nid == EntityId::SELF {
+                    rec.name.as_str()
+                } else {
+                    snapshot
+                        .entities
+                        .get(nid)
+                        .map(|e| e.name.as_str())
+                        .unwrap_or("?")
+                };
+                if name == field.as_ref() {
+                    let start = out.len() as u32;
+                    out.extend_from_slice(field.as_bytes());
+                    if let Some(map) = map.as_mut() {
+                        map.push((
+                            ByteRange {
+                                start,
+                                end: out.len() as u32,
+                            },
+                            IdentRef::Entity(*nid),
+                        ));
+                    }
+                } else {
+                    out.extend_from_slice(field.as_bytes());
+                    out.extend_from_slice(b": ");
+                    let start = out.len() as u32;
+                    out.extend_from_slice(name.as_bytes());
+                    if let Some(map) = map.as_mut() {
+                        map.push((
+                            ByteRange {
+                                start,
+                                end: out.len() as u32,
+                            },
+                            IdentRef::Entity(*nid),
+                        ));
+                    }
+                }
+            }
         }
     }
     Ok((out, map))
