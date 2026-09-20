@@ -14,6 +14,16 @@ use svc_repo::{Repo, changeset_begin, changeset_end};
 const PLUGIN_PLACEHOLDER: &str = "/home/hacker/hackmit2026/harness/svc-tools.mjs";
 /// The model id `harness/overlay.yml` pins; `SVC_MODEL` replaces it in the runtime copy.
 const DEFAULT_MODEL: &str = "deepseek/deepseek-chat";
+/// Compile-time copies so `cargo build -p svc` of a crates-only tree (self-host)
+/// does not need repo-root `harness/`. `.inc` so they stay opaque, not JS entities.
+const PLUGIN_SRC: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/embedded/svc-tools.mjs.inc"
+));
+const OVERLAY_SRC: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/embedded/overlay.yml.inc"
+));
 
 pub async fn run(task: &str) -> Result<(), String> {
     if !has_model_credentials() {
@@ -39,9 +49,9 @@ pub fn has_model_credentials() -> bool {
     if KEYS.iter().any(|key| std::env::var_os(key).is_some()) {
         return true;
     }
-    let dsh_home = std::env::var_os("DSH_HOME").map(PathBuf::from).or_else(|| {
-        std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".dsh"))
-    });
+    let dsh_home = std::env::var_os("DSH_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".dsh")));
     dsh_home.is_some_and(|home| home.join(".credentials.yaml").is_file())
 }
 
@@ -53,11 +63,9 @@ pub fn runtime_overlay(root: &Path) -> Result<PathBuf, String> {
     let plugin = metadata.join("svc-tools.mjs");
     let quoted_plugin = serde_json::to_string(&plugin).map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&metadata).map_err(|e| e.to_string())?;
-    std::fs::write(&plugin, include_str!("../../../harness/svc-tools.mjs"))
-        .map_err(|e| e.to_string())?;
+    std::fs::write(&plugin, PLUGIN_SRC).map_err(|e| e.to_string())?;
     let runtime_overlay = metadata.join("dsh-overlay.yml");
-    let mut text = include_str!("../../../harness/overlay.yml")
-        .replace(PLUGIN_PLACEHOLDER, &quoted_plugin);
+    let mut text = OVERLAY_SRC.replace(PLUGIN_PLACEHOLDER, &quoted_plugin);
     // SVC_MODEL=<openrouter id> swaps the overlay's default model (deepseek-chat writes tool
     // calls as prose about one run in three; anthropic/claude-sonnet-5 does not).
     if let Ok(model) = std::env::var("SVC_MODEL") {
@@ -101,14 +109,15 @@ async fn run_connection(task: &str, root: &Path) -> Result<(), String> {
         )
         .on_receive_request(
             async move |request: RequestPermissionRequest, responder, _connection| {
-                let outcome = request.options.first().map_or(
-                    RequestPermissionOutcome::Cancelled,
-                    |option| {
-                        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
-                            option.option_id.clone(),
-                        ))
-                    },
-                );
+                let outcome =
+                    request
+                        .options
+                        .first()
+                        .map_or(RequestPermissionOutcome::Cancelled, |option| {
+                            RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
+                                option.option_id.clone(),
+                            ))
+                        });
                 responder.respond(RequestPermissionResponse::new(outcome))
             },
             agent_client_protocol::on_receive_request!(),
@@ -160,10 +169,7 @@ mod tests {
     fn assert_runtime_assets(root: &Path) {
         let overlay = runtime_overlay(root).unwrap();
         let plugin = root.join(".svc/svc-tools.mjs");
-        assert_eq!(
-            std::fs::read_to_string(&plugin).unwrap(),
-            include_str!("../../../harness/svc-tools.mjs")
-        );
+        assert_eq!(std::fs::read_to_string(&plugin).unwrap(), PLUGIN_SRC);
         let text = std::fs::read_to_string(overlay).unwrap();
         let quoted = serde_json::to_string(&plugin).unwrap();
         assert!(text.contains(&format!("name: {quoted}")));
@@ -195,5 +201,18 @@ mod tests {
         assert_eq!(named.workspace(), Some("agent"));
         assert_eq!(named.store_path(), repo.store_path());
         assert!(named.working_copy_clean().unwrap());
+    }
+
+    #[test]
+    fn embedded_assets_match_harness_when_the_repo_root_copy_is_present() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let plugin = root.join("harness/svc-tools.mjs");
+        let overlay = root.join("harness/overlay.yml");
+        if plugin.is_file() {
+            assert_eq!(std::fs::read_to_string(&plugin).unwrap(), PLUGIN_SRC);
+        }
+        if overlay.is_file() {
+            assert_eq!(std::fs::read_to_string(&overlay).unwrap(), OVERLAY_SRC);
+        }
     }
 }
