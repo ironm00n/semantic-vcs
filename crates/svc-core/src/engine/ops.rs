@@ -64,7 +64,11 @@ pub fn move_def(
     new_parent: Option<EntityId>,
     ordinal: Option<u32>,
 ) -> Result<Snapshot> {
-    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?.clone();
+    let rec = snap
+        .entities
+        .get(&id)
+        .ok_or(Error::NoSuchEntity(id))?
+        .clone();
     if let Some(p) = new_parent {
         if p == id || subtree(snap, id).contains(&p) {
             return Err(Error::Other("move would create a cycle".into()));
@@ -664,7 +668,10 @@ pub fn add_def_at(
     let mapped = remap_tree(store, part.entities, root_old, id, None)?;
     let mut next = snap.clone();
     next.ensure_file(file.clone());
-    let mut root = mapped.get(&id).cloned().ok_or_else(|| Error::Other("add-def lost the root item".into()))?;
+    let mut root = mapped
+        .get(&id)
+        .cloned()
+        .ok_or_else(|| Error::Other("add-def lost the root item".into()))?;
     root.parent = parent;
     root.file = file.clone();
     root.ordinal = ordinal;
@@ -828,7 +835,9 @@ fn child_ids_of(store: &dyn Store, snap: &Snapshot, parent: EntityId) -> Result<
         .entities
         .get(&parent)
         .ok_or(Error::NoSuchEntity(parent))?;
-    Ok(child_ids_in_chunks(store.get_bytes_blob(rec.bytes)?.chunks()))
+    Ok(child_ids_in_chunks(
+        store.get_bytes_blob(rec.bytes)?.chunks(),
+    ))
 }
 
 fn apply_child_holes(
@@ -1234,9 +1243,7 @@ fn remap_tokens(tokens: Vec<Token>, map: &BTreeMap<EntityId, EntityId>) -> Vec<T
         .into_iter()
         .map(|t| match t {
             Token::Child(id) => Token::Child(remap_id(id, map)),
-            Token::Ident(IdentRef::Entity(id)) => {
-                Token::Ident(IdentRef::Entity(remap_id(id, map)))
-            }
+            Token::Ident(IdentRef::Entity(id)) => Token::Ident(IdentRef::Entity(remap_id(id, map))),
             other => other,
         })
         .collect()
@@ -1254,7 +1261,9 @@ fn flatten_bytes(store: &dyn Store, snap: &Snapshot, id: EntityId) -> Result<Byt
                 let start = src.len() as u32;
                 let a = r.start as usize;
                 let b = r.end as usize;
-                src.extend_from_slice(&bytes.src()[a.min(bytes.src().len())..b.min(bytes.src().len())]);
+                src.extend_from_slice(
+                    &bytes.src()[a.min(bytes.src().len())..b.min(bytes.src().len())],
+                );
                 let end = src.len() as u32;
                 if end > start {
                     chunks.push(Chunk::Literal(ByteRange { start, end }));
@@ -1286,11 +1295,7 @@ fn flatten_bytes(store: &dyn Store, snap: &Snapshot, id: EntityId) -> Result<Byt
     Bytes::new(src, chunks, locals)
 }
 
-fn flatten_tokens(
-    store: &dyn Store,
-    snap: &Snapshot,
-    tokens: Vec<Token>,
-) -> Result<Vec<Token>> {
+fn flatten_tokens(store: &dyn Store, snap: &Snapshot, tokens: Vec<Token>) -> Result<Vec<Token>> {
     let mut out = Vec::new();
     for t in tokens {
         match t {
@@ -1321,13 +1326,28 @@ fn item_text(store: &dyn Store, snap: &Snapshot, id: EntityId, text: &[u8]) -> R
     Ok(out)
 }
 
-/// File-level items need a blank line before them or render glues `}fn` / `;fn`.
+/// A new item needs a blank line before it or render glues `}fn` / `;fn`. Nested items
+/// (an impl method, a class member) are also indented one level, since the body an
+/// agent passes is written at column 0.
 fn add_def_text(parent: Option<EntityId>, text: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
-    if parent.is_none() && !text.first().is_some_and(|b| b.is_ascii_whitespace()) {
+    let bare = !text.first().is_some_and(|b| b.is_ascii_whitespace());
+    if bare {
         out.extend_from_slice(b"\n\n");
     }
-    out.extend_from_slice(text);
+    if parent.is_some() && bare {
+        for (i, line) in text.split(|b| *b == b'\n').enumerate() {
+            if i > 0 {
+                out.push(b'\n');
+            }
+            if !line.is_empty() {
+                out.extend_from_slice(b"    ");
+                out.extend_from_slice(line);
+            }
+        }
+    } else {
+        out.extend_from_slice(text);
+    }
     if !out.ends_with(b"\n") {
         out.push(b'\n');
     }
