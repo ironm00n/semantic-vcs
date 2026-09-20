@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 use svc_core::content::{Chunk, Token};
 use svc_core::engine::{
-    add_def, delete, edit_def, extract_hoist, lookup_name, move_def, render, rust_langs, snapshot_files,
+    add_def, delete, edit_def, extract_hoist, lookup_name, move_def, redefine, render, rust_langs,
+    snapshot_files,
 };
 use svc_core::ids::{ChangeId, EntityId, RelPath};
 use svc_core::store::{MemStore, Store};
@@ -249,6 +250,26 @@ fn edit_def_of_an_impl_keeps_existing_methods() {
         .map(|(i, _)| *i)
         .unwrap();
     assert_eq!(*extra.0, extra2, "new nested ids must be derived from the edited entity");
+}
+
+#[test]
+fn redefine_of_an_impl_keeps_existing_methods() {
+    let (store, langs, snap) = fixture();
+    let imp = impl_s(&snap);
+    let method = lookup_name(&snap, "method").unwrap();
+    let src = b"impl S {\n    fn method() {}\n    fn extra() {}\n}\n";
+    let (next, _, _) = redefine(&store, &langs, &snap, imp, src).unwrap();
+    assert_eq!(lookup_name(&next, "method").unwrap(), method);
+    let extra = next
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "extra")
+        .unwrap_or_else(|| panic!("method extra missing after redefine"));
+    assert_eq!(extra.1.parent, Some(imp));
+    assert_holes(&store, &next);
+    let rendered = rendered(&store, &next);
+    assert!(rendered.contains("fn extra"), "{rendered}");
+    assert!(rendered.contains("fn method"), "{rendered}");
 }
 
 #[test]

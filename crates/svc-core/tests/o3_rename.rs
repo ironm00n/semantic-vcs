@@ -71,7 +71,7 @@ fn redefine_keeps_callees_as_entity_holes() {
     let load_id = lookup_name(&snap, "load").unwrap();
     let parse_id = lookup_name(&snap, "parse").unwrap();
     let text = b"fn load(path: &str) -> usize { parse(path) + 1 }\n";
-    let (content, bytes) = redefine(&store, &langs, &snap, load_id, text).unwrap();
+    let (_, content, bytes) = redefine(&store, &langs, &snap, load_id, text).unwrap();
     let c = store.get_content(content).unwrap();
     assert!(
         c.tokens.iter().any(|t| match t {
@@ -116,7 +116,7 @@ fn redefine_without_trailing_newline_keeps_callee_entity() {
     let parse_id = lookup_name(&snap, "parse").unwrap();
     let text = b"fn load(path: &str) -> usize { parse(path) + 1 }";
     assert_ne!(text.last(), Some(&b'\n'));
-    let (content, _) = redefine(&store, &langs, &snap, load_id, text).unwrap();
+    let (_, content, _) = redefine(&store, &langs, &snap, load_id, text).unwrap();
     let c = store.get_content(content).unwrap();
     assert!(
         c.tokens.iter().any(|t| match t {

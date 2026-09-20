@@ -1051,26 +1051,19 @@ pub fn rust_langs() -> Langs {
     Langs::new(vec![Box::new(crate::RustLang)])
 }
 
+/// Same nested-child keep as `edit_def`. Returns the new snapshot plus the
+/// edited root's hashes so O3 can assert callee holes without walking entities.
 pub fn redefine(
     store: &dyn Store,
     langs: &Langs,
     snapshot: &Snapshot,
     id: EntityId,
     text: &[u8],
-) -> Result<(crate::ids::ContentId, crate::ids::BytesId)> {
-    let rec = snapshot.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-    let lang = langs
-        .for_path(&rec.file)
-        .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
-    let text = item_text(store, snapshot, id, text)?;
-    let new_rec = ingest_one_item("redefine", store, snapshot, &rec.file, lang, &text)?;
-    if new_rec.name != rec.name {
-        return Err(Error::Other(format!(
-            "redefine cannot rename {} to {}; use svc rename",
-            rec.name, new_rec.name
-        )));
-    }
-    Ok((new_rec.content, new_rec.bytes))
+) -> Result<(Snapshot, crate::ids::ContentId, crate::ids::BytesId)> {
+    let (next, _) = edit_def(store, langs, snapshot, id, text)?;
+    let rec = next.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+    let hashes = (rec.content, rec.bytes);
+    Ok((next, hashes.0, hashes.1))
 }
 
 /// The one item a verb body must be: parses without error nodes, exactly one root
@@ -1110,30 +1103,6 @@ fn ingest_item_tree(
             "{verb} definition must parse to exactly one item"
         ))),
     }
-}
-
-fn ingest_one_item(
-    verb: &str,
-    store: &dyn Store,
-    snap: &Snapshot,
-    file: &RelPath,
-    lang: &dyn crate::lang::Lang,
-    text: &[u8],
-) -> Result<EntityRecord> {
-    let (root_id, part) = ingest_item_tree(verb, store, snap, file, lang, text)?;
-    let mut rec = part
-        .entities
-        .get(&root_id)
-        .cloned()
-        .ok_or(Error::NoSuchEntity(root_id))?;
-    if part.entities.values().any(|r| r.parent == Some(root_id)) {
-        let old_content = store.get_content(rec.content)?;
-        rec.bytes = store.put_bytes_blob(&flatten_bytes(store, &part, root_id)?)?;
-        rec.content = store.put_content(&Content {
-            tokens: flatten_tokens(store, &part, old_content.tokens)?,
-        })?;
-    }
-    Ok(rec)
 }
 
 fn derived_id(parent: EntityId, rec: &EntityRecord) -> EntityId {
@@ -1247,67 +1216,6 @@ fn remap_tokens(tokens: Vec<Token>, map: &BTreeMap<EntityId, EntityId>) -> Vec<T
             other => other,
         })
         .collect()
-}
-
-fn flatten_bytes(store: &dyn Store, snap: &Snapshot, id: EntityId) -> Result<Bytes> {
-    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-    let bytes = store.get_bytes_blob(rec.bytes)?;
-    let mut src = Vec::new();
-    let mut chunks = Vec::new();
-    let mut locals = Vec::new();
-    for c in bytes.chunks() {
-        match c {
-            Chunk::Literal(r) => {
-                let start = src.len() as u32;
-                let a = r.start as usize;
-                let b = r.end as usize;
-                src.extend_from_slice(
-                    &bytes.src()[a.min(bytes.src().len())..b.min(bytes.src().len())],
-                );
-                let end = src.len() as u32;
-                if end > start {
-                    chunks.push(Chunk::Literal(ByteRange { start, end }));
-                }
-                for (lr, ident) in bytes.local_ranges() {
-                    if lr.start >= r.start && lr.end <= r.end {
-                        locals.push((
-                            ByteRange {
-                                start: start + (lr.start - r.start),
-                                end: start + (lr.end - r.start),
-                            },
-                            ident.clone(),
-                        ));
-                    }
-                }
-            }
-            Chunk::Name(nid) => chunks.push(Chunk::Name(*nid)),
-            Chunk::Child(cid) => {
-                let (child, _) = render_entity(snap, store, *cid, false)?;
-                let start = src.len() as u32;
-                src.extend_from_slice(&child);
-                let end = src.len() as u32;
-                if end > start {
-                    chunks.push(Chunk::Literal(ByteRange { start, end }));
-                }
-            }
-        }
-    }
-    Bytes::new(src, chunks, locals)
-}
-
-fn flatten_tokens(store: &dyn Store, snap: &Snapshot, tokens: Vec<Token>) -> Result<Vec<Token>> {
-    let mut out = Vec::new();
-    for t in tokens {
-        match t {
-            Token::Child(cid) => {
-                let rec = snap.entities.get(&cid).ok_or(Error::NoSuchEntity(cid))?;
-                let child = store.get_content(rec.content)?;
-                out.extend(flatten_tokens(store, snap, child.tokens)?);
-            }
-            other => out.push(other),
-        }
-    }
-    Ok(out)
 }
 
 /// Keep the entity's leading trivia (blank lines / docs attached by extent)
