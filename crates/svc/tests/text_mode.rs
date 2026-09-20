@@ -227,3 +227,30 @@ fn mutating_text_names_this_checkout_op_not_the_log_head() {
         .unwrap_or("");
     assert_ne!(n1, n2, "each checkout must print its own op ix\n{w1}\n{w2}");
 }
+
+#[test]
+fn history_export_import_replays_a_rename() {
+    let src = fixture();
+    text(src.path(), &["init"]);
+    text(src.path(), &["new"]);
+    text(
+        src.path(),
+        &["rename", "--entity", "parse", "--new-name", "parse_config"],
+    );
+    let bundle_dir = tempfile::tempdir().expect("bundle dir");
+    let bundle = bundle_dir.path().join("history.json");
+    let wrote = text(
+        src.path(),
+        &["history", "export", "--out", bundle.to_str().expect("utf8")],
+    );
+    assert!(wrote.contains("ops"), "{wrote}");
+    let dest = fixture();
+    text(dest.path(), &["init"]);
+    let imported = text(
+        dest.path(),
+        &["history", "import", bundle.to_str().expect("utf8")],
+    );
+    assert!(imported.contains("clean"), "{imported}");
+    let shown = text(dest.path(), &["show-def", "--entity", "parse_config"]);
+    assert!(shown.contains("fn parse_config"), "{shown}");
+}

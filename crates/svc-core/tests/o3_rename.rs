@@ -567,3 +567,32 @@ fn rename_does_not_rewrite_a_foreign_use_path() {
     assert!(http_txt.contains("fn http_response"), "{http_txt}");
     assert!(http_txt.contains("http_response();"), "{http_txt}");
 }
+
+#[test]
+fn rename_same_named_fn_in_the_same_crate_rewrites_only_that_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let engine = RelPath::new("crates/svc-core/src/engine/mod.rs").unwrap();
+    let merge = RelPath::new("crates/svc-core/src/engine/merge.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        engine.clone(),
+        b"fn resolve() {}\nfn go() { resolve(); }\n".to_vec(),
+    );
+    files.insert(
+        merge.clone(),
+        b"fn resolve() {}\nfn other() { resolve(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = named_in_file(&snap, "resolve", &engine);
+    let next = rename(&snap, id, "resolve_renamed").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let engine_txt = String::from_utf8(rendered.files[&engine].clone()).unwrap();
+    let merge_txt = String::from_utf8(rendered.files[&merge].clone()).unwrap();
+    assert!(engine_txt.contains("fn resolve_renamed"), "{engine_txt}");
+    assert!(engine_txt.contains("resolve_renamed();"), "{engine_txt}");
+    assert!(!engine_txt.contains("fn resolve("), "{engine_txt}");
+    assert!(merge_txt.contains("fn resolve()"), "{merge_txt}");
+    assert!(merge_txt.contains("resolve();"), "{merge_txt}");
+    assert!(!merge_txt.contains("resolve_renamed"), "{merge_txt}");
+}

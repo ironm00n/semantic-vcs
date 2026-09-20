@@ -36,6 +36,7 @@ enum Command {
     #[command(subcommand)] Changeset(ChangeSetCommand),
     /// The local forge (crates/svc-forge): `export` writes its catalog from this store.
     #[command(subcommand)] Forge(ForgeCommand),
+    #[command(subcommand)] History(HistoryCommand),
     #[command(subcommand)] Workspace(WorkspaceCommand),
     Checkout { snapshot: String }, Render, Replay, Rename(RenameArgs), Move(MoveArgs),
     Relocate(RelocateArgs), Extract(ExtractArgs), Inline(EntityArg), AddDef(AddDefArgs),
@@ -46,6 +47,13 @@ enum Command {
 
 #[derive(Subcommand)] enum OpCommand { Log, Restore { index: u64 } }
 #[derive(Subcommand)] enum ForgeCommand { Export { #[arg(long)] out: Option<std::path::PathBuf> } }
+#[derive(Subcommand)]
+enum HistoryCommand {
+    /// The op log from --since (default 1: everything after init) as a bundle, to stdout or --out.
+    Export { #[arg(long, default_value_t = 1)] since: u64, #[arg(long)] out: Option<PathBuf> },
+    /// Replay a bundle into this store; the tree must be the bundle's base.
+    Import { file: PathBuf },
+}
 #[derive(Subcommand)]
 enum WorkspaceCommand {
     Add { name: String, path: PathBuf, #[arg(long)] at: Option<String> },
@@ -191,6 +199,30 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
         Command::Op(OpCommand::Log) => op_log(&repo).map(|l| text::log(&snap, &l)),
         Command::Forge(ForgeCommand::Export { out }) => svc_repo::forge::export(&repo, out.as_deref())
             .map(|p| format!("wrote {} — serve it with: cargo run -p svc-forge -- --catalog {}", p.display(), p.display())),
+        Command::History(HistoryCommand::Export { since, out }) => {
+            return Some((|| {
+                let b = svc_repo::bundle::export(&repo, OpIx(*since)).map_err(|e| e.to_string())?;
+                match out {
+                    Some(p) => {
+                        let text = serde_json::to_string_pretty(&b).map_err(|e| e.to_string())?;
+                        std::fs::write(p, text).map_err(|e| e.to_string())?;
+                        Ok(format!("wrote {}: {} ops", p.display(), b.entries.len()))
+                    }
+                    None => serde_json::to_string_pretty(&b).map_err(|e| e.to_string()),
+                }
+            })());
+        }
+        Command::History(HistoryCommand::Import { file }) => {
+            return Some((|| {
+                let text = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
+                let b: svc_repo::bundle::Bundle = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                let r = svc_repo::bundle::import(&repo, &b).map_err(|e| e.to_string())?;
+                Ok(match r.diverged_at {
+                    Some(at) => format!("replayed {} ops: diverged at #{}", r.applied, at.0),
+                    None => format!("replayed {} ops: clean", r.applied),
+                })
+            })());
+        }
         Command::Heads => heads(&repo).map(|h| text::heads(&h)),
         Command::Evolog { change } => repo
             .resolve_change(change)
@@ -457,6 +489,23 @@ fn run_with(cli: &Cli, repo: &Repo) -> Result<Value, String> {
         }
         Command::Changeset(ChangeSetCommand::End) => value(changeset_end(&repo)),
         Command::Forge(ForgeCommand::Export { out }) => svc_repo::forge::export(&repo, out.as_deref()).map(|p| json!({"path": p})).map_err(|e| e.to_string()),
+        Command::History(HistoryCommand::Export { since, out }) => {
+            let b = svc_repo::bundle::export(repo, OpIx(*since)).map_err(|e| e.to_string())?;
+            match out {
+                Some(p) => {
+                    let text = serde_json::to_string_pretty(&b).map_err(|e| e.to_string())?;
+                    std::fs::write(p, &text).map_err(|e| e.to_string())?;
+                    Ok(json!({"path": p, "ops": b.entries.len()}))
+                }
+                None => serde_json::to_value(&b).map_err(|e| e.to_string()),
+            }
+        }
+        Command::History(HistoryCommand::Import { file }) => {
+            let text = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
+            let b: svc_repo::bundle::Bundle = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+            let r = svc_repo::bundle::import(repo, &b).map_err(|e| e.to_string())?;
+            serde_json::to_value(&r).map_err(|e| e.to_string())
+        }
         Command::Changeset(ChangeSetCommand::Status) => value(changeset_status(&repo)),
         Command::Changeset(ChangeSetCommand::List) => value(changesets(&repo)),
         Command::Workspace(WorkspaceCommand::Add { name, path, at }) => {
@@ -816,7 +865,7 @@ fn command_name(command: &Command) -> &'static str {
         Command::Rename(_) => "rename", Command::Move(_) => "move", Command::Relocate(_) => "relocate",
         Command::Extract(_) => "extract", Command::Inline(_) => "inline", Command::AddDef(_) => "add-def",
         Command::Delete(_) => "delete", Command::EditDef(_) => "edit-def", Command::Classify(_) => "classify",
-        Command::Agent { .. } => "agent", Command::Tui { .. } => "tui", Command::Workspace(_) => "workspace", Command::Replay => "replay", _ => unreachable!(),
+        Command::Agent { .. } => "agent", Command::Tui { .. } => "tui", Command::Workspace(_) => "workspace", Command::History(_) => "history", Command::Replay => "replay", _ => unreachable!(),
     }
 }
 
@@ -864,6 +913,8 @@ mod tests {
         Cli::try_parse_from(["svc", "search", "parse"]).unwrap();
         Cli::try_parse_from(["svc", "diff", "main", "feature"]).unwrap();
         Cli::try_parse_from(["svc", "show-def", "--entity", "parse", "--at", "deadbeef"]).unwrap();
+        Cli::try_parse_from(["svc", "history", "export", "--since", "1", "--out", "/tmp/h.json"]).unwrap();
+        Cli::try_parse_from(["svc", "history", "import", "/tmp/h.json"]).unwrap();
     }
 
     #[test]
