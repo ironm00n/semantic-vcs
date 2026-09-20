@@ -1113,3 +1113,28 @@ fn rename_of_const_rewrites_array_length_not_the_shadowing_local() {
     assert!(text.contains("let n = 2usize"), "{text}");
     assert!(text.contains("let _ = n;"), "{text}");
 }
+
+#[test]
+fn rename_of_const_rewrites_unbraced_const_generic_not_the_shadowing_local() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"const n: usize = 1;\nfn g<const N: usize>() {}\nfn f() { let n = 2usize; g::<n>(); let _ = n; }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let c = named_in_file(&snap, "n", &path);
+    let next = rename(&store, &snap, c, "nlen").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("const nlen: usize = 1"), "{text}");
+    assert!(
+        text.contains("g::<nlen>()"),
+        "unbraced const generic arg must see the file const: {text}"
+    );
+    assert!(text.contains("let n = 2usize"), "{text}");
+    assert!(text.contains("let _ = n;"), "{text}");
+}

@@ -370,10 +370,10 @@ fn collect_refs<'a>(
                 .max_by_key(|b| (b.scope.start, b.range.start));
             if is_struct_field_key(node) || is_dot_field(node) || is_type_binding_name(node) {
                 refs.push((r, IdentRef::Free(name.into())));
-            } else if let Some(binder) = local.filter(|_| !is_rust_nonlocal_ident(node, lang)).filter(|b| {
-                !in_const_argument(node)
-                    || !matches!(b.class, BinderClass::Local | BinderClass::Label)
-            }) {
+            } else if let Some(binder) = local
+                .filter(|_| !is_rust_nonlocal_ident(node, lang))
+                .filter(|b| !const_context_hides_binder(node, b))
+            {
                 refs.push((r, IdentRef::Local(binder.slot, ns)));
             } else if is_foreign_scoped_ref(node, src, lang, env)
                 || is_type_qualified_ref(node, src, lang, env)
@@ -381,6 +381,17 @@ fn collect_refs<'a>(
                 refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(id) = env.lookup(&name, ns) {
                 refs.push((r, IdentRef::Entity(id)));
+            } else if let Some(ident) = const_generic_arg_ref(
+                node,
+                &name,
+                r,
+                binders,
+                env,
+                src,
+                lang,
+                root_id,
+            ) {
+                refs.push((r, ident));
             } else {
                 refs.push((r, IdentRef::Free(name.into())));
             }
@@ -1050,9 +1061,54 @@ fn binder_class(node: tree_sitter::Node<'_>) -> BinderClass {
     }
 }
 
-/// Array lengths and const generic `{ n }` / `const { n }` cannot capture
-/// ordinary locals or labels (SPEC; rustc E0435).
-fn in_const_argument(node: tree_sitter::Node<'_>) -> bool {
+/// Array lengths and const generic args cannot capture ordinary locals or
+/// labels (SPEC; rustc E0435). Generic lifetimes are also out of a const
+/// *value* (`{ 'a }` / array length) but still bind in a type arg (`Vec<&'a T>`).
+fn const_context_hides_binder(node: tree_sitter::Node<'_>, binder: &BinderInfo) -> bool {
+    match binder.class {
+        BinderClass::Local | BinderClass::Label => in_const_value_position(node),
+        BinderClass::Generic if binder.namespace == Namespace::Lifetime => {
+            in_const_lifetime_position(node)
+        }
+        _ => false,
+    }
+}
+
+/// `g::<n>()` parses `n` as a type_identifier. When that is not a type, it is
+/// a const generic argument: a const-generic binder or a Value entity, never
+/// an ordinary local (SPEC / rustc E0435).
+fn const_generic_arg_ref(
+    node: tree_sitter::Node<'_>,
+    name: &str,
+    range: ByteRange,
+    binders: &[BinderInfo],
+    env: &Env,
+    src: &[u8],
+    lang: &dyn Lang,
+    root_id: usize,
+) -> Option<IdentRef> {
+    if node.kind() != "type_identifier" || !in_type_arguments(node) {
+        return None;
+    }
+    let local = binders
+        .iter()
+        .filter(|b| {
+            b.name == name
+                && b.namespace == Namespace::Value
+                && b.class == BinderClass::Generic
+                && b.visible_from <= range.start
+                && b.scope.start <= range.start
+                && range.end <= b.scope.end
+                && !blocked_by_barrier(node, b, Namespace::Value, src, lang, root_id)
+        })
+        .max_by_key(|b| (b.scope.start, b.range.start));
+    if let Some(binder) = local {
+        return Some(IdentRef::Local(binder.slot, Namespace::Value));
+    }
+    env.lookup(name, Namespace::Value).map(IdentRef::Entity)
+}
+
+fn in_array_length(node: tree_sitter::Node<'_>) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
         if matches!(parent.kind(), "array_type" | "array_expression") {
@@ -1062,9 +1118,33 @@ fn in_const_argument(node: tree_sitter::Node<'_>) -> bool {
                 return true;
             }
         }
-        if parent.kind() == "type_arguments"
-            && matches!(current.kind(), "block" | "const_block")
-        {
+        current = parent;
+    }
+    false
+}
+
+fn in_type_arguments(node: tree_sitter::Node<'_>) -> bool {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "type_arguments" {
+            return true;
+        }
+        current = parent;
+    }
+    false
+}
+
+fn in_const_value_position(node: tree_sitter::Node<'_>) -> bool {
+    in_array_length(node) || in_type_arguments(node)
+}
+
+fn in_const_lifetime_position(node: tree_sitter::Node<'_>) -> bool {
+    if in_array_length(node) {
+        return true;
+    }
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "type_arguments" && matches!(current.kind(), "block" | "const_block") {
             return true;
         }
         current = parent;

@@ -629,3 +629,60 @@ fn rust_const_generic_arg_does_not_see_outer_local() {
         "array length is a const arg, not the local: {refs:?}"
     );
 }
+
+#[test]
+fn rust_const_arg_does_not_see_fn_lifetime() {
+    let src = "fn f<'a>() { let _ = [0u8; { let _: &'a u8; 1 }]; }\n";
+    let refs = rust_item_refs(src);
+    let lifetimes: Vec<_> = refs
+        .iter()
+        .filter(|(n, _)| n == "'a")
+        .map(|(_, ident)| ident)
+        .collect();
+    assert!(
+        !lifetimes.is_empty(),
+        "expected a use of 'a: {refs:?}"
+    );
+    assert!(
+        lifetimes
+            .iter()
+            .all(|ident| matches!(ident, IdentRef::Free(_))),
+        "const array length must not see the fn lifetime: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_fn_lifetime_still_binds_in_types() {
+    let src = "fn f<'a>(x: &'a u8) -> &'a u8 { let _: Vec<&'a u8>; x }\n";
+    let refs = rust_item_refs(src);
+    let lifetimes: Vec<_> = refs.iter().filter(|(n, _)| n == "'a").cloned().collect();
+    assert!(
+        lifetimes
+            .iter()
+            .all(|(_, ident)| matches!(ident, IdentRef::Local(_, Namespace::Lifetime))),
+        "ordinary type uses of 'a stay the fn lifetime: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_gen_block_does_not_see_outer_label() {
+    let src = "fn f() { 'a: loop { let _ = gen { break 'a; }; } }\n";
+    let refs = rust_item_refs(src);
+    assert!(
+        !refs.iter().any(|(n, ident)| n == "'a"
+            && matches!(ident, IdentRef::Local(_, Namespace::Label))),
+        "gen block must not see the outer label: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_unbraced_const_generic_arg_does_not_see_outer_local() {
+    let src = "fn f() { fn g<const N: usize>() {} let n = 1usize; g::<n>(); }\n";
+    let refs = rust_item_refs(src);
+    let ns: Vec<_> = refs.iter().filter(|(n, _)| n == "n").cloned().collect();
+    assert_eq!(ns.len(), 1, "{refs:?}");
+    assert!(
+        matches!(ns[0].1, IdentRef::Free(_)),
+        "unbraced const generic arg must not see the local: {refs:?}"
+    );
+}

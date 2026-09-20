@@ -372,7 +372,7 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
                 },
             ],
         }],
-        "async_block" => vec![Role::Scope {
+        "async_block" | "gen_block" => vec![Role::Scope {
             opens: &[Namespace::Value],
             barriers: &[Barrier {
                 ns: Namespace::Label,
