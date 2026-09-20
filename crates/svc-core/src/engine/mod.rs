@@ -184,8 +184,13 @@ fn fill_file_module_includes_from_snapshot(
     snapshot: &Snapshot,
     store: &dyn Store,
 ) {
-    let fom = env.file_of_mod.clone();
-    for (path, mod_id) in fom {
+    let mut pending: Vec<(RelPath, EntityId)> =
+        env.file_of_mod.iter().map(|(p, m)| (p.clone(), *m)).collect();
+    let mut seen = HashSet::new();
+    while let Some((path, mod_id)) = pending.pop() {
+        if !seen.insert(path.clone()) {
+            continue;
+        }
         if path.extension() != Some("rs") {
             continue;
         }
@@ -203,7 +208,8 @@ fn fill_file_module_includes_from_snapshot(
             if !snapshot.files.contains_key(&cand) {
                 continue;
             }
-            attach_included_file(env, snapshot, mod_id, &path, cand);
+            attach_included_file(env, snapshot, mod_id, &path, cand.clone());
+            pending.push((cand, mod_id));
         }
     }
 }
@@ -706,13 +712,24 @@ fn link_file_root_includes(
         .iter()
         .map(|(p, _, _, raw, ids)| (*p, (*raw, *ids)))
         .collect();
-    let fom = env.file_of_mod.clone();
-    for (path, src, tree, _, _) in files {
-        let Some(&mod_id) = fom.get(*path) else {
+    let src_of: HashMap<&RelPath, (&[u8], &tree_sitter::Tree)> = files
+        .iter()
+        .map(|(p, src, tree, _, _)| (*p, (*src, *tree)))
+        .collect();
+    let mut pending: Vec<RelPath> = env.file_of_mod.keys().cloned().collect();
+    let mut seen = HashSet::new();
+    while let Some(path) = pending.pop() {
+        if !seen.insert(path.clone()) {
+            continue;
+        }
+        let Some(&mod_id) = env.file_of_mod.get(&path) else {
+            continue;
+        };
+        let Some((src, tree)) = src_of.get(&path) else {
             continue;
         };
         for inc in extract::file_include_paths(tree.root_node(), src) {
-            let Some(cand) = resolve_path_attr(path, &inc) else {
+            let Some(cand) = resolve_path_attr(&path, &inc) else {
                 continue;
             };
             let Some((raw, ids)) = by_path.get(&cand) else {
@@ -726,7 +743,7 @@ fn link_file_root_includes(
                 continue;
             }
             env.file_of_mod.insert(cand.clone(), mod_id);
-            env.mod_decl_file.entry(mod_id).or_insert_with(|| (*path).clone());
+            env.mod_decl_file.entry(mod_id).or_insert_with(|| path.clone());
             for (i, ent) in raw.iter().enumerate() {
                 if ent.parent_idx.is_some()
                     || is_inherent_raw(raw, i)
@@ -736,6 +753,7 @@ fn link_file_root_includes(
                 }
                 env.insert_mod_child(mod_id, &ent.name, ent.kind, ids[i]);
             }
+            pending.push(cand);
         }
     }
 }
