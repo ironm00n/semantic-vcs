@@ -270,3 +270,38 @@ fn object_literal_execute_methods_are_not_class_members_and_do_not_add_add() {
         "unrelated rust edits must not AddAdd object-literal execute: {add_add:?}"
     );
 }
+
+#[test]
+fn merge_does_not_flag_same_named_calls_in_other_files() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let a_path = RelPath::new("crates/svc-core/src/a.rs").unwrap();
+    let b_path = RelPath::new("crates/svc-core/src/b.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(a_path.clone(), b"fn run() {}\nfn a() { run(); }\n".to_vec());
+    files.insert(b_path.clone(), b"fn run() {}\nfn b() { run(); }\n".to_vec());
+    let base = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let mut a_files = files.clone();
+    a_files.insert(a_path, b"fn run() {}\nfn a() { run(); /* a */ }\n".to_vec());
+    let mut b_files = files.clone();
+    b_files.insert(b_path, b"fn run() {}\nfn b() { run(); /* b */ }\n".to_vec());
+    let a = snapshot_files(&store, &langs, &a_files, Some(&base), ChangeId::new()).unwrap();
+    let b = snapshot_files(&store, &langs, &b_files, Some(&base), ChangeId::new()).unwrap();
+    let merged = merge(
+        &store,
+        &langs,
+        store.put_snapshot(&base).unwrap(),
+        store.put_snapshot(&a).unwrap(),
+        store.put_snapshot(&b).unwrap(),
+    )
+    .unwrap();
+    let binds: Vec<_> = merged
+        .conflicts
+        .iter()
+        .filter(|c| matches!(c, Conflict::Binding { .. }))
+        .collect();
+    assert!(
+        binds.is_empty(),
+        "file-local calls must not rebind at merge: {binds:?}"
+    );
+}

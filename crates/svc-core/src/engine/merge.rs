@@ -102,6 +102,7 @@ pub fn merge(
                 let rb = rewrite_record(rb, &rewrite);
                 let parent_kind = ra.parent.and_then(|p| a_s.entities.get(&p).map(|r| r.kind));
                 let mut env = env_from_snapshot(&a_s);
+                env.current_file = Some(ra.file.clone());
                 fill_self_methods_from_snapshot(&mut env, &a_s, ra.parent);
                 let rec = merge_record(
                     store,
@@ -467,6 +468,7 @@ fn binding_post(
             .child_by_field_name("name")
             .map(super::extract::byte_range);
         let mut env = base_env.clone();
+        env.current_file = Some(rec.file.clone());
         fill_self_methods_from_snapshot(&mut env, snap, rec.parent);
         let res = super::resolve(node, &item, lang, &env)?;
         for (i, (r, ident)) in res.refs.iter().enumerate() {
