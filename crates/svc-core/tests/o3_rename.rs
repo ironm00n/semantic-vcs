@@ -1864,3 +1864,61 @@ fn rename_follows_use_super_inside_an_inline_mod() {
         "body inside inline mod must follow the use: {text}"
     );
 }
+
+#[test]
+fn rename_follows_use_crate_glob_from_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"fn parse() {}\nmod foo;\n".to_vec());
+    files.insert(foo.clone(), b"use crate::*;\nfn f() { parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let lib_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == lib)
+        .map(|(id, _)| *id)
+        .expect("lib parse");
+    let next = rename(&store, &snap, lib_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&foo].clone()).unwrap();
+    assert!(
+        text.contains("parse_file();"),
+        "use crate::* from a file module must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_use_crate_engine_glob_from_a_child_file() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("crates/pkg/src/lib.rs").unwrap();
+    let engine = RelPath::new("crates/pkg/src/engine/mod.rs").unwrap();
+    let merge = RelPath::new("crates/pkg/src/engine/merge.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod engine;\n".to_vec());
+    files.insert(
+        engine.clone(),
+        b"fn snapshot_files() {}\nmod merge;\n".to_vec(),
+    );
+    files.insert(
+        merge.clone(),
+        b"use crate::engine::*;\nfn f() { snapshot_files(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "snapshot_files" && r.file == engine)
+        .map(|(id, _)| *id)
+        .expect("snapshot_files");
+    let next = rename(&store, &snap, id, "snapshot_tree").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&merge].clone()).unwrap();
+    assert!(
+        text.contains("snapshot_tree();"),
+        "use crate::engine::* from merge.rs must follow: {text}"
+    );
+}
