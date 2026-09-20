@@ -1,3 +1,4 @@
+use crate::entity::Kind;
 use crate::error::Result;
 use crate::ids::ByteRange;
 use crate::lang::{EntityKindRule, Lang, RawEntity};
@@ -49,6 +50,55 @@ pub fn find_node<'a>(
     (byte_range(node) == range).then_some(node)
 }
 
+/// `export default function () {}` / `() => {}` / `class { }` parse as
+/// expressions, not declarations, so they are missing from `entity_kinds`.
+/// Without this they vanish (or a class method is promoted to a file root).
+fn default_export_expression_kind(node: tree_sitter::Node<'_>) -> Option<Kind> {
+    if !node.parent().is_some_and(|p| p.kind() == "export_statement") {
+        return None;
+    }
+    match node.kind() {
+        "function_expression" | "generator_function" | "arrow_function" => Some(Kind::JsFunction),
+        "class" => Some(Kind::JsClass),
+        _ => None,
+    }
+}
+
+fn node_text(src: &[u8], node: tree_sitter::Node<'_>) -> String {
+    String::from_utf8_lossy(&src[node.start_byte()..node.end_byte()]).into_owned()
+}
+
+fn emit<'a>(
+    node: tree_sitter::Node<'a>,
+    src: &[u8],
+    lang: &dyn Lang,
+    parent_idx: Option<usize>,
+    kind: Kind,
+    name: String,
+    name_range: Option<ByteRange>,
+    raw: &mut Vec<RawEntity>,
+    nodes: &mut Vec<tree_sitter::Node<'a>>,
+) {
+    let idx = raw.len();
+    if let Some(p) = parent_idx {
+        raw[p].children.push(idx);
+    }
+    raw.push(RawEntity {
+        kind,
+        name,
+        name_range,
+        item_range: byte_range(node),
+        bytes_range: byte_range(node),
+        parent_idx,
+        children: Vec::new(),
+    });
+    nodes.push(node);
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect(child, src, lang, Some(idx), raw, nodes);
+    }
+}
+
 fn collect<'a>(
     node: tree_sitter::Node<'a>,
     src: &[u8],
@@ -57,6 +107,25 @@ fn collect<'a>(
     raw: &mut Vec<RawEntity>,
     nodes: &mut Vec<tree_sitter::Node<'a>>,
 ) {
+    if let Some(kind) = default_export_expression_kind(node) {
+        let name_node = node.child_by_field_name("name");
+        let name = name_node
+            .map(|n| node_text(src, n))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "default".into());
+        emit(
+            node,
+            src,
+            lang,
+            parent_idx,
+            kind,
+            name,
+            name_node.map(byte_range),
+            raw,
+            nodes,
+        );
+        return;
+    }
     if let Some(rule) = rule_for(lang, node.kind()) {
         // Module-scope `let`/`const`/`var` are entities; nested ones are locals
         // of the enclosing item. Extracting them as children made the
@@ -82,10 +151,6 @@ fn collect<'a>(
             }
             return;
         }
-        let idx = raw.len();
-        if let Some(p) = parent_idx {
-            raw[p].children.push(idx);
-        }
         let mut name = lang.entity_name(node, src).unwrap_or_default();
         if name.is_empty() {
             name = format!("«{}:{}»", node.kind(), node.start_byte());
@@ -94,20 +159,17 @@ fn collect<'a>(
             .name_field
             .and_then(|f| node.child_by_field_name(f))
             .map(byte_range);
-        raw.push(RawEntity {
-            kind: lang.refine_kind(node, src).unwrap_or(rule.kind),
+        emit(
+            node,
+            src,
+            lang,
+            parent_idx,
+            lang.refine_kind(node, src).unwrap_or(rule.kind),
             name,
             name_range,
-            item_range: byte_range(node),
-            bytes_range: byte_range(node),
-            parent_idx,
-            children: Vec::new(),
-        });
-        nodes.push(node);
-        let mut cursor = node.walk();
-        for child in node.named_children(&mut cursor) {
-            collect(child, src, lang, Some(idx), raw, nodes);
-        }
+            raw,
+            nodes,
+        );
         return;
     }
     let mut cursor = node.walk();
@@ -177,6 +239,9 @@ fn fill(
 /// nested `variable_declarator` stays a local; object-literal methods are not
 /// class members).
 pub fn is_extracted_item(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
+    if default_export_expression_kind(node).is_some() {
+        return true;
+    }
     let Some(rule) = rule_for(lang, node.kind()) else {
         return false;
     };
