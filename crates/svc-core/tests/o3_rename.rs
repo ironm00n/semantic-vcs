@@ -4197,3 +4197,67 @@ fn rename_follows_soup_associated_type() {
         "soup impl associated type must bind Self::Item: {text}"
     );
 }
+
+#[test]
+fn rename_follows_soup_ufcs() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"trait Tr { fn parse(); }\nstruct S;\nmacro_rules! m { ($($t:tt)*) => {}; }\nm! {\n    impl Tr for S {\n        fn parse() {}\n        fn load() { <S as Tr>::parse(); }\n    }\n}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse"
+                && r.kind == svc_core::Kind::Fn
+                && r.parent
+                    .and_then(|p| snap.entities.get(&p))
+                    .is_some_and(|p| p.kind == svc_core::Kind::Impl)
+        })
+        .map(|(id, _)| *id)
+        .expect("impl parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("<S as Tr>::parse_file()"),
+        "soup UFCS must bind <S as Tr>::parse: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_soup_ufcs_associated_type() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"trait Tr { type Item; }\nstruct S;\nmacro_rules! m { ($($t:tt)*) => {}; }\nm! {\n    impl Tr for S {\n        type Item = u8;\n        fn f() -> <S as Tr>::Item { 1 }\n    }\n}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let item = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "Item"
+                && r.kind == svc_core::Kind::TypeAlias
+                && r.parent
+                    .and_then(|p| snap.entities.get(&p))
+                    .is_some_and(|p| p.kind == svc_core::Kind::Impl)
+        })
+        .map(|(id, _)| *id)
+        .expect("impl Item");
+    let next = rename(&store, &snap, item, "Elem").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("<S as Tr>::Elem"),
+        "soup UFCS associated type must bind: {text}"
+    );
+}

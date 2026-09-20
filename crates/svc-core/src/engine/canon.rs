@@ -1950,6 +1950,9 @@ fn soup_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
     let Some(qual) = qual else {
         return false;
     };
+    if qual.kind() == ">" {
+        return soup_ufcs_is_enclosing(qual, node, src);
+    }
     if !matches!(qual.kind(), "identifier" | "type_identifier" | "self") {
         return false;
     }
@@ -1965,6 +1968,61 @@ fn soup_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
         || Some(qt) == enclosing_impl_trait_name(node, src)
         || Some(qt) == soup_enclosing_impl_type_name(node, src)
         || Some(qt) == soup_enclosing_impl_trait_name(node, src)
+}
+
+/// Soup `<S as Tr>::parse` — tokens, not `qualified_type`.
+fn soup_ufcs_is_enclosing(
+    gt: tree_sitter::Node<'_>,
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+) -> bool {
+    let Some((ty, tr)) = soup_ufcs_parts(gt, src) else {
+        return false;
+    };
+    let enc_ty = enclosing_impl_type_name(node, src).or_else(|| soup_enclosing_impl_type_name(node, src));
+    let enc_tr = enclosing_impl_trait_name(node, src).or_else(|| soup_enclosing_impl_trait_name(node, src));
+    Some(ty) == enc_ty && Some(tr) == enc_tr
+}
+
+fn soup_ufcs_parts<'a>(
+    gt: tree_sitter::Node<'a>,
+    src: &'a [u8],
+) -> Option<(&'a [u8], &'a [u8])> {
+    let mut nodes = Vec::new();
+    let mut n = prev_token(gt);
+    let mut saw_lt = false;
+    while let Some(p) = n {
+        if p.kind() == "<" {
+            saw_lt = true;
+            break;
+        }
+        nodes.push(p);
+        n = prev_token(p);
+    }
+    if !saw_lt {
+        return None;
+    }
+    nodes.reverse();
+    let mut depth = 0i32;
+    let mut idents: Vec<&'a [u8]> = Vec::new();
+    let mut saw_as = false;
+    for p in nodes {
+        match p.kind() {
+            "<" | "type_arguments" | "type_parameters" => depth += 1,
+            ">" => depth = depth.saturating_sub(1),
+            "as" if depth == 0 => saw_as = true,
+            "identifier" | "type_identifier" if depth == 0 => {
+                if let Some(t) = node_bytes(p, src) {
+                    idents.push(t);
+                }
+            }
+            _ => {}
+        }
+    }
+    if !saw_as || idents.len() < 2 {
+        return None;
+    }
+    Some((idents[0], idents[idents.len() - 1]))
 }
 
 /// Soup `self.parse()` — `.` plus identifier, not `field_expression`.
