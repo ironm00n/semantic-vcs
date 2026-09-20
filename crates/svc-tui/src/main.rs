@@ -15,8 +15,12 @@ fn main() {
     let mut overlay: Option<PathBuf> = None;
     let mut wire_log = false;
     let mut agent_cmd: Option<String> = None;
+    let mut svg: Option<PathBuf> = None;
+    let mut svg_keys = String::new();
     while let Some(a) = args.next() {
         match a.as_str() {
+            "--svg" => svg = args.next().map(PathBuf::from),
+            "--keys" => svg_keys = args.next().unwrap_or_default(),
             "--svc" => svc_bin = args.next().map(PathBuf::from),
             "--root" => root = args.next().map(PathBuf::from),
             "--agent" => task = args.next(),
@@ -43,6 +47,22 @@ fn main() {
         eprintln!("svc-tui: no svc binary beside this one; pass --svc <path> or set SVC_BIN");
         std::process::exit(2);
     };
+    if let Some(out) = svg {
+        // One frame as an SVG, no terminal: `svc-tui --root <checkout> --svg shot.svg --keys o`.
+        match svc_tui::screenshot_svg(svc_bin, root, 120, 36, &svg_keys) {
+            Ok(text) => match std::fs::write(&out, text) {
+                Ok(()) => return,
+                Err(e) => {
+                    eprintln!("svc-tui: cannot write {}: {e}", out.display());
+                    std::process::exit(1);
+                }
+            },
+            Err(e) => {
+                eprintln!("svc-tui: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
     let agent = task.map(|task| {
         let cfg = match &agent_cmd {
             // Any ACP-speaking command, e.g. the tests' fake agent.

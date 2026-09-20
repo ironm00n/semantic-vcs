@@ -31,9 +31,14 @@ demo/dogfood.sh --tui` does that instead of unpacking. `--shell` instead of
 
 ## What you will see
 
+![svc tui on this repository's history: the op log with edit-defs, add-defs and the agents' notes, each with who made it](artifacts/svc-tui-oplog.svg)
+
+`svc tui`, op-log view (`o`), on the replayed store; the image is one frame of
+the real UI written by `svc-tui --root <checkout> --svg <file> --keys o`.
+
 ```text
 $ svc op log
-#212 absorbed hand edits  [cursor]
+#213 absorbed hand edits
 #199 edit-def open_with⟨8f4511f6⟩ (declared feature, observed binding-preserving) ✓  [claude]
 #194 note to checkout supervisor: "landed qkyvkunv 6fddc064 (Touch::Rebound + mail-sync fixes …"  [claude]
 #175 undo  [claude]

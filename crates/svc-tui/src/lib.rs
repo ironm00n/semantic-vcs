@@ -162,3 +162,90 @@ async fn run_app(
     }
     Ok(())
 }
+
+/// One frame of the review UI on the checkout at `root`, as an SVG of `cols`×`rows`
+/// cells with the colours the terminal would show — a screenshot that renders on GitHub
+/// and stays text. `keys` is pressed first (`"o"` for the op log, `"e"` for entities).
+pub fn screenshot_svg(svc_bin: PathBuf, root: PathBuf, cols: u16, rows: u16, keys: &str) -> Result<String, String> {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    use ratatui::style::{Color, Modifier};
+    let svc = Svc::new(svc_bin, root);
+    if !svc.root_exists() {
+        return Err(format!("no .svc in {}", svc.root.display()));
+    }
+    let mut app = App::new(svc);
+    app.refresh();
+    app.load_events();
+    for c in keys.chars() {
+        app.handle_key(&Event::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE)));
+        app.load_events();
+    }
+    let mut terminal = Terminal::new(TestBackend::new(cols, rows)).map_err(|e| e.to_string())?;
+    terminal.draw(|frame| app.render(frame)).map_err(|e| e.to_string())?;
+    let buffer = terminal.backend().buffer();
+    let hex = |c: Color, fallback: &str| -> String {
+        match c {
+            Color::Rgb(r, g, b) => format!("#{r:02x}{g:02x}{b:02x}"),
+            Color::Black => "#1d1f21".into(),
+            Color::Red | Color::LightRed => "#ff7b88".into(),
+            Color::Green | Color::LightGreen => "#79d991".into(),
+            Color::Yellow | Color::LightYellow => "#ffbd69".into(),
+            Color::Blue | Color::LightBlue => "#7cb7ff".into(),
+            Color::Magenta | Color::LightMagenta => "#d7a3ff".into(),
+            Color::Cyan | Color::LightCyan => "#72e0b4".into(),
+            Color::Gray | Color::DarkGray => "#94a0b8".into(),
+            Color::White => "#edf2ff".into(),
+            _ => fallback.into(),
+        }
+    };
+    let (cw, ch) = (8.4, 17.0);
+    let mut out = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" font-family=\"ui-monospace, SFMono-Regular, Menlo, Consolas, monospace\" font-size=\"14\">\n<rect width=\"100%\" height=\"100%\" fill=\"#0b0f17\"/>\n",
+        w = cols as f64 * cw + 16.0,
+        h = rows as f64 * ch + 16.0
+    );
+    for y in 0..rows {
+        // Background runs first, then the text of the row as one <text> with tspans.
+        for x in 0..cols {
+            let cell = &buffer[(x, y)];
+            if !matches!(cell.bg, Color::Reset) {
+                out.push_str(&format!(
+                    "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{cw:.1}\" height=\"{ch:.1}\" fill=\"{}\"/>\n",
+                    8.0 + x as f64 * cw,
+                    8.0 + y as f64 * ch,
+                    hex(cell.bg, "#223")
+                ));
+            }
+        }
+        out.push_str(&format!("<text x=\"8\" y=\"{:.1}\" xml:space=\"preserve\">", 8.0 + y as f64 * ch + 13.0));
+        let mut run = String::new();
+        let mut run_style: Option<(String, bool)> = None;
+        let flush = |out: &mut String, run: &mut String, style: &Option<(String, bool)>| {
+            if run.is_empty() {
+                return;
+            }
+            let (fill, bold) = style.clone().unwrap_or(("#d8e3f8".into(), false));
+            let text = run.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+            out.push_str(&format!(
+                "<tspan fill=\"{fill}\"{}>{text}</tspan>",
+                if bold { " font-weight=\"bold\"" } else { "" }
+            ));
+            run.clear();
+        };
+        for x in 0..cols {
+            let cell = &buffer[(x, y)];
+            let style = (hex(cell.fg, "#d8e3f8"), cell.modifier.contains(Modifier::BOLD));
+            if run_style.as_ref() != Some(&style) {
+                flush(&mut out, &mut run, &run_style);
+                run_style = Some(style);
+            }
+            run.push_str(cell.symbol());
+        }
+        flush(&mut out, &mut run, &run_style);
+        out.push_str("</text>\n");
+    }
+    out.push_str("</svg>\n");
+    Ok(out)
+}
