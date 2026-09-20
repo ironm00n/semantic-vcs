@@ -59,13 +59,12 @@ pub fn js_extract_refined_kinds(src: &str) -> Result<Vec<(String, crate::entity:
 
 pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     let mut env = Env::default();
-    let defs: Vec<_> = snapshot
-        .entities
-        .iter()
-        .filter(|(_, rec)| !is_inherent_rec(snapshot, rec))
-        .map(|(id, rec)| (rec.name.as_str(), rec.kind, *id))
-        .collect();
-    env.insert_defs(&defs);
+    for (id, rec) in &snapshot.entities {
+        if is_inherent_rec(snapshot, rec) {
+            continue;
+        }
+        env.insert_def_in(&rec.name, rec.kind, *id, Some(&rec.file));
+    }
     env
 }
 
@@ -229,15 +228,14 @@ pub fn snapshot_files(
         }
     }
     let mut env = prev.map(env_from_snapshot).unwrap_or_default();
-    let defs: Vec<_> = parsed
-        .iter()
-        .flat_map(|p| {
-            p.raw.iter().enumerate().filter_map(|(i, ent)| {
-                (!is_inherent_raw(&p.raw, i)).then_some((ent.name.as_str(), ent.kind, p.ids[i]))
-            })
-        })
-        .collect();
-    env.insert_defs(&defs);
+    for p in &parsed {
+        for (i, ent) in p.raw.iter().enumerate() {
+            if is_inherent_raw(&p.raw, i) {
+                continue;
+            }
+            env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));
+        }
+    }
     let mut entities = BTreeMap::new();
     let mut file_recs = BTreeMap::new();
     for p in &parsed {
@@ -302,14 +300,12 @@ pub fn ingest_file_prev(
     let raw = extract(&tree, src, lang)?;
     let ids = assign_ids(&raw, &path, &mut prev_ids(prev));
     let mut env = extra.clone();
-    let defs: Vec<_> = raw
-        .iter()
-        .enumerate()
-        .filter_map(|(i, ent)| {
-            (!is_inherent_raw(&raw, i)).then_some((ent.name.as_str(), ent.kind, ids[i]))
-        })
-        .collect();
-    env.insert_defs(&defs);
+    for (i, ent) in raw.iter().enumerate() {
+        if is_inherent_raw(&raw, i) {
+            continue;
+        }
+        env.insert_def_in(&ent.name, ent.kind, ids[i], Some(&path));
+    }
     let (entities, file) = materialize(src, path.clone(), lang, store, &tree, &raw, &ids, &env)?;
     let mut files = BTreeMap::new();
     files.insert(path, file);
@@ -335,18 +331,32 @@ fn materialize(
     env: &Env,
 ) -> Result<(BTreeMap<EntityId, EntityRecord>, FileRecord)> {
     let mut entities = BTreeMap::new();
+    // Clone once per file: `Env.names` is Arc, so this is not O(n) in the snapshot.
+    // Filling `self_methods` only when the caller left it empty — `edit_def` fills it
+    // from the snapshot, and the fragment being parsed has no siblings (opus 03:05).
+    let mut local_env = env.clone();
+    local_env.current_file = Some(path.clone());
+    let caller_supplied = !env.self_methods.is_empty();
+    let mut sibs: std::collections::HashMap<usize, std::collections::HashMap<String, EntityId>> =
+        std::collections::HashMap::new();
+    if !caller_supplied {
+        for (j, sib) in raw.iter().enumerate() {
+            if let Some(p) = sib.parent_idx {
+                if is_callable_member(sib.kind) {
+                    sibs.entry(p).or_default().insert(sib.name.clone(), ids[j]);
+                }
+            }
+        }
+    }
     for (i, ent) in raw.iter().enumerate() {
         let node = extract::find_node(tree.root_node(), ent.item_range)
             .ok_or_else(|| Error::Parse(format!("no node for {}", ent.name)))?;
-        let mut local_env = env.clone();
-        if local_env.self_methods.is_empty() {
-            if let Some(p) = ent.parent_idx {
-                for (j, sib) in raw.iter().enumerate() {
-                    if sib.parent_idx == Some(p) && is_callable_member(sib.kind) {
-                        local_env.self_methods.insert(sib.name.clone(), ids[j]);
-                    }
-                }
-            }
+        if !caller_supplied {
+            local_env.self_methods = ent
+                .parent_idx
+                .and_then(|p| sibs.get(&p))
+                .cloned()
+                .unwrap_or_default();
         }
         let res = resolve(node, src, lang, &local_env)?;
         let children: Vec<(ByteRange, EntityId)> = ent
@@ -362,7 +372,7 @@ fn materialize(
             .iter()
             .map(|&c| (raw[c].item_range, ids[c]))
             .collect();
-        let content = canonicalize(node, src, &res, &child_spans, env, lang)?;
+        let content = canonicalize(node, src, &res, &child_spans, &local_env, lang)?;
         let content_id = store.put_content(&content)?;
         let ordinal = raw
             .iter()

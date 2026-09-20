@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::content::Namespace;
 use crate::entity::Kind;
@@ -6,38 +7,101 @@ use crate::ids::{ByteRange, EntityId, RelPath};
 
 #[derive(Clone, Debug, Default)]
 pub struct Env {
-    pub names: HashMap<(String, Namespace), EntityId>,
+    pub names: Arc<HashMap<(String, Namespace), EntityId>>,
+    /// File-root and nested defs keyed by the file they live in. A same-file
+    /// `fn hex32` beats a same-named item in another crate when resolving.
+    pub by_file: Arc<HashMap<RelPath, HashMap<(String, Namespace), EntityId>>>,
+    /// Same-named items in `crates/<pkg>/**` share this map. File wins, then crate, then repo.
+    pub by_crate: Arc<HashMap<String, HashMap<(String, Namespace), EntityId>>>,
     /// Inherent methods of the impl/class this item is being resolved in.
     /// `self.foo()` / `Self::foo()` / `this.foo()` look here, not in `names`
     /// (a free `fn foo` is a different target).
     pub self_methods: HashMap<String, EntityId>,
+    /// When set, [`Self::lookup`] prefers [`Self::by_file`] for this path.
+    pub current_file: Option<RelPath>,
 }
 
 impl Env {
     pub fn lookup(&self, name: &str, ns: Namespace) -> Option<EntityId> {
-        self.names
-            .get(&(name.to_string(), ns))
+        if let Some(file) = &self.current_file {
+            if let Some(id) = Self::lookup_in_map(self.by_file.get(file), name, ns) {
+                return Some(id);
+            }
+            if let Some(krate) = crate_key(file) {
+                if let Some(id) = Self::lookup_in_map(self.by_crate.get(krate), name, ns) {
+                    return Some(id);
+                }
+            }
+        }
+        self.lookup_global(name, ns)
+    }
+
+    pub fn lookup_global(&self, name: &str, ns: Namespace) -> Option<EntityId> {
+        Self::lookup_in_map(Some(self.names.as_ref()), name, ns)
+    }
+
+    fn lookup_in_map(
+        map: Option<&HashMap<(String, Namespace), EntityId>>,
+        name: &str,
+        ns: Namespace,
+    ) -> Option<EntityId> {
+        let map = map?;
+        map.get(&(name.to_string(), ns))
             .copied()
-            .or_else(|| self.names.get(&(name.to_string(), Namespace::Any)).copied())
+            .or_else(|| map.get(&(name.to_string(), Namespace::Any)).copied())
     }
 
     pub fn insert(&mut self, name: impl Into<String>, ns: Namespace, id: EntityId) {
-        self.names.insert((name.into(), ns), id);
+        Arc::make_mut(&mut self.names).insert((name.into(), ns), id);
     }
 
     pub fn insert_def(&mut self, name: impl Into<String>, kind: Kind, id: EntityId) {
+        self.insert_def_in(name, kind, id, None);
+    }
+
+    pub fn insert_def_in(
+        &mut self,
+        name: impl Into<String>,
+        kind: Kind,
+        id: EntityId,
+        file: Option<&RelPath>,
+    ) {
         let name = name.into();
         for ns in namespaces_for(kind) {
             if *ns == Namespace::Value
                 && !is_value_primary(kind)
-                && self.lookup(&name, Namespace::Value).is_some()
+                && self.lookup_global(&name, Namespace::Value).is_some()
             {
                 continue;
             }
             self.insert(&name, *ns, id);
+            if let Some(file) = file {
+                Arc::make_mut(&mut self.by_file)
+                    .entry(file.clone())
+                    .or_default()
+                    .insert((name.clone(), *ns), id);
+                if let Some(krate) = crate_key(file) {
+                    Arc::make_mut(&mut self.by_crate)
+                        .entry(krate.to_string())
+                        .or_default()
+                        .insert((name.clone(), *ns), id);
+                }
+            }
         }
         if is_value_primary(kind) {
             self.insert(&name, Namespace::Value, id);
+            if let Some(file) = file {
+                Arc::make_mut(&mut self.by_file)
+                    .entry(file.clone())
+                    .or_default()
+                    .insert((name.clone(), Namespace::Value), id);
+                if let Some(krate) = crate_key(file) {
+                    Arc::make_mut(&mut self.by_crate)
+                        .entry(krate.to_string())
+                        .or_default()
+                        .insert((name.clone(), Namespace::Value), id);
+                }
+            }
         }
     }
 
@@ -84,6 +148,14 @@ fn is_value_primary(kind: Kind) -> bool {
             | Kind::JsStaticField
             | Kind::JsDeclarator
     )
+}
+
+/// `crates/svc-core/src/ids.rs` → `svc-core`. Paths outside `crates/` have no crate key.
+fn crate_key(file: &RelPath) -> Option<&str> {
+    file.as_str()
+        .strip_prefix("crates/")
+        .and_then(|rest| rest.split('/').next())
+        .filter(|s| !s.is_empty())
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

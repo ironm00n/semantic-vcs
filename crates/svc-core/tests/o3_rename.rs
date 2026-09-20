@@ -501,3 +501,69 @@ impl S {
     assert!(text.contains("        read();"), "{text}");
     assert!(text.contains("fn read()"), "{text}");
 }
+
+fn named_in_file<'a>(snap: &'a svc_core::Snapshot, name: &str, file: &RelPath) -> EntityId {
+    snap.entities
+        .iter()
+        .find(|(_, rec)| rec.name == name && rec.file == *file)
+        .map(|(id, _)| *id)
+        .unwrap_or_else(|| panic!("{name} in {file}"))
+}
+
+#[test]
+fn rename_same_named_fn_does_not_rewrite_the_other_crate() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let core = RelPath::new("crates/svc-core/src/ids.rs").unwrap();
+    let repo = RelPath::new("crates/svc-repo/src/store.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        core.clone(),
+        b"fn hex32(b: &[u8; 32]) -> String { format!(\"{b:?}\") }\nfn id_text() -> String { hex32(&[0; 32]) }\n".to_vec(),
+    );
+    files.insert(
+        repo.clone(),
+        b"fn hex32(b: &[u8; 32]) -> String { format!(\"{b:x?}\") }\nfn store_text() -> String { hex32(&[1; 32]) }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let repo_id = named_in_file(&snap, "hex32", &repo);
+    let next = rename(&snap, repo_id, "hex_of_id").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let core_txt = String::from_utf8(rendered.files[&core].clone()).unwrap();
+    let repo_txt = String::from_utf8(rendered.files[&repo].clone()).unwrap();
+    assert!(core_txt.contains("fn hex32"), "{core_txt}");
+    assert!(core_txt.contains("hex32(&[0; 32])"), "{core_txt}");
+    assert!(!core_txt.contains("hex_of_id"), "{core_txt}");
+    assert!(repo_txt.contains("fn hex_of_id"), "{repo_txt}");
+    assert!(repo_txt.contains("hex_of_id(&[1; 32])"), "{repo_txt}");
+}
+
+#[test]
+fn rename_does_not_rewrite_a_foreign_use_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("crates/svc-forge/src/lib.rs").unwrap();
+    let http = RelPath::new("crates/svc-forge/tests/http.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"use axum::response::{Html, IntoResponse};\nfn serve() {}\n".to_vec(),
+    );
+    files.insert(
+        http.clone(),
+        b"fn response() {}\nfn call() { response(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = named_in_file(&snap, "response", &http);
+    let next = rename(&snap, id, "http_response").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let lib_txt = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    let http_txt = String::from_utf8(rendered.files[&http].clone()).unwrap();
+    assert!(
+        lib_txt.contains("use axum::response::{Html, IntoResponse};"),
+        "{lib_txt}"
+    );
+    assert!(!lib_txt.contains("http_response"), "{lib_txt}");
+    assert!(http_txt.contains("fn http_response"), "{http_txt}");
+    assert!(http_txt.contains("http_response();"), "{http_txt}");
+}

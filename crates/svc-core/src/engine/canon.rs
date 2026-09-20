@@ -363,6 +363,8 @@ fn collect_refs<'a>(
                 local.filter(|_| !is_rust_nonlocal_ident(node, lang) && !is_struct_field_key(node))
             {
                 refs.push((r, IdentRef::Local(binder.slot, ns)));
+            } else if is_foreign_scoped_ref(node, src, lang, env) {
+                refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(id) = env.lookup(&name, ns) {
                 refs.push((r, IdentRef::Entity(id)));
             } else {
@@ -715,6 +717,55 @@ fn is_rust_nonlocal_ident(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool 
         current = parent;
     }
     false
+}
+
+/// `axum::response` is not our `fn response` in another file. If the leftmost
+/// path segment is not `crate`/`super`/`self` and is not an entity, every
+/// later segment is Free.
+fn is_foreign_scoped_ref(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+    env: &Env,
+) -> bool {
+    if lang.name() != "rust" {
+        return false;
+    }
+    let Some(root) = scoped_path_root(node) else {
+        return false;
+    };
+    if root.id() == node.id() {
+        return false;
+    }
+    let name = std::str::from_utf8(&src[root.start_byte()..root.end_byte()]).unwrap_or("");
+    if matches!(name, "crate" | "super" | "self" | "Self") {
+        return false;
+    }
+    env.lookup_global(name, Namespace::Value).is_none()
+        && env.lookup_global(name, Namespace::Type).is_none()
+}
+
+fn scoped_path_root(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
+    let mut saw_scoped = false;
+    while let Some(parent) = node.parent() {
+        match parent.kind() {
+            "scoped_identifier" | "scoped_type_identifier" => {
+                saw_scoped = true;
+                node = parent;
+            }
+            "use_list" | "use_as_clause" | "use_declaration" | "use_wildcard" => {
+                node = parent;
+            }
+            _ => break,
+        }
+    }
+    if !saw_scoped {
+        return None;
+    }
+    while matches!(node.kind(), "scoped_identifier" | "scoped_type_identifier") {
+        node = node.child_by_field_name("path")?;
+    }
+    Some(node)
 }
 
 fn node_is_wildcard(node: tree_sitter::Node<'_>) -> bool {
