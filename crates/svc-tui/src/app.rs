@@ -171,6 +171,9 @@ impl App {
     pub fn pump(&mut self) {
         if self.store_moved() {
             self.dirty = true;
+            if self.agent.as_ref().is_none_or(|a| !a.running) {
+                self.status = "the store changed under another process; re-read".into();
+            }
         }
         if self.dirty {
             self.refresh();
