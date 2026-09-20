@@ -54,7 +54,9 @@ pub fn catalog(repo: &Repo) -> Result<Value> {
                     let mut v = serde_json::to_value(rec).unwrap_or(Value::Null);
                     if let Value::Object(m) = &mut v {
                         m.insert("id".into(), json!(eid));
-                        m.insert("source".into(), json!(source(store, &s, *eid)));
+                        if let Some(text) = source(store, &s, *eid) {
+                            m.insert("source".into(), Value::String(text));
+                        }
                     }
                     v
                 })
@@ -132,19 +134,22 @@ fn operation(store: &dyn Store, ix: OpIx, e: &OpLogEntry) -> Value {
         let prev = before.as_ref().and_then(|b| b.entities.get(&id));
         let next = after.entities.get(&id);
         let shown = next.or(prev);
-        m.insert(
-            "subject".into(),
-            json!({
-                "id": id,
-                "before_name": prev.map(|r| r.name.clone()),
-                "after_name": next.map(|r| r.name.clone()),
-                "kind": shown.map(|r| r.kind),
-                "file": shown.map(|r| r.file.clone()),
-                "before_source": before.as_ref().and_then(|b| source(store, b, id)),
-                "after_source": source(store, after, id),
-                "touch": touch(prev, next, e.observed),
-            }),
-        );
+        // Absent rather than null: the browser's fields default when a key is missing.
+        let mut subject = serde_json::Map::new();
+        subject.insert("id".into(), json!(id));
+        let mut put = |key: &str, value: Option<Value>| {
+            if let Some(v) = value {
+                subject.insert(key.into(), v);
+            }
+        };
+        put("before_name", prev.map(|r| json!(r.name)));
+        put("after_name", next.map(|r| json!(r.name)));
+        put("kind", shown.map(|r| json!(r.kind)));
+        put("file", shown.map(|r| json!(r.file)));
+        put("before_source", before.as_ref().and_then(|b| source(store, b, id)).map(Value::String));
+        put("after_source", source(store, after, id).map(Value::String));
+        put("touch", touch(prev, next, e.observed).map(|t| json!(t)));
+        m.insert("subject".into(), Value::Object(subject));
     }
     v
 }
