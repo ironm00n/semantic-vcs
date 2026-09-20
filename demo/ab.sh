@@ -65,13 +65,23 @@ if [ "$has_key" -eq 0 ]; then
 fi
 
 stage "$STOCK" no
-echo "== stock arm (no overlay, no .svc)"
+echo "== stock arm (headless dsh, stock tools, no .svc)"
+# The same provider and model as the overlay (its llm-pi-ai and agent-default-model
+# layers, nothing else), so the two arms differ only in the tool set; SVC_MODEL swaps
+# the model as it does for the ours arm. The acp profile speaks JSON-RPC on stdin; the
+# headless profile takes the task as an argument and answers once.
+PATCH="$(mktemp "${TMPDIR:-/tmp}/svc-stock.XXXXXX.yml")"
+awk '/^- id: llm-pi-ai/{p=1} /^- id: acp/{p=0} /^- id: agent-default-model/{p=1} /^- id: session-log-deepseek/{p=0} p' "$HERE/../harness/overlay.yml" \
+  | sed "s#deepseek/deepseek-chat#${SVC_MODEL:-deepseek/deepseek-chat}#" > "$PATCH"
 # shellcheck disable=SC2086
-(cd "$STOCK" && $DSH --profile acp) <<EOF
-$TASK
-EOF
+# Stock has no svc tools, so its task says what to change, not how: the same three edits.
+STOCK_TASK="$(printf '%s' "$TASK" | sed 's/, using svc tools only:/:/; s/ Do not edit files\./ Edit src\/main.rs directly./; s/rename entity read/rename the function read/; s/add_def after load/add after load/; s/edit_def validate to/change validate to/')"
+(cd "$STOCK" && $DSH --profile headless --patch "$PATCH" "$STOCK_TASK")
+rm -f "$PATCH"
 echo "stock tree:"
 find "$STOCK" -type f ! -path '*/target/*' | sort
+echo "stock diff against pristine (git's view of the same task):"
+diff -u "$PRISTINE/src/main.rs" "$STOCK/src/main.rs" | grep -c "^[-+][^-+]" | sed 's/^/  changed lines: /'
 
 stage "$OURS" yes
 echo "== ours arm (svc overlay via svc agent)"

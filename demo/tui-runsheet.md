@@ -52,6 +52,12 @@ footer of the UI lists the same keys.
    `u` undoes the whole run as one changeset.
 
 If the TUI cannot open the store ("checkout busy"), another `svc` holds the
-checkout: wait a second, it retries by itself. If a live model stops after one
+checkout: wait a second, it retries by itself.
+
+Live model: `OPENROUTER_API_KEY=$(cat ~/.openrouter.key) SVC_MODEL=anthropic/claude-sonnet-5
+svc tui --agent "<task>"` — three typed ops in 16–18 s, 3/3 runs at 10:30 UTC
+(`demo/recordings/live-sonnet5.jsonl` is one of them). `deepseek-chat` narrates the
+calls instead of making them; do not demo it live. If a model stops after one
 op, `p` continues it; the scripted agent (`demo/play.sh --agent`) is the
-deterministic fallback.
+deterministic fallback. `demo/ab.sh` with the key: stock dsh edits the file as
+text (14 changed lines), the overlay makes three operations.

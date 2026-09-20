@@ -3,7 +3,8 @@
 # demo/dogfood.sh on the shipped pack, demo/sync.sh, the forge (export, serve, one curl),
 # the scripted demo lines (line 12's agent inside the TUI included), the dsh overlay
 # (npx pre-warm, demo/ab.sh's SKIP without a credential) and, with REHEARSE_LIVE=1 and a
-# key on disk, one live dsh run. Any FAIL, panic or non-zero step is red. Says whether
+# key on disk, one live dsh run (anthropic/claude-sonnet-5 via OpenRouter; deepseek-chat
+# narrates the calls instead of making them). Any FAIL, panic or non-zero step is red. Says whether
 # artifacts/history-store.tar.xz is fresh, lags, or is stale against demo/history.
 #
 #   demo/rehearse.sh [-n 3]                        # runs; the first clone builds cold, later ones warm
@@ -83,12 +84,12 @@ for run in $(seq 1 "$RUNS"); do
     # A model that narrates its tool calls instead of making them leaves the ours log empty:
     # that is a FAIL here, not a pass on exit status.
     live() {
-      OPENROUTER_API_KEY="$(cat "$HOME/.openrouter.key")" SVC_MODEL="${SVC_MODEL:-deepseek/deepseek-chat}" timeout 600 demo/ab.sh "$SVC" | tee "$WORK/live$run.inner" || return 1
+      OPENROUTER_API_KEY="$(cat "$HOME/.openrouter.key")" SVC_MODEL="${SVC_MODEL:-anthropic/claude-sonnet-5}" timeout 600 demo/ab.sh "$SVC" | tee "$WORK/live$run.inner" || return 1
       local ops; ops="$(sed -n '/^ours log:$/,$p' "$WORK/live$run.inner" | sed '1d;/^scratch:/,$d' | jq length 2>/dev/null)"
       echo "ours log: ${ops:-0} op(s)"
-      [ "${ops:-0}" -ge 1 ]
+      [ "${ops:-0}" -ge 3 ]
     }
-    step "ab.sh live (deepseek-chat via OpenRouter)" "$WORK/live$run.log" live
+    step "ab.sh live (${SVC_MODEL:-anthropic/claude-sonnet-5} via OpenRouter)" "$WORK/live$run.log" live
     ls demo/recordings/*.jsonl 2>/dev/null | sed 's/^/       recording: /' | tail -2
   else
     say SKIP "ab.sh live" 0 "REHEARSE_LIVE=1 and ~/.openrouter.key to run it"
