@@ -125,6 +125,42 @@ fn edit_def_of_a_method_and_a_getter() {
 }
 
 #[test]
+fn static_block_id_is_stable_under_edits_above_it() {
+    let src = "export class Config {\n  static {\n    Config.DEFAULT = 1\n  }\n}\n";
+    let store = MemStore::new();
+    let langs = Langs::new(vec![Box::new(JsLang)]);
+    let path = RelPath::new("src/config.js").unwrap();
+    let snap_of = |src: &[u8]| {
+        let mut files = BTreeMap::new();
+        files.insert(path.clone(), src.to_vec());
+        snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap()
+    };
+    let before = snap_of(src.as_bytes());
+    let block_before = before
+        .entities
+        .values()
+        .find(|r| r.kind == Kind::JsStaticBlock)
+        .expect("a static-block entity");
+    assert!(
+        !block_before.name.contains("class_static_block:"),
+        "no offset-fallback name: {}",
+        block_before.name
+    );
+    // Insert a line ABOVE the class; the block's own text is unchanged.
+    let after_src = "// a comment line\n".to_owned() + src;
+    let after = snap_of(after_src.as_bytes());
+    let block_after = after
+        .entities
+        .values()
+        .find(|r| r.kind == Kind::JsStaticBlock)
+        .expect("a static-block entity after the edit");
+    assert_eq!(
+        block_before.name, block_after.name,
+        "static-block name must not encode its offset"
+    );
+}
+
+#[test]
 fn a_bare_method_that_does_not_parse_is_still_refused() {
     let (store, langs, _, snap) = setup();
     let class = lookup_name(&snap, "Config").unwrap();

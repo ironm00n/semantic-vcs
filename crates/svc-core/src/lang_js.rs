@@ -419,7 +419,10 @@ impl Lang for JsLang {
 
     fn entity_name(&self, node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
         match node.kind() {
-            "class_static_block" => None,
+            // Static blocks have no declared name; use the block's own text
+            // (Rust `use` lines got the same fix in txvzzzpm) so the id
+            // survives edits above it instead of encoding a byte offset.
+            "class_static_block" => Some(text(src, node)),
             // Opaque import entity keys on the module specifier so sibling
             // imports usually differ in `(parent, kind, name)`.
             "import_statement" => node
