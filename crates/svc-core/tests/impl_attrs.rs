@@ -208,6 +208,43 @@ fn associated_type_in_a_method_sig_is_the_impl_item() {
 }
 
 #[test]
+fn rename_of_associated_type_rewrites_self_and_type_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"struct S;\nstruct Other;\nimpl S {\n    type Item = u8;\n    fn f() -> Self::Item { 1 }\n    fn g() -> S::Item { 1 }\n}\nimpl Other {\n    type Item = u16;\n    fn h() -> Other::Item { 1 }\n}\nfn free() -> Item { 1 }\n"
+            .to_vec(),
+    );
+    let s = snap(&store, &files, None);
+    let (impl_s, _) = impl_named(&s, "impl<S>");
+    let item = s
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "Item" && r.parent == Some(impl_s))
+        .map(|(id, _)| *id)
+        .expect("associated type");
+    let next = rename(&store, &s, item, "Elem").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("type Elem = u8"), "{text}");
+    assert!(text.contains("Self::Elem"), "{text}");
+    assert!(text.contains("S::Elem"), "{text}");
+    assert!(
+        text.contains("type Item = u16") && text.contains("Other::Item"),
+        "the other impl's Item must stay: {text}"
+    );
+    assert!(
+        text.contains("fn free() -> Item"),
+        "file-level Item must stay: {text}"
+    );
+    assert!(!text.contains("Self::Item"), "{text}");
+    assert!(!text.contains("S::Item"), "{text}");
+}
+
+#[test]
 fn rename_of_associated_const_rewrites_self_and_type_path() {
     let store = MemStore::new();
     let langs = rust_langs();

@@ -836,8 +836,9 @@ fn is_rust_nonlocal_ident(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool 
 }
 
 /// `RedbStore::open` is not a free `fn open`. Type-relative names stay Free
-/// (SPEC §9) unless they are same-impl inherent methods, which return earlier.
-/// `use crate::a::f` still binds: import paths are not type-qualified calls.
+/// (SPEC §9) unless they are same-impl inherent methods (earlier) or the
+/// qualifier is `Self` / the enclosing impl type (`S::Item` is the associated
+/// type, not a free `Item`). `use crate::a::f` still binds.
 fn is_type_qualified_ref(
     node: tree_sitter::Node<'_>,
     src: &[u8],
@@ -870,6 +871,9 @@ fn is_type_qualified_ref(
     };
     let name = std::str::from_utf8(&src[qual.start_byte()..qual.end_byte()]).unwrap_or("");
     if matches!(name, "crate" | "super" | "self" | "Self") {
+        return false;
+    }
+    if Some(name.as_bytes()) == enclosing_impl_type_name(node, src) {
         return false;
     }
     env.lookup_global(name, Namespace::Type).is_some()
