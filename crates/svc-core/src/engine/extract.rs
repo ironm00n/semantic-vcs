@@ -334,6 +334,15 @@ fn collect<'a>(
             return;
         }
     }
+    // tree-sitter-rust 0.24 has no macros-2.0 node; `pub macro parse { … }`
+    // is ERROR. Scan it like token-tree soup when it sits in a module.
+    if lang.name() == "rust" && node.kind() == "ERROR" {
+        let in_mod = parent_idx.is_none_or(|p| raw[p].kind == Kind::Mod);
+        if in_mod {
+            collect_macro_mod_decls(node, src, lang, parent_idx, raw, nodes);
+            return;
+        }
+    }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
         collect(child, src, lang, parent_idx, raw, nodes);
@@ -358,6 +367,7 @@ fn collect_macro_mod_decls<'a>(
     raw: &mut Vec<RawEntity>,
     nodes: &mut Vec<tree_sitter::Node<'a>>,
 ) {
+    let outer_export = has_macro_export(node, src);
     let mut c = node.walk();
     let kids: Vec<_> = node.children(&mut c).collect();
     let mut i = 0;
@@ -498,7 +508,10 @@ fn collect_macro_mod_decls<'a>(
                     raw,
                     nodes,
                 );
-                mark_macro_export(raw, preceding_macro_export(&kids, f, src));
+                mark_macro_export(
+                    raw,
+                    outer_export || preceding_macro_export(&kids, f, src),
+                );
                 i = m + 1;
                 if i < kids.len() && kids[i].kind() == "token_tree" {
                     i += 1;
@@ -522,7 +535,10 @@ fn collect_macro_mod_decls<'a>(
                 raw,
                 nodes,
             );
-            mark_macro_export(raw, preceding_macro_export(&kids, f, src));
+            mark_macro_export(
+                raw,
+                outer_export || preceding_macro_export(&kids, f, src),
+            );
             i = f + 2;
             while i < kids.len() && kids[i].kind() == "token_tree" {
                 i += 1;

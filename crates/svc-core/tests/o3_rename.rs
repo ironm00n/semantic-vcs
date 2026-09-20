@@ -3502,3 +3502,31 @@ fn rename_does_not_export_a_nested_macro_without_macro_export() {
         "must not steal crate-root via a private nested macro: {text}"
     );
 }
+
+#[test]
+fn rename_follows_macro_export_macros_2_from_an_inline_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"mod fs {\n    #[macro_export]\n    pub macro parse { () => {} }\n}\nmod caller;\n".to_vec(),
+    );
+    files.insert(caller.clone(), b"fn f() { parse!(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "#[macro_export] macros 2.0 in an inline mod must occupy the crate root: {text}"
+    );
+}
