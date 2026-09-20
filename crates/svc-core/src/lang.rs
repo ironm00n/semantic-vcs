@@ -105,9 +105,7 @@ pub enum Visibility {
     AfterStmt,
     /// Fields resolve against the binder's own parent, not the scope node.
     Sub(&'static [&'static str]),
-    Chain,
     Hoisted,
-    Inherit,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -170,6 +168,11 @@ pub trait Lang: Send + Sync {
     fn opaque_nodes(&self) -> &'static [&'static str];
     fn commutative_parents(&self) -> &'static [CommutativeRule];
     fn trivia_kinds(&self) -> &'static [&'static str];
+    /// Leaf node kinds whose text is a literal (numbers, strings, chars, booleans);
+    /// canonicalisation keeps their text as `Token::Lit`.
+    fn literal_kinds(&self) -> &'static [&'static str] {
+        &[]
+    }
     /// Override the table kind for nodes that share a grammar kind (JS getters/setters).
     fn refine_kind(&self, _node: tree_sitter::Node<'_>, _src: &[u8]) -> Option<Kind> {
         None

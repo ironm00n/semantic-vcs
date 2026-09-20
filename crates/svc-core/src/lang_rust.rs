@@ -190,6 +190,21 @@ impl Lang for RustLang {
             "inner_attribute_item",
         ]
     }
+
+    fn literal_kinds(&self) -> &'static [&'static str] {
+        &[
+            "integer_literal",
+            "float_literal",
+            "boolean_literal",
+            "true",
+            "false",
+            "char_literal",
+            "string_literal",
+            "raw_string_literal",
+            "string_content",
+            "escape_sequence",
+        ]
+    }
 }
 
 fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {

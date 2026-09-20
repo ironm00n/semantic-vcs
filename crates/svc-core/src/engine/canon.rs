@@ -288,9 +288,7 @@ fn binder_extent(
                 .unwrap_or_else(|| enclosing_scope(node, src, lang, root_id));
             (scope.start, scope)
         }
-        crate::lang::Visibility::Whole
-        | crate::lang::Visibility::Chain
-        | crate::lang::Visibility::Inherit => {
+        crate::lang::Visibility::Whole => {
             let scope = enclosing_scope(node, src, lang, root_id);
             (scope.start, scope)
         }
@@ -628,7 +626,7 @@ fn walk(
         return;
     }
     if node.child_count() == 0 {
-        if let Some(tok) = leaf_token(node, src, item, res, binders) {
+        if let Some(tok) = leaf_token(node, src, item, lang, res, binders) {
             tokens.push(tok);
         }
         return;
@@ -657,6 +655,7 @@ fn leaf_token(
     node: tree_sitter::Node<'_>,
     src: &[u8],
     item: tree_sitter::Node<'_>,
+    lang: &dyn Lang,
     res: &Resolution,
     binders: &HashMap<(u32, u32), (Slot, Namespace)>,
 ) -> Option<Token> {
@@ -687,19 +686,10 @@ fn leaf_token(
         return Some(Token::Ident(IdentRef::Free(text.as_ref().into())));
     }
     let kind = node.kind();
-    if kind.chars().all(|c| c.is_ascii_alphabetic() || c == '_') {
-        Some(Token::Kw(text.as_ref().into()))
-    } else if matches!(
-        kind,
-        "string_literal"
-            | "raw_string_literal"
-            | "char_literal"
-            | "integer_literal"
-            | "float_literal"
-            | "boolean_literal"
-            | "raw_string_literal_text"
-    ) {
+    if lang.literal_kinds().contains(&kind) {
         Some(Token::Lit(text.as_ref().into()))
+    } else if kind.chars().all(|c| c.is_ascii_alphabetic() || c == '_') {
+        Some(Token::Kw(text.as_ref().into()))
     } else {
         Some(Token::Punct(text.as_ref().into()))
     }
