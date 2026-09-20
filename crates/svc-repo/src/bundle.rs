@@ -18,7 +18,7 @@ use svc_core::{
 
 use crate::history::{self, op_entity};
 use crate::merge;
-use crate::repo::Repo;
+use crate::repo::{Provenance, Repo};
 
 /// Where an entity sits: its file, then kind and name from the outermost parent down to
 /// itself. The same tree ingested twice gives every entity a fresh id; the path is what
@@ -50,6 +50,9 @@ pub struct BundleEntry {
     pub files: BTreeMap<RelPath, FileBody>,
     /// blake3 over the rendered tree after this op (sorted path, bytes).
     pub after_tree: String,
+    /// The checkout that made it (`None` = the default one).
+    #[serde(default)]
+    pub workspace: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -154,6 +157,7 @@ pub fn export(repo: &Repo, since: OpIx) -> Result<Bundle> {
             refs,
             files,
             after_tree: tree_hash(&after_files),
+            workspace: repo.redb().op_workspace(*ix)?.filter(|w| !w.is_empty()),
         });
     }
     Ok(Bundle { base_tree, entries })
@@ -359,7 +363,9 @@ pub fn import(repo: &Repo, bundle: &Bundle) -> Result<ImportReport> {
     let mut diverged_at = None;
     let mut applied = 0;
     for b in &bundle.entries {
-        im.apply(b)?;
+        // The op line keeps its recorded time, changeset and checkout.
+        let p = Provenance { at: b.entry.at, group: b.entry.group, workspace: b.workspace.clone() };
+        repo.with_provenance(p, || im.apply(b))?;
         applied += 1;
         im.snaps.insert(b.entry.after.root, repo.store().root()?);
         if diverged_at.is_none() {

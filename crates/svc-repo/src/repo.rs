@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use svc_core::engine::{render, snapshot_files as engine_snapshot_files};
@@ -64,6 +65,18 @@ pub struct Repo {
     pub(crate) store: RedbStore,
     langs: Langs,
     _checkout_lock: File,
+    /// Set while a history is replayed: the op line takes the recorded time, changeset and
+    /// checkout instead of now, the open changeset and this checkout.
+    provenance: Mutex<Option<Provenance>>,
+}
+
+/// Where an op line came from, when it did not come from this process now.
+#[derive(Clone, Debug)]
+pub struct Provenance {
+    pub at: Timestamp,
+    pub group: Option<ChangeSetId>,
+    /// The checkout that made it (`None` = the default one).
+    pub workspace: Option<String>,
 }
 
 /// What `mutate` did, for the verb to print.
@@ -134,6 +147,7 @@ impl Repo {
             store,
             langs,
             _checkout_lock: checkout_lock,
+            provenance: Mutex::new(None),
         };
         let change = ChangeId::new();
         // Every blob and snapshot of the first import lands in the one transaction that
@@ -219,6 +233,7 @@ impl Repo {
             store,
             langs,
             _checkout_lock: checkout_lock,
+            provenance: Mutex::new(None),
         };
         if repo.store.render_pending()? {
             repo.render_to_disk(&repo.current()?)?;
@@ -299,6 +314,34 @@ impl Repo {
     }
 
     /// The concrete store, for what the `Store` trait does not cover (workspaces, op attribution).
+    /// Run `f` with every op it records stamped as `p` (a replayed history keeps its times,
+    /// changesets and checkouts); cleared afterwards, also on error.
+    pub fn with_provenance<T>(&self, p: Provenance, f: impl FnOnce() -> Result<T>) -> Result<T> {
+        *self.provenance.lock().unwrap() = Some(p);
+        let out = f();
+        *self.provenance.lock().unwrap() = None;
+        out
+    }
+
+    /// Time and changeset for the op line being written: the provenance if one is set, else
+    /// now and the open changeset (closing a stale one on the way).
+    fn stamp(&self) -> Result<(Timestamp, Option<ChangeSetId>, Option<ChangeSetId>)> {
+        if let Some(p) = self.provenance.lock().unwrap().as_ref() {
+            return Ok((p.at, p.group, None));
+        }
+        let (group, closed) = self.open_group()?;
+        Ok((now(), group, closed))
+    }
+
+    fn append_op(&self, entry: &OpLogEntry) -> Result<OpIx> {
+        let ws = self.provenance.lock().unwrap().as_ref().and_then(|p| p.workspace.clone());
+        match ws {
+            Some(w) => self.store.append_op_as(entry, Some(&w)),
+            None if self.provenance.lock().unwrap().is_some() => self.store.append_op_as(entry, None),
+            None => self.store.append_op(entry),
+        }
+    }
+
     pub fn redb(&self) -> &RedbStore {
         &self.store
     }
@@ -442,7 +485,7 @@ impl Repo {
         self.refuse_if_stale()?;
         let cur = self.current()?;
         let before = self.view()?;
-        let (group, _) = self.open_group()?;
+        let (at, group, _) = self.stamp()?;
         // Staged before the re-snapshot, so its blobs ride in the one publish transaction
         // instead of one fsync each (2,265 entities: 20 s → 3 s).
         self.store.stage(Some(&before));
@@ -459,7 +502,7 @@ impl Repo {
                 OpLogEntry {
                     op: Op::Absorb,
                     observed: None,
-                    at: now(),
+                    at,
                     group,
                     before,
                     after,
@@ -468,7 +511,7 @@ impl Repo {
         })();
         match staged {
             Ok(Some((id, entry))) => {
-                self.store.append_op(&entry)?;
+                self.append_op(&entry)?;
                 Ok(Some((cur, id)))
             }
             Ok(None) => {
@@ -517,7 +560,7 @@ impl Repo {
         self.absorb()?;
         self.refuse_if_stale()?;
         let before = self.view()?;
-        let (group, closed_stale_changeset) = self.open_group()?;
+        let (at, group, closed_stale_changeset) = self.stamp()?;
         let cur = self.current()?;
         // From here to `append_op`, head/root/render-pending writes are staged and land in
         // the op's own transaction: a crash never leaves the store a snapshot ahead of
@@ -527,7 +570,7 @@ impl Repo {
             self.store.set_render_pending(true)?;
             let snapshot = f(self, &cur)?;
             let after = self.view()?;
-            Ok((snapshot, OpLogEntry { op, observed, at: now(), group, before, after }))
+            Ok((snapshot, OpLogEntry { op, observed, at, group, before, after }))
         })();
         let (snapshot, entry) = match staged {
             Ok(v) => v,
@@ -536,7 +579,7 @@ impl Repo {
                 return Err(e);
             }
         };
-        let ix = self.store.append_op(&entry)?;
+        let ix = self.append_op(&entry)?;
         self.render_to_disk(&self.current()?)?;
         self.store.set_render_pending(false)?;
         Ok(Mutation {
@@ -552,7 +595,7 @@ impl Repo {
     pub fn restore_view(&self, view: &View, op: Op) -> Result<Mutation> {
         self.absorb()?;
         let before = self.view()?;
-        let (group, closed_stale_changeset) = self.open_group()?;
+        let (at, group, closed_stale_changeset) = self.stamp()?;
         self.store.stage(Some(&before));
         let staged = (|| -> Result<OpLogEntry> {
             self.store.set_render_pending(true)?;
@@ -565,7 +608,7 @@ impl Repo {
             }
             self.store.set_root(view.root)?;
             let after = self.view()?;
-            Ok(OpLogEntry { op, observed: None, at: now(), group, before, after })
+            Ok(OpLogEntry { op, observed: None, at, group, before, after })
         })();
         let entry = match staged {
             Ok(e) => e,
@@ -574,7 +617,7 @@ impl Repo {
                 return Err(e);
             }
         };
-        let ix = self.store.append_op(&entry)?;
+        let ix = self.append_op(&entry)?;
         self.render_to_disk(&self.current()?)?;
         self.store.set_render_pending(false)?;
         Ok(Mutation {

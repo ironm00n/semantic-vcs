@@ -87,6 +87,12 @@ fn a_bundle_replays_the_whole_story_into_a_fresh_store_over_the_same_tree() {
     let kinds: Vec<String> = log.iter().rev().map(|o| format!("{:?}", o.op).split(' ').next().unwrap().trim_end_matches('{').to_string()).collect();
     let recorded_kinds: Vec<String> = svc_repo::op_log(&repo).unwrap().iter().rev().map(|o| format!("{:?}", o.op).split(' ').next().unwrap().trim_end_matches('{').to_string()).collect();
     assert_eq!(kinds, recorded_kinds);
+    // The replayed lines keep their recorded times and changesets, not the import's.
+    let recorded_log = svc_repo::op_log(&repo).unwrap();
+    for (got, want) in log.iter().zip(recorded_log.iter()).filter(|(_, w)| w.ix.0 > 0) {
+        assert_eq!(got.at, want.at, "op {} keeps its time", want.ix.0);
+        assert_eq!(got.group, want.group, "op {} keeps its changeset", want.ix.0);
+    }
     let id = svc_repo::resolve_entity(&fresh, "normalize").unwrap();
     let blame = svc_repo::blame(&fresh, id).unwrap();
     assert!(blame.len() >= 3, "added, edited, merged/resolved: {blame:?}");

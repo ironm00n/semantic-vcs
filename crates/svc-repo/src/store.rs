@@ -157,6 +157,90 @@ impl RedbStore {
         })
     }
 
+    /// [`Store::append_op`] attributed to `workspace` (`None` = the default checkout) rather
+    /// than to this handle's: a replayed history keeps the checkout each op came from.
+    pub fn append_op_as(&self, e: &OpLogEntry, workspace: Option<&str>) -> Result<OpIx> {
+        let bytes = encode(e)?;
+        let ws = workspace.unwrap_or_default().to_string();
+        let staged = self.staged.lock().unwrap().take();
+        self.write(|txn| {
+            // Publish what the verb staged together with the entry that describes it.
+            if let Some(s) = &staged {
+                // Compare-and-swap against the view the verb read: another process may have
+                // published since. A mismatch aborts the transaction with nothing written.
+                let expected = s.expected.as_ref();
+                if let Some(v) = expected
+                    && self.root_in(txn)? != Some(v.root)
+                {
+                    return Err(Error::Other(
+                        "concurrent update: this checkout's root moved under the verb; nothing was written — run the verb again"
+                            .into(),
+                    ));
+                }
+                if !s.blobs.is_empty() {
+                    let mut table = txn.open_table(OBJECTS).map_err(Error::backend)?;
+                    for (id, bytes) in &s.blobs {
+                        table.insert(id, bytes.as_slice()).map_err(Error::backend)?;
+                    }
+                }
+                if !s.snapshots.is_empty() {
+                    let mut table = txn.open_table(SNAPSHOTS).map_err(Error::backend)?;
+                    for (id, bytes) in &s.snapshots {
+                        table.insert(&id.0, bytes.as_slice()).map_err(Error::backend)?;
+                    }
+                }
+                if !s.heads.is_empty() {
+                    let mut heads = txn.open_table(HEADS).map_err(Error::backend)?;
+                    for (c, snap) in &s.heads {
+                        let actual = heads
+                            .get(c.as_uuid())
+                            .map_err(Error::backend)?
+                            .map(|g| SnapshotId(*g.value()));
+                        if expected.is_some_and(|v| actual != v.heads.get(c).copied()) {
+                            return Err(Error::Other(format!(
+                                "concurrent update: change {} moved to {} under the verb; nothing was written (run `svc workspace update-stale`)",
+                                c.short(),
+                                actual.map(|a| a.short()).unwrap_or_else(|| "nothing".into())
+                            )));
+                        }
+                        heads.insert(c.as_uuid(), &snap.0).map_err(Error::backend)?;
+                    }
+                }
+                match &self.workspace {
+                    None => {
+                        if let Some(r) = s.root {
+                            self.set_meta_in(txn, META_ROOT, &r)?;
+                        }
+                        if let Some(p) = s.render_pending {
+                            self.set_meta_in(txn, META_RENDER_PENDING, &p)?;
+                        }
+                    }
+                    Some(name) if s.root.is_some() || s.render_pending.is_some() => {
+                        self.update_own_row_in(txn, name, |r| {
+                            if let Some(id) = s.root {
+                                r.root = Some(id);
+                            }
+                            if let Some(p) = s.render_pending {
+                                r.render_pending = p;
+                            }
+                        })?;
+                    }
+                    Some(_) => {}
+                }
+            }
+            let mut table = txn.open_table(OPLOG).map_err(Error::backend)?;
+            let next = table
+                .last()
+                .map_err(Error::backend)?
+                .map(|(k, _)| k.value() + 1)
+                .unwrap_or(0);
+            table.insert(next, bytes.as_slice()).map_err(Error::backend)?;
+            let mut by = txn.open_table(OP_WORKSPACE).map_err(Error::backend)?;
+            by.insert(next, ws.as_str()).map_err(Error::backend)?;
+            Ok(OpIx(next))
+        })
+    }
+
     /// `ops(since, rev)` restricted to what this handle's checkout appended (unattributed
     /// ops count as the default checkout's).
     pub fn own_ops(&self, since: OpIx, rev: bool) -> Result<Vec<(OpIx, OpLogEntry)>> {
@@ -441,85 +525,7 @@ impl Store for RedbStore {
     }
 
     fn append_op(&self, e: &OpLogEntry) -> Result<OpIx> {
-        let bytes = encode(e)?;
-        let ws = self.workspace.clone().unwrap_or_default();
-        let staged = self.staged.lock().unwrap().take();
-        self.write(|txn| {
-            // Publish what the verb staged together with the entry that describes it.
-            if let Some(s) = &staged {
-                // Compare-and-swap against the view the verb read: another process may have
-                // published since. A mismatch aborts the transaction with nothing written.
-                let expected = s.expected.as_ref();
-                if let Some(v) = expected
-                    && self.root_in(txn)? != Some(v.root)
-                {
-                    return Err(Error::Other(
-                        "concurrent update: this checkout's root moved under the verb; nothing was written — run the verb again"
-                            .into(),
-                    ));
-                }
-                if !s.blobs.is_empty() {
-                    let mut table = txn.open_table(OBJECTS).map_err(Error::backend)?;
-                    for (id, bytes) in &s.blobs {
-                        table.insert(id, bytes.as_slice()).map_err(Error::backend)?;
-                    }
-                }
-                if !s.snapshots.is_empty() {
-                    let mut table = txn.open_table(SNAPSHOTS).map_err(Error::backend)?;
-                    for (id, bytes) in &s.snapshots {
-                        table.insert(&id.0, bytes.as_slice()).map_err(Error::backend)?;
-                    }
-                }
-                if !s.heads.is_empty() {
-                    let mut heads = txn.open_table(HEADS).map_err(Error::backend)?;
-                    for (c, snap) in &s.heads {
-                        let actual = heads
-                            .get(c.as_uuid())
-                            .map_err(Error::backend)?
-                            .map(|g| SnapshotId(*g.value()));
-                        if expected.is_some_and(|v| actual != v.heads.get(c).copied()) {
-                            return Err(Error::Other(format!(
-                                "concurrent update: change {} moved to {} under the verb; nothing was written (run `svc workspace update-stale`)",
-                                c.short(),
-                                actual.map(|a| a.short()).unwrap_or_else(|| "nothing".into())
-                            )));
-                        }
-                        heads.insert(c.as_uuid(), &snap.0).map_err(Error::backend)?;
-                    }
-                }
-                match &self.workspace {
-                    None => {
-                        if let Some(r) = s.root {
-                            self.set_meta_in(txn, META_ROOT, &r)?;
-                        }
-                        if let Some(p) = s.render_pending {
-                            self.set_meta_in(txn, META_RENDER_PENDING, &p)?;
-                        }
-                    }
-                    Some(name) if s.root.is_some() || s.render_pending.is_some() => {
-                        self.update_own_row_in(txn, name, |r| {
-                            if let Some(id) = s.root {
-                                r.root = Some(id);
-                            }
-                            if let Some(p) = s.render_pending {
-                                r.render_pending = p;
-                            }
-                        })?;
-                    }
-                    Some(_) => {}
-                }
-            }
-            let mut table = txn.open_table(OPLOG).map_err(Error::backend)?;
-            let next = table
-                .last()
-                .map_err(Error::backend)?
-                .map(|(k, _)| k.value() + 1)
-                .unwrap_or(0);
-            table.insert(next, bytes.as_slice()).map_err(Error::backend)?;
-            let mut by = txn.open_table(OP_WORKSPACE).map_err(Error::backend)?;
-            by.insert(next, ws.as_str()).map_err(Error::backend)?;
-            Ok(OpIx(next))
-        })
+        self.append_op_as(e, self.workspace.as_deref())
     }
 
     fn ops(&self, since: OpIx, rev: bool) -> Result<Vec<(OpIx, OpLogEntry)>> {
