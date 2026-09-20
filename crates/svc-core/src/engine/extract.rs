@@ -212,9 +212,66 @@ fn collect<'a>(
         );
         return;
     }
+    if lang.name() == "rust" && node.kind() == "token_tree" && parent_idx.is_none() {
+        collect_macro_mod_decls(node, src, lang, parent_idx, raw, nodes);
+        return;
+    }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
         collect(child, src, lang, parent_idx, raw, nodes);
+    }
+}
+
+/// `cfg_fs! { pub mod fs; }` does not parse a `mod_item` — the grammar leaves
+/// `pub`/`mod`/`fs`/`;` as token-tree children. Without a Mod entity, `src/fs/`
+/// never attaches and `crate::fs::f` cannot walk, while a unique last segment
+/// on a `use` line still rewrites (breaking the crate).
+fn collect_macro_mod_decls<'a>(
+    node: tree_sitter::Node<'a>,
+    src: &[u8],
+    lang: &dyn Lang,
+    parent_idx: Option<usize>,
+    raw: &mut Vec<RawEntity>,
+    nodes: &mut Vec<tree_sitter::Node<'a>>,
+) {
+    let mut c = node.walk();
+    let kids: Vec<_> = node.children(&mut c).collect();
+    let mut i = 0;
+    while i < kids.len() {
+        if kids[i].kind() == "token_tree" {
+            collect_macro_mod_decls(kids[i], src, lang, parent_idx, raw, nodes);
+            i += 1;
+            continue;
+        }
+        let mut j = i;
+        while j < kids.len() && kids[j].kind() == "attribute_item" {
+            j += 1;
+        }
+        if j < kids.len() && matches!(kids[j].kind(), "pub" | "visibility_modifier") {
+            j += 1;
+        }
+        if j + 2 < kids.len()
+            && kids[j].kind() == "mod"
+            && kids[j + 1].kind() == "identifier"
+            && kids[j + 2].kind() == ";"
+        {
+            let name_node = kids[j + 1];
+            let name = node_text(src, name_node);
+            emit(
+                name_node,
+                src,
+                lang,
+                parent_idx,
+                Kind::Mod,
+                name,
+                Some(byte_range(name_node)),
+                raw,
+                nodes,
+            );
+            i = j + 3;
+            continue;
+        }
+        i += 1;
     }
 }
 

@@ -2834,3 +2834,66 @@ fn rename_follows_super_path_through_an_enclosing_mod_alias() {
         "super::foo through enclosing-mod use alias must follow: {text}"
     );
 }
+
+#[test]
+fn rename_follows_file_module_declared_inside_a_macro_invocation() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let fs = RelPath::new("src/fs/mod.rs").unwrap();
+    let create = RelPath::new("src/fs/create_dir.rs").unwrap();
+    let file = RelPath::new("src/fs/file.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"macro_rules! cfg_fs { ($($item:item)*) => { $($item)* }; }\ncfg_fs! { pub mod fs; }\n"
+            .to_vec(),
+    );
+    files.insert(
+        fs,
+        b"mod create_dir;\nmod file;\npub use self::create_dir::create_dir;\npub(crate) fn asyncify<F, T>(f: F) -> T where F: FnOnce() -> T { f() }\n"
+            .to_vec(),
+    );
+    files.insert(
+        create.clone(),
+        b"use crate::fs::asyncify;\npub fn create_dir(n: u32) -> u32 { asyncify(move || n + 1) }\n"
+            .to_vec(),
+    );
+    files.insert(
+        file.clone(),
+        b"use crate::fs::{asyncify, create_dir};\npub fn open() -> u32 { asyncify(move || create_dir(1)) }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = lookup_name(&snap, "asyncify").expect("asyncify");
+    let next = rename(&store, &snap, id, "blocking").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let lib_text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert_eq!(
+        lib_text.matches("pub mod fs").count(),
+        1,
+        "macro-declared mod must not duplicate on render: {lib_text}"
+    );
+    assert!(
+        lib_text.contains("cfg_fs! { pub mod fs; }"),
+        "macro invocation wrapping the mod must stay: {lib_text}"
+    );
+    let create_text = String::from_utf8(rendered.files[&create].clone()).unwrap();
+    let file_text = String::from_utf8(rendered.files[&file].clone()).unwrap();
+    assert!(
+        create_text.contains("use crate::fs::blocking;"),
+        "bare use through a macro-declared module must follow: {create_text}"
+    );
+    assert!(
+        create_text.contains("blocking(move || n + 1)"),
+        "call in a file module must follow: {create_text}"
+    );
+    assert!(
+        file_text.contains("use crate::fs::{blocking, create_dir}"),
+        "brace-list use through a macro-declared module must follow: {file_text}"
+    );
+    assert!(
+        file_text.contains("blocking(move ||"),
+        "brace-list caller must follow: {file_text}"
+    );
+}
