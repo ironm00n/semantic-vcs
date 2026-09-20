@@ -75,6 +75,7 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
 
 pub(crate) fn env_from_snapshot_store(snapshot: &Snapshot, store: &dyn Store) -> Env {
     let mut env = env_from_snapshot(snapshot);
+    fill_path_file_modules_from_snapshot(&mut env, snapshot, store);
     fill_macro_exports_from_snapshot(&mut env, snapshot, store);
     env
 }
@@ -84,6 +85,42 @@ fn rec_src(store: &dyn Store, rec: &EntityRecord) -> Option<String> {
         .get_bytes_blob(rec.bytes)
         .ok()
         .and_then(|b| String::from_utf8(b.src().to_vec()).ok())
+}
+
+/// Postcard cannot persist `#[path]`. Recover the file from stored bytes so two
+/// leftover `#[path]` modules in one directory are not left unattached.
+fn fill_path_file_modules_from_snapshot(env: &mut Env, snapshot: &Snapshot, store: &dyn Store) {
+    for (id, rec) in &snapshot.entities {
+        if rec.kind != Kind::Mod {
+            continue;
+        }
+        if snapshot.entities.values().any(|c| c.parent == Some(*id)) {
+            continue;
+        }
+        let Some(src) = rec_src(store, rec) else {
+            continue;
+        };
+        let Some(attr) = extract::bytes_path_attr(&src) else {
+            continue;
+        };
+        let Some(cand) = resolve_path_attr(&rec.file, &attr) else {
+            continue;
+        };
+        if !snapshot.files.contains_key(&cand) {
+            continue;
+        }
+        env.file_of_mod.insert(cand.clone(), *id);
+        env.mod_decl_file.insert(*id, rec.file.clone());
+        for (cid, crec) in &snapshot.entities {
+            if crec.file != cand {
+                continue;
+            }
+            if crec.parent.is_some() || is_inherent_rec(snapshot, crec) {
+                continue;
+            }
+            env.insert_mod_child(*id, &crec.name, crec.kind, *cid);
+        }
+    }
 }
 
 /// Postcard cannot persist `#[macro_export]` / `#[macro_use]`. Recover them from

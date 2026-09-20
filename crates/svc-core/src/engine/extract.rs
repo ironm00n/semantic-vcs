@@ -236,6 +236,15 @@ pub(crate) fn bytes_macro_use_spec(src: &str) -> Option<Option<Vec<String>>> {
     None
 }
 
+pub(crate) fn bytes_path_attr(src: &str) -> Option<String> {
+    for a in attrs_in(src) {
+        if let Some(p) = path_eq_literal(a) {
+            return Some(p);
+        }
+    }
+    None
+}
+
 fn token_tree_is_attr(node: tree_sitter::Node<'_>, src: &[u8], name: &str) -> bool {
     let text = node_text(src, node);
     let t = text.trim();

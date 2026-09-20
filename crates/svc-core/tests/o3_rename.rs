@@ -3790,3 +3790,58 @@ fn edit_def_of_a_macro_use_call_follows() {
         "edit-def of parse!() after #[macro_use] must bind: {text}"
     );
 }
+
+#[test]
+fn edit_def_follows_two_path_file_modules() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let b = RelPath::new("src/b.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"#[path = \"a.rs\"]\nmod one;\n#[path = \"b.rs\"]\nmod two;\nfn f() {}\n".to_vec(),
+    );
+    files.insert(a, b"pub fn parse() {}\n".to_vec());
+    files.insert(b, b"pub fn other() {}\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let other = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "other")
+        .map(|(id, _)| *id)
+        .expect("other");
+    let f = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "f")
+        .map(|(id, _)| *id)
+        .expect("f");
+    let (next, _) = edit_def(
+        &store,
+        &langs,
+        &snap,
+        f,
+        b"fn f() { crate::one::parse(); crate::two::other(); }\n",
+    )
+    .unwrap();
+    let next = rename(&store, &next, parse, "parse_file").unwrap();
+    let next = rename(&store, &next, other, "other_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("crate::one::parse_file()"),
+        "edit-def must attach #[path] a.rs: {text}"
+    );
+    assert!(
+        text.contains("crate::two::other_file()"),
+        "edit-def must attach #[path] b.rs: {text}"
+    );
+}
