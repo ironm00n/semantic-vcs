@@ -68,6 +68,8 @@ pub struct Env {
     pub bind_reexports: bool,
     /// Every `mod` entity, so `use a as b; b::parse` is a module path, not Type::name.
     pub mods: HashSet<EntityId>,
+    /// `use a as b` / `pub use a as b` — `b` is a local spelling, not the entity's name.
+    pub alias_spellings: HashSet<String>,
 }
 
 impl Env {

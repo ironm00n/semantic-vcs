@@ -2432,3 +2432,119 @@ fn rename_follows_macro_rules_from_a_file_module() {
         "macro_rules in a file module must follow at the crate root: {text}"
     );
 }
+
+#[test]
+fn rename_follows_use_super_mod_as_from_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod a;\nmod foo;\n".to_vec());
+    files.insert(a.clone(), b"fn parse() {}\n".to_vec());
+    files.insert(
+        foo.clone(),
+        b"use super::a as b;\nfn f() { b::parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let a_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == a)
+        .map(|(id, _)| *id)
+        .expect("a parse");
+    let next = rename(&store, &snap, a_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&foo].clone()).unwrap();
+    assert!(
+        text.contains("b::parse_file()"),
+        "use super::a as b; b::parse from a file module must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_use_list_self_as_from_a_file_module() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod a;\nmod foo;\n".to_vec());
+    files.insert(a.clone(), b"fn parse() {}\n".to_vec());
+    files.insert(
+        foo.clone(),
+        b"use crate::a::{self as b, parse};\nfn f() { b::parse(); parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let a_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == a)
+        .map(|(id, _)| *id)
+        .expect("a parse");
+    let next = rename(&store, &snap, a_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&foo].clone()).unwrap();
+    assert!(
+        text.contains("use crate::a::{self as b, parse_file};"),
+        "self as b must keep the alias and follow parse: {text}"
+    );
+    assert!(text.contains("b::parse_file()"), "{text}");
+    assert!(text.contains("parse_file();"), "{text}");
+}
+
+#[test]
+fn rename_follows_pub_use_mod_as_then_crate_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let a = RelPath::new("src/a.rs").unwrap();
+    let foo = RelPath::new("src/foo.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(lib.clone(), b"mod a;\npub use a as b;\nmod foo;\n".to_vec());
+    files.insert(a.clone(), b"fn parse() {}\n".to_vec());
+    files.insert(foo.clone(), b"fn f() { crate::b::parse(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let a_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.file == a)
+        .map(|(id, _)| *id)
+        .expect("a parse");
+    let next = rename(&store, &snap, a_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&foo].clone()).unwrap();
+    assert!(
+        text.contains("crate::b::parse_file()"),
+        "pub use a as b; crate::b::parse must follow: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_use_nested_mod_as() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod a { pub mod inner { pub fn parse() {} } }\nuse a::inner as b;\nfn f() { b::parse(); }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("b::parse_file()"),
+        "use a::inner as b; b::parse must follow: {text}"
+    );
+}

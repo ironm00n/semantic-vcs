@@ -383,6 +383,8 @@ fn collect_refs<'a>(
                 || is_type_qualified_ref(node, src, lang, env)
             {
                 refs.push((r, IdentRef::Free(name.into())));
+            } else if env.alias_spellings.contains(&name) {
+                refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(id) = if let Some(segs) = crate_path_segs(node, src, lang) {
                 env.lookup_crate_path(&segs, ns).or_else(|| {
                     if under_use_tree(node) {
@@ -1457,6 +1459,9 @@ fn bind_use(env: &mut Env, segs: &[String], alias: &str) {
         .map(|s| s.as_str())
         .unwrap_or("");
     let aliased = !imported.is_empty() && alias != imported;
+    if aliased {
+        env.alias_spellings.insert(alias.to_string());
+    }
     for ns in [Namespace::Value, Namespace::Type] {
         let Some(id) = resolve_use_path(env, segs, ns) else {
             if env.bind_reexports {
@@ -1485,6 +1490,11 @@ fn resolve_use_path(env: &Env, segs: &[String], ns: Namespace) -> Option<EntityI
     if segs.is_empty() {
         return None;
     }
+    let segs = if segs.last().map(|s| s.as_str()) == Some("self") && segs.len() >= 2 {
+        &segs[..segs.len() - 1]
+    } else {
+        segs
+    };
     match segs[0].as_str() {
         "crate" => env.lookup_crate_path(&segs[1..], ns),
         "super" => {
