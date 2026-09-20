@@ -83,7 +83,7 @@ demo/git-twin/build.sh
 ```sh
 nix develop
 cargo build -p svc
-demo/dogfood.sh --tui  # svc manages its own crates: revisions, merge, review, replay, forge
+demo/dogfood.sh --tui  # this repository's own svc-made history, replayed: revisions, oplog, blame
 # demo/dogfood.sh --shell
 # demo/dogfood.sh --agent "rename describe_op to describe_operation"
 ```
