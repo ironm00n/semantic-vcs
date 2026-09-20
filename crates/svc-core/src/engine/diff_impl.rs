@@ -46,8 +46,10 @@ pub fn diff(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Result<Vec<D
                         });
                     }
                 }
-                if old.content != rec.content || old.bytes != rec.bytes {
+                if old.bytes != rec.bytes {
                     out.push(Delta::Edited(*id, classify_entity(store, prev, next, *id)?));
+                } else if old.content != rec.content {
+                    out.push(Delta::Rebound(*id, classify_entity(store, prev, next, *id)?));
                 }
             }
         }

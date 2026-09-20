@@ -799,18 +799,17 @@ pub fn status_report(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Res
     let is_source = |p: &RelPath| lang_for_ext(p.extension()).is_some();
     let mut layout = 0usize;
     let mut semantic = 0usize;
+    let mut rebound = 0usize;
     for d in &deltas {
-        let is_layout = match d {
-            Delta::Edited(_, ObservedClass::Alpha | ObservedClass::DocsOnly) => true,
-            Delta::Relocated { .. } => true,
-            Delta::FileAdded(p) | Delta::FileRemoved(p) => is_source(p),
-            Delta::FileTail { path, whitespace_only } => *whitespace_only || is_source(path),
-            _ => false,
-        };
-        if is_layout {
-            layout += 1;
-        } else {
-            semantic += 1;
+        match d {
+            Delta::Rebound(_, _) => rebound += 1,
+            Delta::Edited(_, ObservedClass::Alpha | ObservedClass::DocsOnly)
+            | Delta::Relocated { .. } => layout += 1,
+            Delta::FileAdded(p) | Delta::FileRemoved(p) if is_source(p) => layout += 1,
+            Delta::FileTail { path, whitespace_only } if *whitespace_only || is_source(path) => {
+                layout += 1
+            }
+            _ => semantic += 1,
         }
     }
     Ok(StatusReport {
@@ -818,6 +817,7 @@ pub fn status_report(store: &dyn Store, prev: &Snapshot, next: &Snapshot) -> Res
         deltas,
         layout,
         semantic,
+        rebound,
     })
 }
 
@@ -827,17 +827,31 @@ pub struct StatusReport {
     pub deltas: Vec<Delta>,
     pub layout: usize,
     pub semantic: usize,
+    /// Same bytes, different content — named, not counted as an edit.
+    pub rebound: usize,
 }
 
 impl StatusReport {
     pub fn summary(&self) -> String {
+        let rebound = if self.rebound == 0 {
+            String::new()
+        } else if self.rebound == 1 {
+            "; 1 rebound, text unchanged".into()
+        } else {
+            format!("; {} rebound, text unchanged", self.rebound)
+        };
         if self.deltas.is_empty() {
             format!("{} entities, 0 changes", self.entities)
+        } else if self.semantic == 0 && self.layout == 0 {
+            format!(
+                "{} rebound, text unchanged ({} entities)",
+                self.rebound, self.entities
+            )
         } else if self.semantic == 0 {
-            format!("no semantic changes; {} layout", self.layout)
+            format!("no semantic changes; {} layout{rebound}", self.layout)
         } else {
             format!(
-                "{} semantic; {} layout ({} entities)",
+                "{} semantic; {} layout ({} entities){rebound}",
                 self.semantic, self.layout, self.entities
             )
         }

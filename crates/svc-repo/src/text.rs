@@ -242,6 +242,11 @@ pub fn delta(snap: &Snapshot, d: &svc_core::Delta) -> String {
         Delta::Relocated { id, from, to } => format!("relocated {} {}#{} → {}#{}", entity_ref(snap, *id), from.0, from.1, to.0, to.1),
         Delta::Edited(id, ObservedClass::Alpha) => format!("{} edited: alpha (local renamed; content hash unchanged)", entity_ref(snap, *id)),
         Delta::Edited(id, c) => format!("{} edited: {}", entity_ref(snap, *id), class(Some(*c))),
+        Delta::Rebound(id, c) => format!(
+            "{} rebound, text unchanged ({})",
+            entity_ref(snap, *id),
+            class(Some(*c))
+        ),
         Delta::FileAdded(p) => format!("added file {p}"),
         Delta::FileRemoved(p) => format!("removed file {p}"),
         Delta::FileTail { path, whitespace_only: true } => format!("{path}: whitespace outside entities changed"),

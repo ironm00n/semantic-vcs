@@ -34,6 +34,9 @@ pub enum Delta {
         to: (RelPath, u32),
     },
     Edited(EntityId, ObservedClass),
+    /// Bytes are identical; the canonical form moved (engine drift, or a re-bind
+    /// caused by another entity). Not an edit: the working copy did not change.
+    Rebound(EntityId, ObservedClass),
     /// A file with no language, or a source file's bytes outside every entity.
     FileAdded(RelPath),
     FileRemoved(RelPath),
