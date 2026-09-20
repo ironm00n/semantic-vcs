@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use svc_core::engine::{edit_def, lookup_name, merge, rust_langs, snapshot_files};
+use svc_core::engine::{edit_def, lookup_name, merge, render, rust_langs, snapshot_files};
 use svc_core::ids::{ChangeId, RelPath};
 use svc_core::lang::Langs;
 use svc_core::store::{MemStore, Store};
@@ -347,4 +347,206 @@ fn merge_flags_when_one_side_deletes_a_callee_the_other_still_calls() {
         "delete+edit of a live call must not merge clean: {:?}",
         merged.conflicts
     );
+}
+
+fn merge_main(base_src: &str, a_src: &str, b_src: &str) -> (String, Vec<Conflict>) {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path.clone(), base_src.as_bytes().to_vec());
+    let base = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let main = lookup_name(&base, "main").unwrap();
+    let (a, _) = edit_def(&store, &langs, &base, main, a_src.as_bytes()).unwrap();
+    let (b, _) = edit_def(&store, &langs, &base, main, b_src.as_bytes()).unwrap();
+    let base_id = store.put_snapshot(&base).unwrap();
+    let a_id = store.put_snapshot(&a).unwrap();
+    let b_id = store.put_snapshot(&b).unwrap();
+    let merged = merge(&store, &langs, base_id, a_id, b_id).unwrap();
+    let rendered = render(&merged, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    (text, merged.conflicts)
+}
+
+#[test]
+fn o7_reorder_shadow_and_append_keeps_both_edits_and_reports_capture() {
+    let base = r#"fn foo() -> u8 { 1 }
+fn bar() -> u8 { 2 }
+fn consume(_: u8) {}
+fn main() {
+    let _padding_before = 0;
+    let x = foo();
+    let x = bar();
+    let _padding_after = 1;
+}
+"#;
+    let a = r#"fn main() {
+    let _padding_before = 0;
+    let x = foo();
+    let x = bar();
+    let _padding_after = 1;
+    consume(x);
+}
+"#;
+    let b = r#"fn main() {
+    let _padding_before = 0;
+    let x = bar();
+    let x = foo();
+    let _padding_after = 1;
+}
+"#;
+
+    let (text, conflicts) = merge_main(base, a, b);
+    assert!(
+        conflicts.iter().all(|c| !matches!(c, Conflict::Content { .. })),
+        "a declaration move plus an appended use is structurally mergeable: {conflicts:?}"
+    );
+    let bar = text.find("let x = bar();").expect("B's moved bar declaration");
+    let foo = text.find("let x = foo();").expect("B's moved foo declaration");
+    let use_x = text.find("consume(x);").expect("A's appended use");
+    assert!(
+        bar < foo && foo < use_x,
+        "merge must retain the reorder and append:\n{text}"
+    );
+
+    let bindings: Vec<_> = conflicts
+        .iter()
+        .filter_map(|c| match c {
+            Conflict::Binding { name, was, now, .. } => Some((name, was, now)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        bindings.len(),
+        1,
+        "expected one precise capture conflict: {conflicts:?}"
+    );
+    assert!(bindings[0].0 == "x" || bindings[0].0.starts_with('$'));
+    assert_ne!(bindings[0].1, bindings[0].2, "the appended use changed binders");
+}
+
+#[test]
+fn o7_adjacent_reorder_shadow_and_append_is_semantic_not_textual() {
+    let base = "fn foo() -> u8 { 1 }\nfn bar() -> u8 { 2 }\nfn consume(_: u8) {}\nfn main() {\n    let x = foo();\n    let x = bar();\n}\n";
+    let a = "fn main() {\n    let x = foo();\n    let x = bar();\n    consume(x);\n}\n";
+    let b = "fn main() {\n    let x = bar();\n    let x = foo();\n}\n";
+
+    let (text, conflicts) = merge_main(base, a, b);
+    assert!(
+        conflicts.iter().all(|c| !matches!(c, Conflict::Content { .. })),
+        "the compiler engineer's minimal example should merge structurally: {conflicts:?}"
+    );
+    assert_eq!(
+        conflicts
+            .iter()
+            .filter(|c| matches!(c, Conflict::Binding { .. }))
+            .count(),
+        1,
+        "the appended use must retain its original binder intent: {conflicts:?}"
+    );
+    assert!(
+        text.find("let x = bar();").unwrap() < text.find("let x = foo();").unwrap()
+            && text.find("let x = foo();").unwrap() < text.find("consume(x);").unwrap(),
+        "merge must retain both edits:\n{text}"
+    );
+}
+
+#[test]
+fn o7_reorder_distinct_locals_and_append_preserves_binding_cleanly() {
+    let base = r#"fn foo() -> u8 { 1 }
+fn bar() -> u8 { 2 }
+fn consume(_: u8) {}
+fn main() {
+    let _padding_before = 0;
+    let foo_value = foo();
+    let bar_value = bar();
+    let _padding_after = 1;
+}
+"#;
+    let a = r#"fn main() {
+    let _padding_before = 0;
+    let foo_value = foo();
+    let bar_value = bar();
+    let _padding_after = 1;
+    consume(bar_value);
+}
+"#;
+    let b = r#"fn main() {
+    let _padding_before = 0;
+    let bar_value = bar();
+    let foo_value = foo();
+    let _padding_after = 1;
+}
+"#;
+
+    let (text, conflicts) = merge_main(base, a, b);
+    assert!(
+        conflicts.is_empty(),
+        "moving distinct binders is hygienic: {conflicts:?}"
+    );
+    let bar = text.find("let bar_value = bar();").unwrap();
+    let foo = text.find("let foo_value = foo();").unwrap();
+    let use_bar = text.find("consume(bar_value);").unwrap();
+    assert!(
+        bar < foo && foo < use_bar,
+        "merge must retain the reorder and append:\n{text}"
+    );
+}
+
+#[test]
+fn o7_reorder_with_insertion_between_reversed_anchors_stays_ambiguous() {
+    let base = r#"fn foo() -> u8 { 1 }
+fn bar() -> u8 { 2 }
+fn consume(_: u8) {}
+fn main() {
+    let x = foo();
+    let x = bar();
+}
+"#;
+    let a = r#"fn main() {
+    let x = foo();
+    consume(x);
+    let x = bar();
+}
+"#;
+    let b = r#"fn main() {
+    let x = bar();
+    let x = foo();
+}
+"#;
+
+    let (_, conflicts) = merge_main(base, a, b);
+    assert!(
+        conflicts.iter().any(|c| matches!(c, Conflict::Content { .. })),
+        "an insertion between anchors whose order reversed has no unique placement: {conflicts:?}"
+    );
+}
+
+#[test]
+fn o7_reorder_never_silently_drops_the_other_branch_trivia_edit() {
+    let base = r#"fn foo() -> u8 { 1 }
+fn bar() -> u8 { 2 }
+fn consume(_: u8) {}
+fn main() {
+    let p = 0;
+    let a = foo();
+    let b = bar();
+    let q = 1;
+}
+"#;
+    let a = "fn main() {\n    let p = 0;\n        let a = foo();\n    let b = bar();\n    let q = 1;\n    consume(a);\n}\n";
+    let b = "fn main() {\n    let p = 0;\n    let b = bar();\n    let a = foo();\n    let q = 1;\n}\n";
+
+    let (text, conflicts) = merge_main(base, a, b);
+    if conflicts.is_empty() {
+        assert!(
+            text.contains("        let a = foo();"),
+            "a clean merge must keep A's re-indent:\n{text}"
+        );
+    } else {
+        assert!(
+            conflicts.iter().any(|c| matches!(c, Conflict::Content { .. })),
+            "an uncomposable trivia edit is a content conflict, not a binding claim: {conflicts:?}"
+        );
+    }
 }

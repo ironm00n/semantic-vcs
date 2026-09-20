@@ -147,6 +147,61 @@ pub fn pair_unmapped_by_spelling(
     }
 }
 
+/// Extend `bijection` with binders whose declaration *line* is unique on both
+/// sides even if it moved. Reordering `let foo_value` / `let bar_value` keeps
+/// each slot; reordering two `let x` shadows maps each initializer to itself
+/// so a later use that now sees the other `x` is a Binding, not a silent slot
+/// number coincidence.
+pub fn pair_unmapped_by_unique_line(
+    bijection: &mut HashMap<SlotKey, SlotKey>,
+    old_render: &[u8],
+    new_render: &[u8],
+    old_map: &[(ByteRange, IdentRef)],
+    new_map: &[(ByteRange, IdentRef)],
+) {
+    let old_lines = line_spans(old_render);
+    let new_lines = line_spans(new_render);
+    let old_counts = line_text_counts(old_render, &old_lines);
+    let new_counts = line_text_counts(new_render, &new_lines);
+    let new_sites = binder_sites(new_map);
+    let mapped_new: std::collections::HashSet<SlotKey> = bijection.values().copied().collect();
+    for (old_key, old_site) in binder_sites(old_map) {
+        if bijection.contains_key(&old_key) {
+            continue;
+        }
+        let Some(text) = line_covering(old_render, &old_lines, old_site) else {
+            continue;
+        };
+        if old_counts.get(text) != Some(&1) || new_counts.get(text) != Some(&1) {
+            continue;
+        }
+        let Some((new_key, _)) = new_sites.iter().find(|(_, site)| {
+            line_covering(new_render, &new_lines, **site) == Some(text)
+        }) else {
+            continue;
+        };
+        if mapped_new.contains(new_key) {
+            continue;
+        }
+        bijection.insert(old_key, *new_key);
+    }
+}
+
+fn line_covering<'a>(src: &'a [u8], lines: &[ByteRange], r: ByteRange) -> Option<&'a [u8]> {
+    let line = lines.iter().find(|l| l.start <= r.start && r.end <= l.end)?;
+    src.get(line.start as usize..line.end as usize)
+}
+
+fn line_text_counts<'a>(src: &'a [u8], lines: &[ByteRange]) -> HashMap<&'a [u8], usize> {
+    let mut c = HashMap::new();
+    for l in lines {
+        if let Some(t) = src.get(l.start as usize..l.end as usize) {
+            *c.entry(t).or_insert(0) += 1;
+        }
+    }
+    c
+}
+
 /// Carry a byte range from `from` into `to` through the equal lines, keeping
 /// its offset within the line. `None` if its line was changed.
 pub fn map_range(from: &[u8], to: &[u8], r: ByteRange) -> Option<ByteRange> {

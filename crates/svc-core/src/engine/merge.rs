@@ -10,7 +10,9 @@ use crate::lang::Langs;
 use crate::snapshot::{AttrValue, Conflict, Hunk, Merge, Side, Snapshot};
 use crate::store::Store;
 
-use super::align::{equal_lines, map_range, slot_bijection};
+use super::align::{
+    equal_lines, map_range, pair_unmapped_by_spelling, pair_unmapped_by_unique_line, slot_bijection,
+};
 use super::{
     env_from_snapshot, fill_nested_items_from_snapshot, fill_self_methods_from_snapshot,
     ingest_file_with_env, parse, render_entity,
@@ -269,7 +271,14 @@ fn merge_content(
     let a_hash = hash(&aa);
     let b_hash = hash(&ba);
     let merged = TextMerge::from_lines(&o_hash, &a_hash, &b_hash);
-    if merged.is_conflicted() {
+    // A textual conflict on the atom sequence can still be one side reordering
+    // statements while the other inserts. Compose that instead of taking A's
+    // bytes and dropping B (Codex checkpoint `xwwrvrnm`, ported).
+    let moved = merged
+        .is_conflicted()
+        .then(|| merge_permutation_insertions(&oa, &aa, &ba))
+        .flatten();
+    if merged.is_conflicted() && moved.is_none() {
         let mut hunks = Vec::new();
         for region in merged.conflicts() {
             hunks.push(Merge::three_way(
@@ -294,15 +303,27 @@ fn merge_content(
         return Ok((a.content, a.bytes));
     }
     let mut out = Vec::new();
-    for region in merged.regions() {
-        let (srcs, range) = match region.resolution() {
-            MergeResolution::Unchanged | MergeResolution::Both => (&oa, region.base_range()),
-            MergeResolution::Theirs => (&ba, region.theirs_range()),
-            _ => (&aa, region.ours_range()),
-        };
-        for idx in range {
-            if let Some(atom) = srcs.get(idx) {
+    if let Some(atoms) = moved {
+        for origin in atoms {
+            let srcs = match origin.side {
+                PermSide::A => &aa,
+                PermSide::B => &ba,
+            };
+            if let Some(atom) = srcs.get(origin.index) {
                 out.extend_from_slice(atom);
+            }
+        }
+    } else {
+        for region in merged.regions() {
+            let (srcs, range) = match region.resolution() {
+                MergeResolution::Unchanged | MergeResolution::Both => (&oa, region.base_range()),
+                MergeResolution::Theirs => (&ba, region.theirs_range()),
+                _ => (&aa, region.ours_range()),
+            };
+            for idx in range {
+                if let Some(atom) = srcs.get(idx) {
+                    out.extend_from_slice(atom);
+                }
             }
         }
     }
@@ -334,6 +355,121 @@ fn item_node<'t>(
     let mut c = root.walk();
     root.named_children(&mut c)
         .find(|n| lang.entity_kinds().iter().any(|r| r.node_kind == n.kind()))
+}
+
+#[derive(Clone, Copy)]
+enum PermSide {
+    A,
+    B,
+}
+
+struct AtomOrigin {
+    side: PermSide,
+    index: usize,
+}
+
+/// Compose an unambiguous statement permutation with insertions. Interior
+/// insertions belong to a gap, not arbitrarily to either neighboring statement:
+/// if the permutation separates or reverses those neighbors, leave a conflict.
+///
+/// Statements are matched byte-exactly. The composed output takes each shared
+/// statement from the permuting side, so a trivia-only edit by the other side
+/// would be dropped; refusing to compose leaves that case to the text merge.
+fn merge_permutation_insertions(
+    base: &[Vec<u8>],
+    a: &[Vec<u8>],
+    b: &[Vec<u8>],
+) -> Option<Vec<AtomOrigin>> {
+    permutation_insertions(base, a, b, PermSide::A, PermSide::B)
+        .or_else(|| permutation_insertions(base, b, a, PermSide::B, PermSide::A))
+}
+
+fn permutation_insertions(
+    base: &[Vec<u8>],
+    permutation: &[Vec<u8>],
+    insertion: &[Vec<u8>],
+    permutation_side: PermSide,
+    insertion_side: PermSide,
+) -> Option<Vec<AtomOrigin>> {
+    if base.len() < 3 || permutation.len() != base.len() || insertion.len() <= base.len() {
+        return None;
+    }
+    for src in [permutation, insertion] {
+        if src.first() != base.first() || src.last() != base.last() {
+            return None;
+        }
+    }
+    let mut by_key: HashMap<&[u8], usize> = HashMap::new();
+    for (index, atom) in base.iter().enumerate().skip(1).take(base.len() - 2) {
+        if by_key.insert(atom.as_slice(), index).is_some() {
+            return None;
+        }
+    }
+    let order: Vec<usize> = permutation[1..permutation.len() - 1]
+        .iter()
+        .map(|atom| by_key.get(atom.as_slice()).copied())
+        .collect::<Option<_>>()?;
+    let unique: BTreeSet<_> = order.iter().copied().collect();
+    if unique.len() != order.len() || order.iter().copied().eq(1..base.len() - 1) {
+        return None;
+    }
+    let mut next = 1usize;
+    let mut gaps: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for (index, atom) in insertion
+        .iter()
+        .enumerate()
+        .skip(1)
+        .take(insertion.len() - 2)
+    {
+        if let Some(&base_index) = by_key.get(atom.as_slice()) {
+            if base_index != next {
+                return None;
+            }
+            next += 1;
+        } else {
+            gaps.entry(next).or_default().push(index);
+        }
+    }
+    if next != base.len() - 1 {
+        return None;
+    }
+    let positions: HashMap<_, _> = order.iter().enumerate().map(|(i, &b)| (b, i)).collect();
+    for &gap in gaps.keys() {
+        if gap != 1
+            && gap != base.len() - 1
+            && positions.get(&(gap - 1)).copied().map(|p| p + 1) != positions.get(&gap).copied()
+        {
+            return None;
+        }
+    }
+    let mut out = vec![AtomOrigin {
+        side: permutation_side,
+        index: 0,
+    }];
+    let append_gap = |gap, out: &mut Vec<AtomOrigin>| {
+        if let Some(indices) = gaps.get(&gap) {
+            out.extend(indices.iter().map(|&index| AtomOrigin {
+                side: insertion_side,
+                index,
+            }));
+        }
+    };
+    append_gap(1, &mut out);
+    for (i, &base_index) in order.iter().enumerate() {
+        if base_index != 1 {
+            append_gap(base_index, &mut out);
+        }
+        out.push(AtomOrigin {
+            side: permutation_side,
+            index: i + 1,
+        });
+    }
+    append_gap(base.len() - 1, &mut out);
+    out.push(AtomOrigin {
+        side: permutation_side,
+        index: permutation.len() - 1,
+    });
+    Some(out)
 }
 
 fn src_atoms(src: &[u8], lang: &dyn crate::lang::Lang) -> Result<Vec<Vec<u8>>> {
@@ -529,7 +665,10 @@ fn stored_ref(
     let at = line_col(&orig_src, mapped.start);
     let ident = match ident_at(&orig_map, mapped)? {
         IdentRef::Local(slot, ns) => {
-            let slots = slot_bijection(&equal_lines(&orig_src, merged_src), &orig_map, merged_map);
+            let mut slots =
+                slot_bijection(&equal_lines(&orig_src, merged_src), &orig_map, merged_map);
+            pair_unmapped_by_spelling(&mut slots, &orig_src, merged_src, &orig_map, merged_map);
+            pair_unmapped_by_unique_line(&mut slots, &orig_src, merged_src, &orig_map, merged_map);
             let (slot, ns) = slots.get(&(slot, ns)).copied().unwrap_or((slot, ns));
             IdentRef::Local(slot, ns)
         }
