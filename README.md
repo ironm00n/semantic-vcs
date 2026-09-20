@@ -1,60 +1,65 @@
 # svc — compiler-grade version control
 
-Agent-generated code is cheap. Understanding it is not.
+![Two definitions, one reference, and a merge that refuses to redirect the binding](svc-cover.svg)
 
-`svc` is a semantic version-control system. Definitions have stable identities,
-a rename is recorded as a rename, and a merge that would silently retarget a
-reference is a conflict — even when git would take both hunks and the crate
-would still compile.
+`svc` is a version-control system whose unit is the definition, not the line.
+Every `fn`, `struct`, `impl`, class or method keeps one identity for life; a
+rename is recorded as a rename; a merge that would silently make a reference
+point at a different binder is a conflict, even when git merges clean and the
+crate still compiles. The working tree is a render of the store, and an agent
+on the included overlay can only write through `svc` operations. This
+repository's own history since 02:31 UTC was made with it: 213 operations in
+40 bundles, replayed by the first command below.
 
-It is not a git frontend. The working tree is a *render* of the store. An
-agent on the included DeepSeek Harness overlay can read the tree normally,
-but its only write tools are `svc` operations: no file editor, no shell.
+## Try it
 
-## What is stored
+```sh
+nix develop            # or: a Rust toolchain plus jq and node
+cargo build -p svc
+demo/dogfood.sh --tui  # this repository's own svc-made history, replayed, in the review UI
+```
 
-Git answers "what does the tree look like" by reading a commit's tree
-object. `svc` does the same: a **snapshot** is stored whole and looked up
-by id. Checkout, show, and render never replay operations to reconstruct
-it.
+The third command rebuilds `demo/history/*.json` into a fresh store from
+git's trees (a minute or two), then opens `svc tui` on it. `--shell` instead
+of `--tui` opens a shell in that checkout.
 
-What's *inside* that snapshot is not git blobs. A language file is a list
-of **entities** (`fn`, `struct`, `impl`, JS functions and methods, …), each
-with one `EntityId` for life, plus leftover bytes after the last item.
-Render walks that list in ordinal order. Non-language files (`Cargo.toml`,
-this README) are those leftover bytes with no entities.
+## What you will see
 
-The snapshot lives under `SnapshotId = blake3(snapshot)`. Unchanged
-*content* is shared by hash; the entity index is copied in full (no
-git-style subtree sharing yet).
+```text
+$ svc op log
+#212 absorbed hand edits  [cursor]
+#199 edit-def open_with⟨8f4511f6⟩ (declared feature, observed binding-preserving) ✓  [claude]
+#194 note to checkout supervisor: "landed qkyvkunv 6fddc064 (Touch::Rebound + mail-sync fixes …"  [claude]
+#175 undo  [claude]
+#110 renamed hex4 → short_hex  [codex]
 
-| git | svc |
-|---|---|
-| commit + tree | `SnapshotId` — one immutable map of every entity |
-| blob | `BytesId` (exact source with holes) and `ContentId` (α-normal form) |
-| branch name | a name for a `ChangeId` |
-| `git checkout <commit>` | `get_snapshot(id)` |
-| reflog / `jj evolog` | `predecessors` on a change |
-| `git log -p` | the **op log** — a journal of named operations whose `before`/`after` *point at* snapshots |
+$ svc blame --entity crates/svc-repo/src/bundle.rs:import
+#172 change 91e5f023 edited (binding-preserving) — edit-def import⟨86564d5f⟩ (declared fix, unchecked)
+#160 change 91e5f023 relocated crates/svc-repo/src/bundle.rs#25 → crates/svc-repo/src/bundle.rs#28
+```
 
-A `ChangeId` is not a snapshot. It is a stable name for a logical change
-(jj, not git). Amending moves `head(change)`; old states of that change are
-on `predecessors`. Merge ancestry is `parents`. Neither walk answers "what
-does the tree look like."
-
-The op log is how you *review* what happened. A rename is an `Op::Rename`,
-not a 26-file text diff inferred after the fact. A review, a mail message,
-and a claim are the same object (`Op::Note`); TUI and forge only display it.
-`svc replay` folds that journal onto an empty store only as a check that
-nothing was smuggled around it.
-
-Each entity is stored twice:
-
-- **Content** — locals become slots, callees become entity ids, trivia is
-  gone. Renaming `parse` changes one string in one record; call sites are
-  holes filled at render time.
-- **Bytes** — the original spelling, comments, and layout, with `Name(id)`
-  and `Child(id)` holes so the file round-trips.
+- **History in operations.** `svc op log` is a journal of named operations —
+  rename, edit-def, add-def, undo, note — each with who made it, when, and the
+  classifier's verdict, not a diff inferred afterwards. `svc blame` on an
+  entity lists the operations that touched it. (In the TUI: `j`/`k` and `Enter`
+  through revisions, `e` entities, `o` the op log, `u` undo, `q` quit.)
+- **A rename follows.** `svc rename --entity parse --new-name parse_config`
+  rewrites every resolved mention and says what it could not resolve:
+  `1 method call .parse(…) left unchanged: receiver types are not resolved`.
+  On `tokio`, renaming `asyncify` (30 call sites, 25 files) is one log line.
+- **The merge git gets wrong is a conflict.** See the block below; `svc
+  conflicts` lists it, `svc resolve <n> --take a|b|base` records the choice
+  as an operation, and `svc replay` re-derives the result.
+- **Review lives in the repository.** A changeset groups operations; `svc
+  review <changeset> --approve|--request-changes|--note`, `svc mail` and `svc
+  claim` are operations too. `svc push <changeset> <dir>` carries them to
+  another clone, which then prints the same `svc changeset show`. The
+  coordination between the agents that built this repository ran through it
+  from 06:33 UTC (the notes are in the replayed history).
+- **Replay is the proof.** `demo/history/replay.sh <dir>` refuses any bundle
+  whose recorded trees do not reproduce; when today's engine computes an old
+  operation differently, the recorded files supply the tree and the line says so
+  (`ops 32,36 from the record`).
 
 ## The merge git gets wrong
 
@@ -73,175 +78,125 @@ merged into change 8230 (snapshot 58f0): 1 conflict(s)
         at src/main.rs:67, now means the `let raw` at src/main.rs:68 (shadowed)
 ```
 
-Reproduce the git side without `svc`:
+Reproduce the git side without `svc`: `demo/git-twin/build.sh`.
 
-```sh
-demo/git-twin/build.sh
-```
+## How it works
 
-## Try it
+**Entities with two encodings.** A language file is a list of entities, each
+with one `EntityId` for life. Each is stored twice: *content* — locals become
+slots, callees become entity ids, trivia is gone, so renaming `parse` changes
+one string in one record and call sites are holes filled at render time — and
+*bytes* — the original spelling, comments and layout, with `Name(id)` and
+`Child(id)` holes so the file round-trips byte for byte. Files with no
+language (`Cargo.toml`, this README) are opaque byte records.
 
-```sh
-nix develop
-cargo build -p svc
-demo/dogfood.sh --tui  # this repository's own svc-made history, replayed: revisions, oplog, blame
-# demo/dogfood.sh --shell
-# demo/dogfood.sh --agent "rename describe_op to describe_operation"
-```
+**Snapshots plus a journal.** A snapshot is one immutable map of every entity,
+stored whole under `blake3(snapshot)` and looked up by id — checkout, show and
+render never replay anything. A `ChangeId` is a stable name for a logical change
+(jj, not git): amending moves its head, old states stay on `predecessors`,
+merge ancestry is `parents`. The op log is a separate journal whose entries
+point at snapshots; `svc undo` walks it back, `svc op restore <n>` forward.
 
-The full-source script preserves the checkout path it prints, so the same
-history can be inspected again without reseeding it. For a smaller fixture,
-use `demo/play.sh --tui` (or `--agent`). Or by hand:
+**Binding-aware merge.** Merge is per entity; the result is re-resolved and
+every surviving reference is checked against the binder it had on the side
+that wrote it. A changed binder is a binding conflict; a changed body with
+the same bindings is not. The classifier gives every `edit-def` a verdict the
+same way (binding-preserving, binding-changing, alpha, docs-only), which is
+what the review queue is made of.
 
-```sh
-cd demo/config
-../../target/debug/svc init
-../../target/debug/svc list-defs
-../../target/debug/svc show parse
-../../target/debug/svc rename --entity parse --new-name parse_config
-../../target/debug/svc log
-```
+**Review, mail and claims are operations.** A changeset is a group of
+operations; a verdict, a note to another checkout or a claim on an entity is
+an `Op::Note` in the same log. `svc push`/`svc pull` move a changeset between
+clones as a history bundle — only what the other side lacks, matched by time
+and content, not by index — so the receiving clone shows the same queue. No
+server holds it; `svc-forge` and the TUI only render the store.
 
-Every verb prints a sentence; add `--json` for the machine form.
-`svc rename` says how many mentions it could not track (method calls on
-untyped receivers, strings, comments) instead of pretending.
+## Numbers
 
-The acceptance gate is one script:
+Debug build on a shared VM under load, the numbers a judge running `cargo
+build -p svc` gets:
 
-```sh
-demo/run.sh target/debug/svc
-```
+| what | number | command |
+|---|---|---|
+| this repository ingested | 2,259 entities in 208 files, 2.6 s | `svc init` at the repo root (`demo/selfhost-full.sh` does it in a copy) |
+| its own history replayed | 40 bundles, 213 operations, every tree as recorded | `demo/history/replay.sh <dir>` |
+| the rendered tree still builds | `cargo test --workspace` from an empty checkout: 0 failures | `demo/selfhost-full.sh` |
+| `syn` (97 files) | 7,365 entities in 3.0 s; `status` 0.1–0.2 s | `svc init` in a `syn` checkout |
+| `tokio` (555 files) | 11,786 entities in 3.7 s; rename of `asyncify` (30 sites, 25 files) 1.1–1.8 s, `cargo check --features full` passes; git shows 25 files, 55/55 lines | `svc rename --entity asyncify --new-name …` |
+| one store, many checkouts | 32 checkouts publishing at once: 30 renames, indices contiguous, no loss | `tests/concurrency/workspace_stress.sh 32` |
+| kill it mid-write | 12 `SIGKILL`s at random points of a rename: never a snapshot ahead of the log | `demo/crash.sh` |
+| the whole gate | `cargo test --workspace` 357/0; `demo/run.sh` 138 checks, 0 failures | `demo/run.sh target/debug/svc` |
 
-That runs the scripted demo (rename, the binding-conflict merge, the JS
-twin, the agent changeset, evolog/undo, the in-TUI replay, the forge, and
-self-hosting `svc` on this repo's own crates), then a multi-checkout stress
-test, 32 checkouts publishing at once, renames SIGKILLed at random points
-(the store is never a snapshot ahead of the op log; a killed render is
-finished by the next open), and two checkouts of this repository making svc
-changes to one file at once — merged, one conflict resolved, replayed, and the
-merged crate type-checked. `SVC_SKIP_SELF_HOST=1` skips the self-host line
-and that type-check.
-
-Self-hosting alone:
-
-```sh
-cargo build -p svc && demo/self-host.sh
-```
-
-This repository's own history, made through svc: `demo/history/` holds one
-bundle per svc-made landing (the op log with entity paths, absorbed files and
-per-op tree hashes). `demo/history/replay.sh <dir>` rebuilds them into one
-store from git's trees, in order, refusing any op whose tree does not
-reproduce; `svc tui`, `svc log` and `svc blame` in `<dir>` then answer for
-this repository's real entities, with the recorded times and checkouts —
-`demo/dogfood.sh --tui` does exactly that (`--story --tui` for the scripted
-story on svc's crates).
+`demo/run.sh` runs the scripted demo lines, the forge, self-hosting on this
+repository, the multi-checkout stress, the crash test, two checkouts of this
+repository merging one file (conflict, resolution, replay, type-check), the
+changeset sync (`demo/sync.sh`), the history replay and O9, the compiler
+oracle over the binder table.
 
 ## Agent overlay
 
-Read, glob, and grep stay. `edit` and `write` are removed from the schema;
-shell, web, and subagents are disabled. Writes go through `rename`,
-`add_def`, `edit_def`, and the rest. `edit_def` must be a complete item and
-asks permission. `list_tools` is the proof of the tool set.
+Read, glob and grep stay; `edit` and `write` are removed from the schema;
+shell, web and subagents are disabled. Writes go through `rename`, `add_def`,
+`edit_def` and the rest; `edit_def` must be a complete item and asks
+permission. `list_tools` is the proof of the tool set.
 
 ```sh
 SVC_BIN="$PWD/target/debug/svc" OPENROUTER_API_KEY="…" \
-  npx -y @deepseek-ai/dsh@0.1.5-rc.2 \
-    --profile acp --patch harness/overlay.yml
+  npx -y @deepseek-ai/dsh@0.1.5-rc.2 --profile acp --patch harness/overlay.yml
 ```
 
-`svc tui` is the review UI (entity tree, highlighted source, canonical
-stream, op history, review queue): `/` filters the tree, an expanded
-edit-def shows its before→after diff, and the panes follow what any other
-process publishes to the store. `svc tui --agent "<task>"` runs that task
-inside it; the run is one changeset, so `svc undo` reverts it in one step.
-Without a model key, `demo/play.sh --agent` hosts a scripted ACP agent
-against the real binary. Any ACP-on-stdio agent works the same way.
+`svc tui --agent "<task>"` runs that task inside the review UI; the run is one
+changeset, so `svc undo` reverts it in one step. Without a model key,
+`demo/play.sh --agent` hosts a scripted ACP agent against the real binary.
 
-Live A/B (stock dsh vs overlay) is `demo/ab.sh`. Without a credential it
-checks identical starting trees and exits 0 with SKIP.
+## Verbs
 
-## Review travels with the changeset
-
-A changeset is the unit of review, and it moves between clones with its
-review state, because that state *is* the op log: each op's declared
-intent, the observed class, the flag, the subject, the time and the
-checkout that made it.
-
-```sh
-svc changeset begin reviewed          # every op until `end` joins it
-svc rename --entity read --new-name read_file
-svc edit-def --entity parse --intent refactor --definition "$(cat parse.rs)"
-svc changeset end
-svc push reviewed ../clone            # the ops the clone lacks, from the tree they started on
-(cd ../clone && svc changeset list)   # the same ops, verdicts and subjects
-svc changeset reopen reviewed         # a follow-up joins the same changeset
-svc pull reviewed ../clone            # the reviewer's own ops come back
-```
-
-`push`/`pull` send only what the other side does not have (its newest op of
-that changeset), as a history bundle: the receiving tree must be where those
-ops started — a fresh clone of the same tree, or one that took the previous
-push. No server holds the queue; `demo/sync.sh` is the gate: two clones,
-one changeset, identical `svc changeset list` on both after push, after a
-second push and after a pull.
-
-## Forge
-
-`svc forge export` writes `.svc/forge.json` from the store (never contends
-with a writer). `crates/svc-forge` serves it:
-
-```sh
-svc forge export
-cargo run -p svc-forge -- --catalog .svc/forge.json   # http://127.0.0.1:7742
-```
-
-Heads and the current root carry their entities. Ancestor snapshots in the
-export are listed by id only — the store still has the full snapshots;
-the catalog file does not reconstruct them by replaying operations.
-
-## Scale
-
-Debug build, on a VM under load (the numbers a judge running `cargo build`
-gets, not a benchmark): `svc init` on `syn` (97 files) ingests 7,365 entities
-in 3.0 s; on `tokio` (555 files) 11,786 entities in 3.7 s. `svc status` on
-either is 0.1–0.2 s (the first one after a mutation renders once: 0.5–1.2 s).
-Renaming `tokio`'s `asyncify` (30 call sites across 25 files) is one log
-line, 1.1–1.8 s, and `cargo check --features full` still passes. Git shows
-the same change as 25 files, 55 insertions, 55 deletions.
+`status` (absorbs hand edits into the current change), `log`, `op log`, `show`,
+`blame`, `evolog`, `heads`, `rename`, `move`, `relocate`, `extract`, `inline`,
+`add-def`, `edit-def`, `delete`, `undo`, `op restore`, `new`, `describe`,
+`branch`, `merge`, `conflicts`, `resolve`, `replay`, `changeset begin|end|
+reopen|show|list`, `review`, `mail`, `inbox`, `claim`, `release`, `push`,
+`pull`, `workspace add|list`, `history export|import`, `forge export`, `tui`.
+The verbs people read at the expo print a sentence; the rest print JSON;
+`--json` on any verb is the machine form.
 
 ## Limits
 
 Hackathon prototype. Not a git replacement.
 
 - **Lexical binding only.** `x.parse()` on an unknown receiver is a free
-  mention. Method, field, and trait-item resolution needs types; the store
-  shape does not. `svc rename` reports the misses.
-- **Rust and JavaScript.** Named ESM `import { x }` follows a unique `export` across files (ambiguous names stay put); default-import aliases stay local, and CJS `require()` / `module.exports` pairs are not modeled.
+  mention; method, field and trait-item resolution needs types. `svc rename`
+  reports the misses.
+- **Rust and JavaScript.** Named ESM `import { x }` follows a unique `export`
+  across files (ambiguous names stay put); default-import aliases stay local,
+  and CJS `require()` / `module.exports` pairs are not modeled.
 - **Macros.** Arguments of a macro call resolve like any other code (`vec![x]`
-  uses the local `x`, as rustc says — the compiler oracle O9 enforces it);
-  `macro_rules!` bodies are not analysed.
-- **Non-language files** (`Cargo.toml`, lockfiles, this README) are stored
-  as opaque byte records so a checkout still builds. They are not entities.
+  uses the local `x`, as rustc says — O9 enforces it); `macro_rules!` bodies
+  are not analysed.
+- **Cross-file moves** carry the text and nothing else: imports are not
+  rewritten; `svc undo` restores the tree.
 - **Regular files only.** Symlinks, FIFOs, sockets and devices are not
-  tracked, and a file name that is not UTF-8 is refused by name.
-- **Classifier** checks surviving-reference capture, not "did the agent do
-  the task."
-- **Concurrency:** named checkouts share one store (redb multi-writer: any
-  number of `svc` processes, write transactions serialized on the file). A
+  tracked; a file name that is not UTF-8 is refused by name. `.svcignore`
+  (bare names, no globs) is read; `.gitignore` is not.
+- **Concurrency.** Named checkouts share one store (redb multi-writer). A
   publish that finds its change's head moved is refused with nothing written
-  (`concurrent update`), not merged. A checkout is one working copy: one
-  `svc` at a time (`checkout busy` after a bounded wait). Each checkout undoes
-  only its own ops and refuses to mutate while behind its change's head.
+  (`concurrent update`); a checkout is one working copy at a time (`checkout
+  busy` after a bounded wait); each checkout undoes only its own operations.
+- **Sync** moves a changeset between clones on the same tree (a fresh clone,
+  or one that took the previous push); notes alone land on any tree.
 - **Live models.** With `deepseek-chat`, a run sometimes stops after the
-  first op; the TUI's `p` continues the same session. The scripted agent
-  is the deterministic gate.
+  first operation; the TUI's `p` continues the same session. The scripted
+  agent is the deterministic gate.
 
 ## Built with
 
-HackMIT 2026. Codex, Claude Code, Muse, Cursor, Devin, Warp, and DeepSeek Harness.
-Rust, tree-sitter (Rust and JavaScript), redb, postcard, BLAKE3, similar,
-clap, ratatui, agent-client-protocol, axum, Node.js, `@deepseek-ai/dsh@0.1.5-rc.2`.
+svc itself: this repository's changes since 02:31 UTC were made through
+`svc` verbs and are the 40 bundles in `demo/history/` (213 operations), the
+agents' coordination through `svc mail` from 06:33 UTC. HackMIT 2026. Codex,
+Claude Code, Muse, Cursor, Devin, Warp and DeepSeek Harness. Rust,
+tree-sitter (Rust and JavaScript), redb, postcard, BLAKE3, similar, clap,
+ratatui, agent-client-protocol, axum, Node.js,
+`@deepseek-ai/dsh@0.1.5-rc.2`.
 
 Prior art: MolhadoRef, Mergiraf, jj, Serena, semedit, CODESTRUCT, IDE
 refactorings. The experiment is their intersection in a store that is not

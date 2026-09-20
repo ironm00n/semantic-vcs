@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Semantic binding graph</title>
+  <desc id="desc">A minimal flat vector showing two definitions, one reference, and a merge that refuses to redirect the binding.</desc>
+  <rect width="1600" height="900" rx="40" fill="#091218"/>
+  <g stroke="#213038" stroke-width="2" opacity=".42">
+    <path d="M160 160H1440M160 300H1440M160 440H1440M160 580H1440M160 720H1440"/>
+    <path d="M240 100V800M520 100V800M800 100V800M1080 100V800M1360 100V800"/>
+  </g>
+  <g fill="#0f2028" stroke-width="5">
+    <rect x="170" y="220" width="330" height="180" rx="30" stroke="#67e2bd"/>
+    <rect x="170" y="500" width="330" height="180" rx="30" stroke="#efad62"/>
+  </g>
+  <g fill="#67e2bd">
+    <circle cx="225" cy="275" r="15"/>
+    <rect x="265" y="260" width="175" height="24" rx="12"/>
+    <rect x="225" y="320" width="215" height="16" rx="8" opacity=".52"/>
+    <rect x="225" y="354" width="132" height="16" rx="8" opacity=".3"/>
+  </g>
+  <g fill="#efad62">
+    <circle cx="225" cy="555" r="15"/>
+    <rect x="265" y="540" width="175" height="24" rx="12"/>
+    <rect x="225" y="600" width="215" height="16" rx="8" opacity=".52"/>
+    <rect x="225" y="634" width="132" height="16" rx="8" opacity=".3"/>
+  </g>
+  <circle cx="790" cy="450" r="118" fill="#102630" stroke="#d6e7e5" stroke-width="5"/>
+  <circle cx="790" cy="450" r="18" fill="#d6e7e5"/>
+  <path d="M728 450H852M790 388V512" stroke="#d6e7e5" stroke-width="18" stroke-linecap="round"/>
+  <path d="M500 310C625 310 620 406 672 432" fill="none" stroke="#67e2bd" stroke-width="12" stroke-linecap="round"/>
+  <path d="M500 590C650 590 620 493 676 470" fill="none" stroke="#efad62" stroke-width="12" stroke-linecap="round" stroke-dasharray="22 22"/>
+  <path d="M908 450H1400" stroke="#d6e7e5" stroke-width="12" stroke-linecap="round" opacity=".82"/>
+  <circle cx="1120" cy="450" r="25" fill="#091218" stroke="#d6e7e5" stroke-width="10"/>
+  <circle cx="1380" cy="450" r="25" fill="#67e2bd"/>
+  <g transform="translate(968 542)">
+    <path d="M0 0L92 92M92 0L0 92" stroke="#efad62" stroke-width="22" stroke-linecap="round"/>
+    <path d="M46-44V-8" stroke="#efad62" stroke-width="10" stroke-linecap="round"/>
+  </g>
+  <g fill="#67e2bd">
+    <rect x="170" y="126" width="74" height="12" rx="6"/>
+    <rect x="258" y="126" width="34" height="12" rx="6" opacity=".35"/>
+  </g>
+  <g fill="#d6e7e5" opacity=".35">
+    <circle cx="1360" cy="750" r="8"/>
+    <circle cx="1390" cy="750" r="8"/>
+    <circle cx="1420" cy="750" r="8"/>
+  </g>
+</svg>
