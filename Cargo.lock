@@ -2479,6 +2479,7 @@ dependencies = [
  "ratatui",
  "serde",
  "serde_json",
+ "similar",
  "svc-agent",
  "svc-core",
  "svc-repo",

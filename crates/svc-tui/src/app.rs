@@ -95,6 +95,10 @@ pub struct App {
     /// `/` filter over the tree: a substring of the name or file, case-insensitive. While
     /// `typing`, keys go to it; Enter keeps it, Esc clears it. Non-empty = a flat match list.
     pub filter: String,
+    /// Every op's root after it, by op index, so an edit-def's "before" is the previous
+    /// op's root; and the before→after diffs already computed, by op index.
+    roots: std::collections::BTreeMap<u64, String>,
+    edit_diffs: HashMap<u64, Vec<Line<'static>>>,
     pub typing: bool,
 }
 
@@ -126,6 +130,8 @@ impl App {
             should_quit: false,
             log: Vec::new(),
             filter: String::new(),
+            roots: Default::default(),
+            edit_diffs: HashMap::new(),
             typing: false,
         };
         app.tree_state.select(Some(0));
@@ -152,6 +158,8 @@ impl App {
         let log = self.svc.log().unwrap_or_default();
         self.ops = self.svc.op_log().unwrap_or_else(|_| log.clone());
         let conflicts = self.svc.conflicts().unwrap_or_default();
+        self.roots = log.iter().map(|o| (o.ix.0, o.root_after.to_string())).collect();
+        self.edit_diffs.clear();
         self.rebuild_queue(&log, &conflicts);
         self.select_touched_if_needed();
         if self.touched.is_empty() {
@@ -410,6 +418,7 @@ impl App {
                     if let Some(i) = self.queue_state.selected() {
                         if !self.expanded.remove(&i) {
                             self.expanded.insert(i);
+                            self.load_edit_diff(i);
                         }
                     }
                 } else {
@@ -500,6 +509,53 @@ impl App {
             _ => {}
         }
         true
+    }
+
+    /// The expanded rows under a queue item: an ask shows the head of its definition, an
+    /// edit-def its before→after diff once loaded, a binding conflict what to do.
+    fn queue_detail(&self, q: &QueueItem) -> Vec<Line<'static>> {
+        match q {
+            QueueItem::Ask { definition, .. } => definition
+                .lines()
+                .take(5)
+                .map(|l| Line::from(format!("      {l}")).dark_gray())
+                .collect(),
+            QueueItem::Edit { op, .. } => {
+                let mut v = vec![Line::from(format!("      op #{}  at {}", op.ix.0, op.at)).dark_gray()];
+                match (self.edit_diffs.get(&op.ix.0), &op.op) {
+                    (Some(diff), _) => v.extend(diff.iter().cloned()),
+                    (None, Op::EditDef { definition, .. }) => {
+                        v.extend(definition.lines().take(5).map(|l| Line::from(format!("      {l}")).dark_gray()))
+                    }
+                    _ => {}
+                }
+                v
+            }
+            QueueItem::Binding { .. } => vec![Line::from("      fix the code, or `svc resolve <n> --accept`").dark_gray()],
+        }
+    }
+
+    /// Before→after of the edit-def at queue row `i`, two `show-def --at` calls, kept until
+    /// the next refresh. An older `svc` without `--at` leaves the definition-head fallback.
+    fn load_edit_diff(&mut self, i: usize) {
+        let Some(QueueItem::Edit { op, .. }) = self.queue.get(i) else { return };
+        let Op::EditDef { id, .. } = &op.op else { return };
+        let ix = op.ix.0;
+        if self.edit_diffs.contains_key(&ix) {
+            return;
+        }
+        let id = id.to_string();
+        let after_root = op.root_after.to_string();
+        let before_root = self.roots.range(..ix).next_back().map(|(_, r)| r.clone());
+        let after = match self.svc.show_def_at(&id, &after_root) {
+            Ok(d) => d.source(),
+            Err(_) => return,
+        };
+        let before = before_root
+            .and_then(|r| self.svc.show_def_at(&id, &r).ok())
+            .map(|d| d.source())
+            .unwrap_or_default();
+        self.edit_diffs.insert(ix, edit_diff_lines(&before, &after));
     }
 
     fn move_sel(&mut self, delta: i32) {
@@ -733,7 +789,7 @@ impl App {
             .map(|(i, q)| {
                 let mut lines = vec![queue_line(q)];
                 if self.expanded.contains(&i) {
-                    lines.extend(queue_detail(q));
+                    lines.extend(self.queue_detail(q));
                 }
                 ListItem::new(lines)
             })
@@ -884,22 +940,35 @@ fn queue_line(q: &QueueItem) -> Line<'static> {
     }
 }
 
-fn queue_detail(q: &QueueItem) -> Vec<Line<'static>> {
-    match q {
-        QueueItem::Ask { definition, .. } => definition
-            .lines()
-            .take(5)
-            .map(|l| Line::from(format!("      {l}")).dark_gray())
-            .collect(),
-        QueueItem::Edit { op, .. } => {
-            let mut v = vec![Line::from(format!("      op #{}  at {}", op.ix.0, op.at)).dark_gray()];
-            if let Op::EditDef { definition, .. } = &op.op {
-                v.extend(definition.lines().take(5).map(|l| Line::from(format!("      {l}")).dark_gray()));
+/// Unified-diff rows for an edit-def: removed red, added green, context dim; long diffs
+/// are cut with a count so the queue stays a queue.
+fn edit_diff_lines(before: &str, after: &str) -> Vec<Line<'static>> {
+    const MAX: usize = 40;
+    let diff = similar::TextDiff::from_lines(before, after);
+    let mut out = Vec::new();
+    let mut hidden = 0usize;
+    for hunk in diff.unified_diff().context_radius(2).iter_hunks() {
+        for change in hunk.iter_changes() {
+            let text = change.value().trim_end_matches('\n').to_string();
+            let line = match change.tag() {
+                similar::ChangeTag::Delete => Line::from(format!("    - {text}")).red(),
+                similar::ChangeTag::Insert => Line::from(format!("    + {text}")).green(),
+                similar::ChangeTag::Equal => Line::from(format!("      {text}")).dark_gray(),
+            };
+            if out.len() < MAX {
+                out.push(line);
+            } else {
+                hidden += 1;
             }
-            v
         }
-        QueueItem::Binding { .. } => vec![Line::from("      fix the code, or `svc resolve <n> --accept`").dark_gray()],
     }
+    if hidden > 0 {
+        out.push(Line::from(format!("      … {hidden} more lines")).dark_gray());
+    }
+    if out.is_empty() {
+        out.push(Line::from("      (no textual change)").dark_gray());
+    }
+    out
 }
 
 #[cfg(test)]
@@ -1259,5 +1328,22 @@ mod tests {
         code(&mut app, KeyCode::Esc);
         code(&mut app, KeyCode::Esc);
         assert!(app.should_quit, "esc with no filter quits");
+    }
+
+    #[test]
+    fn an_edit_diff_is_removed_red_added_green_context_dim_and_cut_with_a_count() {
+        let before = "fn validate(c: &Config) {\n    if c.retries > 3 {\n        panic!()\n    }\n}\n";
+        let after = "fn validate(c: &Config) {\n    check_retries(c)\n}\n";
+        let lines = edit_diff_lines(before, after);
+        let text: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+        assert!(text.iter().any(|l| l.starts_with("    - ") && l.contains("retries > 3")), "{text:?}");
+        assert!(text.iter().any(|l| l.starts_with("    + ") && l.contains("check_retries")), "{text:?}");
+        assert!(text.iter().any(|l| l.starts_with("      fn validate")), "context kept: {text:?}");
+        assert_eq!(edit_diff_lines("same\n", "same\n").len(), 1, "no textual change");
+        let big_before = (0..100).map(|i| format!("l{i}\n")).collect::<String>();
+        let big_after = (0..100).map(|i| format!("m{i}\n")).collect::<String>();
+        let cut = edit_diff_lines(&big_before, &big_after);
+        assert_eq!(cut.len(), 41);
+        assert!(cut.last().unwrap().to_string().contains("more lines"));
     }
 }

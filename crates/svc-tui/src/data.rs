@@ -129,6 +129,11 @@ impl Svc {
         self.json(&["show-def", "--entity", entity])
     }
 
+    /// The entity as it was in snapshot `at` (`show-def --at`), for before/after diffs.
+    pub fn show_def_at(&self, entity: &str, at: &str) -> Result<ShowDef, String> {
+        self.json(&["show-def", "--entity", entity, "--at", at])
+    }
+
     pub fn conflicts(&self) -> Result<Vec<ConflictOut>, String> {
         self.json(&["conflicts"])
     }
