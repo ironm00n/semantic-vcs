@@ -411,6 +411,7 @@ fn collect_refs<'a>(
                 })
             } else if let Some(segs) = aliased_mod_segs(node, src, lang) {
                 env.lookup_aliased_mod_path(&segs, ns)
+                    .or_else(|| env.lookup(&name, ns))
             } else {
                 env.lookup(&name, ns)
             } {
