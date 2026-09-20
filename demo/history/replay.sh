@@ -60,10 +60,13 @@ for bundle in $ordered; do
     "$SVC" status --json >/dev/null || exit 2    # everyone else's landings, absorbed
   fi
   # Who made these ops: the bundle says nothing (everyone worked in their own primary
-  # checkout) but its landing commit carries an Agent trailer, so the replayed ops are
-  # stamped with the agent's name as their checkout.
+  # checkout); agents.txt maps each bundle to the Agent trailer of its landing commit
+  # (written where jj is; a git clone has no jj), and jj is asked for a bundle it lacks.
   change="$(echo "$name" | cut -d- -f3-)"
-  agent="$(cd "$ROOT" && jj --ignore-working-copy log -r "$change" --no-graph -T description 2>/dev/null | sed -n 's/^Agent: *//p' | head -1)"
+  agent="$(awk -v n="$name" '$1 == n { print $2 }' "$HERE/agents.txt" 2>/dev/null | head -1)"
+  if [ -z "$agent" ] || [ "$agent" = "?" ]; then
+    agent="$( (cd "$ROOT" && jj --ignore-working-copy log -r "$change" --no-graph -T description 2>/dev/null || true) | sed -n 's/^Agent: *//p' | head -1)"
+  fi
   if [ -n "$agent" ] && jq --arg w "$agent" '.entries |= map(.workspace //= $w)' "$bundle" > "$stamped"; then
     bundle="$stamped"
   fi

@@ -32,3 +32,13 @@ base commit into `<dir>` (everyone else's landings in between arrive as one abso
 edit, which is what they were), then `svc history import`; refuses if a tree hash does not
 match. The store left in `<dir>/.svc` answers `svc log`, `svc blame`, `svc evolog` and the
 TUI for real entities of this repository.
+
+`agents.txt` maps each bundle to the `Agent:` trailer of its landing commit, so a git
+clone (no jj) still stamps the replayed ops with who made them. Regenerate it after
+adding a bundle:
+
+```sh
+for f in demo/history/[0-9]*.json; do n=$(basename $f .json); c=${n#*-*-}; \
+  echo "$n $(jj --ignore-working-copy log -r "$c" --no-graph -T description | sed -n 's/^Agent: *//p' | head -1)"; \
+done > demo/history/agents.txt
+```

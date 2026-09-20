@@ -42,6 +42,12 @@ const RENDERED: TableDefinition<&[u8; 32], &[u8]> = TableDefinition::new("render
 
 const META_ROOT: &str = "root";
 const META_OPEN_CHANGESET: &str = "open_changeset";
+
+/// The on-disk format this svc writes: bumped when a snapshot, op or table changes shape.
+/// A store from a newer svc is refused by name; an older one fails to decode and says so.
+const STORE_FORMAT: u32 = 2;
+
+const META_FORMAT: &str = "format";
 const META_RENDER_PENDING: &str = "render_pending";
 
 fn inbox_meta_key(workspace: Option<&str>) -> String {
@@ -123,6 +129,7 @@ impl RedbStore {
             txn.open_table(RENDERED).map_err(Error::backend)?;
             Ok(())
         })?;
+        store.set_meta(META_FORMAT, &STORE_FORMAT)?;
         Ok(store)
     }
 
@@ -263,7 +270,16 @@ impl RedbStore {
 
     pub fn open(path: &Path) -> Result<Self> {
         let db = Self::open_or_create(path, false)?;
-        Ok(Self { db, workspace: None, staged: Default::default(), decoded: Default::default() })
+        let store = Self { db, workspace: None, staged: Default::default(), decoded: Default::default() };
+        if let Some(v) = store.get_meta::<u32>(META_FORMAT)?
+            && v > STORE_FORMAT
+        {
+            return Err(Error::Other(format!(
+                "{} was written by a newer svc (store format {v}; this one writes {STORE_FORMAT}): rebuild svc (cargo build -p svc)",
+                path.display()
+            )));
+        }
+        Ok(store)
     }
 
     /// Re-scope this handle to checkout `name` (`None` = default). The row must exist.

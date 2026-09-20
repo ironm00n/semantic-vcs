@@ -52,9 +52,18 @@ if [ -z "$STORY" ] && [ "$MODE" != check ] && [ "$MODE" != agent ] && ls "$HERE"
   # SVC_HISTORY_FRESH=1 forces a new one.
   key="$( (ls -l "$HERE"/history/[0-9]*.json; ls -l "$SVC") | sha256sum | cut -c1-12)"
   HIST="${TMPDIR:-/tmp}/svc-history.$key"
+  # demo/rehearse.sh leaves the replayed checkout as artifacts/history-store.tar (tree and
+  # .svc, verified by the replay that made it); opening that is seconds, not minutes.
+  TAR="$HERE/../artifacts/history-store.tar"
   if [ -n "${SVC_HISTORY_FRESH:-}" ] || [ ! -f "$HIST/.svc/replayed" ]; then
     rm -rf "$HIST"
-    "$HERE/history/replay.sh" "$HIST" "$SVC" || { echo "history did not replay; scratch at $HIST"; exit 1; }
+    if [ -z "${SVC_HISTORY_FRESH:-}" ] && [ -f "$TAR" ]; then
+      mkdir -p "$HIST" && tar -xf "$TAR" -C "$HIST" && [ -f "$HIST/.svc/store.redb" ] \
+        || { echo "could not unpack $TAR"; rm -rf "$HIST"; exit 1; }
+      echo "opened the pre-replayed history from $TAR (SVC_HISTORY_FRESH=1 to replay the bundles instead)"
+    else
+      "$HERE/history/replay.sh" "$HIST" "$SVC" || { echo "history did not replay; scratch at $HIST"; exit 1; }
+    fi
     touch "$HIST/.svc/replayed"
   else
     echo "reusing the replayed history at $HIST (SVC_HISTORY_FRESH=1 to replay again)"

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use svc_core::engine::{render, snapshot_files as engine_snapshot_files};
+use svc_core::engine::render;
 use svc_core::{
     CHANGESET_TTL_MS, ChangeId, ChangeSetId, Error, JsLang, Langs, ObservedClass, Op, OpIx,
     OpLogEntry, RelPath, Result, RustLang, Snapshot, SnapshotId, Store, Timestamp, View,
@@ -457,7 +457,17 @@ impl Repo {
         prev: Option<&Snapshot>,
         change: ChangeId,
     ) -> Result<Snapshot> {
-        engine_snapshot_files(&self.store, &self.langs, files, prev, change)
+        // Files whose bytes are what `prev` rendered keep `prev`'s records when the tree's
+        // definitions are unchanged: an absorb of one file no longer re-materializes all.
+        let unchanged: std::collections::BTreeSet<RelPath> = match prev.and_then(|p| self.store.rendered_hashes(p.id()).ok().flatten()) {
+            Some(hashes) => files
+                .iter()
+                .filter(|(path, bytes)| hashes.get(*path) == Some(blake3::hash(bytes).as_bytes()))
+                .map(|(path, _)| path.clone())
+                .collect(),
+            None => Default::default(),
+        };
+        svc_core::engine::snapshot_files_reusing(&self.store, &self.langs, files, prev, change, &unchanged)
     }
 
     /// True when rendering the current snapshot reproduces the tracked files byte for byte.

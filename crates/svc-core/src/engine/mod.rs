@@ -321,6 +321,24 @@ pub fn snapshot_files(
     prev: Option<&Snapshot>,
     change: ChangeId,
 ) -> Result<Snapshot> {
+    snapshot_files_reusing(store, langs, files, prev, change, &std::collections::BTreeSet::new())
+}
+
+/// [`snapshot_files`] where `unchanged` names files whose bytes are exactly what `prev`
+/// rendered for them. Parsing is cheap; `materialize` (the canonical stream, resolved
+/// against the whole tree's names) is what an absorb of one file pays for every file.
+/// When the tree's definitions — name, kind, id, parent, file — are the same set as
+/// `prev`'s, the names resolve exactly as they did, so an unchanged file's records are
+/// `prev`'s records: same content, same bytes, same ids. Any new, gone, renamed or moved
+/// definition anywhere re-materializes everything, as before.
+pub fn snapshot_files_reusing(
+    store: &dyn Store,
+    langs: &Langs,
+    files: &BTreeMap<RelPath, Vec<u8>>,
+    prev: Option<&Snapshot>,
+    change: ChangeId,
+    unchanged: &std::collections::BTreeSet<RelPath>,
+) -> Result<Snapshot> {
     struct Parsed<'a> {
         path: RelPath,
         src: &'a [u8],
@@ -366,9 +384,41 @@ pub fn snapshot_files(
             env.insert_def_in(&ent.name, ent.kind, p.ids[i], Some(&p.path));
         }
     }
+    // The definitions this tree declares, as `prev` would list them; equal sets mean an
+    // identical name environment.
+    let reuse = match prev {
+        Some(prev) if !unchanged.is_empty() => {
+            let mut now: Vec<(&RelPath, &str, Kind, EntityId, Option<EntityId>)> = parsed
+                .iter()
+                .flat_map(|p| {
+                    p.raw.iter().enumerate().map(move |(i, ent)| {
+                        (&p.path, ent.name.as_str(), ent.kind, p.ids[i], ent.parent_idx.map(|pi| p.ids[pi]))
+                    })
+                })
+                .collect();
+            let mut before: Vec<(&RelPath, &str, Kind, EntityId, Option<EntityId>)> = prev
+                .entities
+                .iter()
+                .map(|(id, rec)| (&rec.file, rec.name.as_str(), rec.kind, *id, rec.parent))
+                .collect();
+            now.sort();
+            before.sort();
+            now == before
+        }
+        _ => false,
+    };
     let mut entities = BTreeMap::new();
     let mut file_recs = BTreeMap::new();
     for p in &parsed {
+        if reuse && unchanged.contains(&p.path) {
+            if let Some(prev) = prev
+                && let Some(file) = prev.files.get(&p.path)
+            {
+                entities.extend(prev.entities.iter().filter(|(_, r)| r.file == p.path).map(|(id, r)| (*id, r.clone())));
+                file_recs.insert(p.path.clone(), file.clone());
+                continue;
+            }
+        }
         let (ents, file) = materialize(
             p.src,
             p.path.clone(),
