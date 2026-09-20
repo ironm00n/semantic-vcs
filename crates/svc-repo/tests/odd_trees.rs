@@ -48,3 +48,48 @@ fn a_failed_init_leaves_no_store_behind() {
     std::fs::set_permissions(root.join("secret"), std::fs::Permissions::from_mode(0o644)).unwrap();
     Repo::init(root, Repo::default_langs()).expect("init works once the tree is readable");
 }
+
+#[test]
+fn a_store_still_importing_is_not_a_checkout_and_the_next_init_sweeps_it() {
+    use svc_repo::repo::{STORE_FILE, STORE_FILE_IMPORTING};
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(root.join("src/lib.rs"), LIB).unwrap();
+    // What a SIGKILLed init leaves: the directory, a store under the importing name, no root.
+    std::fs::create_dir_all(root.join(STORE_DIR)).unwrap();
+    std::fs::write(root.join(STORE_DIR).join(STORE_FILE_IMPORTING), b"half").unwrap();
+
+    assert!(Repo::find_root(root).is_none(), "not a checkout yet");
+    let err = Repo::open(root, Repo::default_langs()).err().expect("open refuses");
+    assert!(err.to_string().contains("no .svc"), "{err}");
+    let repo = Repo::init(root, Repo::default_langs()).expect("init sweeps the leftover");
+    assert!(!root.join(STORE_DIR).join(STORE_FILE_IMPORTING).exists());
+    assert!(root.join(STORE_DIR).join(STORE_FILE).is_file());
+    assert_eq!(repo.store_path(), root.join(STORE_DIR).join(STORE_FILE));
+    assert!(repo.working_copy_clean().unwrap());
+    // And a live store is never under the importing name.
+    drop(repo);
+    Repo::open(root, Repo::default_langs()).unwrap();
+}
+
+#[test]
+fn a_file_name_that_is_not_utf8_is_refused_by_name() {
+    use std::os::unix::ffi::OsStrExt;
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(root.join("src/lib.rs"), LIB).unwrap();
+    let weird = root.join(std::ffi::OsStr::from_bytes(b"weird-\xff-name.txt"));
+    std::fs::write(&weird, "x").unwrap();
+
+    let err = Repo::init(root, Repo::default_langs()).err().expect("refused");
+    let msg = err.to_string();
+    assert!(msg.contains("not UTF-8") && msg.contains("weird-") && msg.contains(".svcignore"), "{msg}");
+    assert!(!root.join(STORE_DIR).exists(), "and nothing left behind");
+    // Ignoring its directory is one of the two ways out.
+    std::fs::create_dir_all(root.join("odd")).unwrap();
+    std::fs::rename(&weird, root.join("odd").join(std::ffi::OsStr::from_bytes(b"weird-\xff-name.txt"))).unwrap();
+    std::fs::write(root.join(".svcignore"), "odd\n").unwrap();
+    Repo::init(root, Repo::default_langs()).expect("init with the directory ignored");
+}

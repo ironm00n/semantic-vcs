@@ -22,6 +22,8 @@ use crate::workspace::{POINTER_FILE, WorkspacePointer};
 
 pub const STORE_DIR: &str = ".svc";
 pub const STORE_FILE: &str = "store.redb";
+/// The store while `init` imports; renamed to [`STORE_FILE`] once the first op is in.
+pub const STORE_FILE_IMPORTING: &str = "store.redb.importing";
 pub const IGNORE_FILE: &str = ".svcignore";
 /// Under `.svc/`: held (`flock`) by the one `Repo` open on the default checkout.
 pub const CHECKOUT_LOCK: &str = "checkout.lock";
@@ -94,6 +96,11 @@ impl Repo {
     }
 
     /// Creates `.svc/` and the first snapshot from every tracked file. Refuses to re-init.
+    ///
+    /// The store is born as [`STORE_FILE_IMPORTING`] and renamed to [`STORE_FILE`] only after
+    /// the first op has committed, so a killed or failed import never leaves a directory
+    /// that looks like a checkout but has no root: until the rename it is not a checkout,
+    /// and the next `init` sweeps the leftover.
     pub fn init(root: &Path, langs: Langs) -> Result<Self> {
         let dir = root.join(STORE_DIR);
         if dir.join(STORE_FILE).exists() {
@@ -108,9 +115,7 @@ impl Repo {
         std::fs::create_dir_all(&dir).map_err(Error::backend)?;
         let made = Self::first_import(root, &dir, langs);
         if made.is_err() {
-            // Nothing was imported, so leave nothing behind: a half-made `.svc/` would make
-            // every later verb say "no such snapshot" and `init` say "already exists".
-            let _ = std::fs::remove_file(dir.join(STORE_FILE));
+            let _ = std::fs::remove_file(dir.join(STORE_FILE_IMPORTING));
             let _ = std::fs::remove_file(dir.join(CHECKOUT_LOCK));
             let _ = std::fs::remove_dir(&dir);
         }
@@ -119,11 +124,13 @@ impl Repo {
 
     fn first_import(root: &Path, dir: &Path, langs: Langs) -> Result<Self> {
         let checkout_lock = Self::checkout_lock(&dir.join(CHECKOUT_LOCK), lock_timeout())?;
-        let store_path = dir.join(STORE_FILE);
-        let store = RedbStore::create(&store_path)?;
-        let repo = Self {
+        let importing = dir.join(STORE_FILE_IMPORTING);
+        // A previous init died mid-import; the lock says nobody is in it now.
+        let _ = std::fs::remove_file(&importing);
+        let store = RedbStore::create(&importing)?;
+        let mut repo = Self {
             root: root.to_path_buf(),
-            store_path,
+            store_path: importing.clone(),
             store,
             langs,
             _checkout_lock: checkout_lock,
@@ -153,6 +160,9 @@ impl Repo {
             },
             after: view,
         })?;
+        let store_path = dir.join(STORE_FILE);
+        std::fs::rename(&importing, &store_path).map_err(Error::backend)?;
+        repo.store_path = store_path;
         Ok(repo)
     }
 
@@ -255,8 +265,18 @@ impl Repo {
     }
 
     pub fn discover(start: &Path, langs: Langs) -> Result<Self> {
-        let root = Self::find_root(start)
-            .ok_or_else(|| Error::Other(format!("no {STORE_DIR} above {}", start.display())))?;
+        let Some(root) = Self::find_root(start) else {
+            let unfinished = start
+                .ancestors()
+                .find(|p| p.join(STORE_DIR).join(STORE_FILE_IMPORTING).is_file());
+            return Err(Error::Other(match unfinished {
+                Some(p) => format!(
+                    "{} holds an unfinished import (an svc init that did not finish); run svc init again",
+                    p.join(STORE_DIR).display()
+                ),
+                None => format!("no {STORE_DIR} above {}", start.display()),
+            }));
+        };
         Self::open(&root, langs)
     }
 
@@ -325,14 +345,18 @@ impl Repo {
             for entry in std::fs::read_dir(&dir).map_err(Error::backend)? {
                 let entry = entry.map_err(Error::backend)?;
                 let path = entry.path();
-                let rel = path
-                    .strip_prefix(&self.root)
-                    .map_err(|e| Error::Other(e.to_string()))?
-                    .to_string_lossy()
-                    .into_owned();
-                if is_ignored(&rel, &ignore) {
+                let rel_os = path.strip_prefix(&self.root).map_err(|e| Error::Other(e.to_string()))?;
+                let lossy = rel_os.to_string_lossy();
+                if is_ignored(&lossy, &ignore) {
                     continue;
                 }
+                // A store path is a string; a name it cannot hold would come back changed
+                // from a render, so it is refused here by name instead.
+                let Some(rel) = rel_os.to_str().map(str::to_owned) else {
+                    return Err(Error::InvalidPath(format!(
+                        "{lossy}: file name is not UTF-8; rename it, or ignore its directory in {IGNORE_FILE}"
+                    )));
+                };
                 let kind = entry.file_type().map_err(Error::backend)?;
                 if kind.is_dir() {
                     stack.push(path);
@@ -581,6 +605,7 @@ impl Repo {
     ) -> Result<BTreeMap<RelPath, Vec<u8>>> {
         let rendered = render(snapshot, &self.store, &self.langs, false)?.files;
         Self::write_rendered_files(dir, &rendered)?;
+        self.store.set_rendered_hashes(snapshot.id(), &file_hashes(&rendered))?;
         Ok(rendered)
     }
 
