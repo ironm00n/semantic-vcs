@@ -72,7 +72,7 @@ pub struct RedbStore {
 }
 
 impl RedbStore {
-    /// `MultiWriter`: opens never exclude each other (a TUI session and CLI verbs on other
+    /// `MultiWriter`: opens never exclude each other (readers and writers in different
     /// checkouts share one store); each write transaction takes a byte-range lock on the file
     /// and readers follow commits. Linux, macOS and Windows only.
     fn database(path: &Path, create: bool) -> Result<Database> {

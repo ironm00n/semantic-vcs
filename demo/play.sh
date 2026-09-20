@@ -31,7 +31,7 @@ svc playground: $WORK   (a copy of demo/config; \`svc init\` already run)
   svc tui                                      review UI: j/k, tab, enter, a/r, p, u, q
   svc tui --agent "$TASK"
                                                line 9 runs inside the UI (scripted agent; set
-                                               OPENROUTER_API_KEY=\$(cat ~/.openrouter.key) SVC_MODEL=anthropic/claude-sonnet-5
+                                               DEEPSEEK_API_KEY=\$(cat ~/.deepseek.key)
                                                and unset SVC_AGENT_COMMAND for the real model; p continues an ended turn;
                                                SVC_AGENT_PRESEED=1 puts the entity list in the first prompt, one round trip fewer)
   add --json to any verb for the machine form
