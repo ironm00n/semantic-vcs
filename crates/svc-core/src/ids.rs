@@ -46,7 +46,7 @@ macro_rules! uuid_id {
 
             /// Short form from blake3 of the id, never the leading timestamp bits of a v7.
             pub fn short(self) -> String {
-                hex4(&self.0.as_bytes()[..])
+                short_hex(&self.0.as_bytes()[..])
             }
 
             /// `spec` names this id if it is a prefix of the short form or of the
@@ -124,7 +124,7 @@ macro_rules! hash_id {
             }
 
             pub fn short(self) -> String {
-                hex4(&self.0)
+                short_hex(&self.0)
             }
         }
 
@@ -268,9 +268,9 @@ pub fn hash_postcard(value: &impl Serialize) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-fn hex4(bytes: &[u8]) -> String {
+fn short_hex(bytes: &[u8]) -> String {
     let h = blake3::hash(bytes);
-    hex_n(h.as_bytes(), 2)
+    hex_n(h.as_bytes(), 4)
 }
 
 fn hex32(bytes: &[u8; 32]) -> String {
@@ -364,6 +364,11 @@ mod tests {
     #[test]
     fn spec_matches_short_prefix_and_dashless_uuid_case_insensitively() {
         let id = EntityId::new();
+        assert_eq!(
+            id.short().len(),
+            8,
+            "short ids keep 32 bits to avoid routine collisions"
+        );
         assert!(id.matches_spec(&id.short()));
         assert!(id.matches_spec(&id.short()[..2].to_ascii_uppercase()));
         assert!(id.matches_spec(&id.to_string()));
