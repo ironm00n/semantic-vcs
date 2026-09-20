@@ -284,8 +284,9 @@ fn collect<'a>(
 /// a child of that module so `src/outer/fs.rs` attaches. Brace-body
 /// `pub mod fs { pub fn parse() {} }` has no file; mint the Mod and its `fn`
 /// children so `crate::fs::parse` walks. `struct`/`const`/`type` and the other
-/// named items in that soup are minted the same way, as is `macro_rules!`.
-/// Token trees under a
+/// named items in that soup are minted the same way, as is `macro_rules!` and
+/// macros 2.0 `macro name`. `pub use` is minted Opaque so the existing nested-use
+/// pass binds it as a reexport. Token trees under a
 /// `macro_definition` stay matcher/body, not declarations.
 fn collect_macro_mod_decls<'a>(
     node: tree_sitter::Node<'a>,
@@ -355,6 +356,42 @@ fn collect_macro_mod_decls<'a>(
             i = j + 3;
             continue;
         }
+        if j < kids.len() && kids[j].kind() == "use" {
+            let mut e = j + 1;
+            while e < kids.len() && kids[e].kind() != ";" {
+                e += 1;
+            }
+            if e < kids.len() {
+                if let Some(&name_node) = kids[j..=e]
+                    .iter()
+                    .rev()
+                    .find(|n| n.kind() == "identifier")
+                {
+                    let start = if j > 0
+                        && matches!(kids[j - 1].kind(), "pub" | "visibility_modifier")
+                    {
+                        kids[j - 1].start_byte()
+                    } else {
+                        kids[j].start_byte()
+                    };
+                    let name =
+                        String::from_utf8_lossy(&src[start..kids[e].end_byte()]).into_owned();
+                    emit(
+                        name_node,
+                        src,
+                        lang,
+                        parent_idx,
+                        Kind::Opaque,
+                        name,
+                        Some(byte_range(name_node)),
+                        raw,
+                        nodes,
+                    );
+                    i = e + 1;
+                    continue;
+                }
+            }
+        }
         let mut f = i;
         while f < kids.len() && is_macro_item_prefix(kids[f]) {
             f += 1;
@@ -409,12 +446,39 @@ fn collect_macro_mod_decls<'a>(
                 continue;
             }
         }
+        if is_macro_kw(kids[f], src)
+            && f + 1 < kids.len()
+            && kids[f + 1].kind() == "identifier"
+        {
+            emit_macro_named(
+                kids[f + 1],
+                src,
+                lang,
+                parent_idx,
+                Kind::Macro,
+                raw,
+                nodes,
+            );
+            i = f + 2;
+            while i < kids.len() && kids[i].kind() == "token_tree" {
+                i += 1;
+            }
+            if i < kids.len() && kids[i].kind() == ";" {
+                i += 1;
+            }
+            continue;
+        }
         i += 1;
     }
 }
 
 fn is_macro_rules_kw(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
     node.kind() == "macro_rules" || node_text(src, node) == "macro_rules"
+}
+
+fn is_macro_kw(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    !is_macro_rules_kw(node, src)
+        && (node.kind() == "macro" || node_text(src, node) == "macro")
 }
 
 fn is_macro_item_prefix(node: tree_sitter::Node<'_>) -> bool {
