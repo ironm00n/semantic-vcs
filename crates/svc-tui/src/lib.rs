@@ -66,26 +66,47 @@ async fn run_app(
         drop(ev_tx);
     }
 
-    let mut tick = tokio::time::interval(Duration::from_millis(100));
-    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    terminal.draw(|f| app.render(f)).map_err(|e| e.to_string())?;
+    app.need_draw = false;
+
+    // Ticks are only for a settled-selection detail load and a dirty store
+    // refresh — not a frame clock. Redrawing 10×/s rebuilt a 1k-entity tree
+    // on every pulse, and every j/k used to spawn `show-def` + `blame`.
+    let mut tick = tokio::time::interval(Duration::from_millis(50));
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut input = EventStream::new();
     let mut agent_open = app.agent.is_some();
 
     while !app.should_quit {
         tokio::select! {
             _ = tick.tick() => {
-                if app.dirty {
-                    app.refresh();
+                app.pump();
+                if app.need_draw {
+                    app.need_draw = false;
+                    terminal.draw(|f| app.render(f)).map_err(|e| e.to_string())?;
                 }
-                terminal.draw(|f| app.render(f)).map_err(|e| e.to_string())?;
             }
             maybe = input.next() => match maybe {
-                Some(Ok(ev)) => app.handle_key(&ev),
+                Some(Ok(ev)) => {
+                    app.handle_key(&ev);
+                    app.pump();
+                    if app.need_draw {
+                        app.need_draw = false;
+                        terminal.draw(|f| app.render(f)).map_err(|e| e.to_string())?;
+                    }
+                }
                 Some(Err(e)) => return Err(e.to_string()),
                 None => app.should_quit = true,
             },
             ev = ev_rx.recv(), if agent_open => match ev {
-                Some(ev) => app.on_agent_event(ev),
+                Some(ev) => {
+                    app.on_agent_event(ev);
+                    app.pump();
+                    if app.need_draw {
+                        app.need_draw = false;
+                        terminal.draw(|f| app.render(f)).map_err(|e| e.to_string())?;
+                    }
+                }
                 None => agent_open = false,
             },
         }

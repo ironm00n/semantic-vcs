@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
 use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::Frame;
@@ -73,6 +74,10 @@ pub struct App {
     pub status: String,
     pub error: Option<String>,
     pub dirty: bool,
+    pub need_draw: bool,
+    /// When `events_for` is None, wait until this instant before shelling out
+    /// to `show-def`/`blame` so holding j/k does not spawn a process per key.
+    detail_at: Instant,
     pub should_quit: bool,
     pub log: Vec<String>,
 }
@@ -95,6 +100,8 @@ impl App {
             status: String::new(),
             error: None,
             dirty: true,
+            need_draw: true,
+            detail_at: Instant::now(),
             should_quit: false,
             log: Vec::new(),
         };
@@ -125,6 +132,25 @@ impl App {
         self.select_touched_if_needed();
         self.events_for = None;
         self.load_events();
+        self.need_draw = true;
+    }
+
+    /// Store refresh (if dirty) and the deferred right-pane load.
+    pub fn pump(&mut self) {
+        if self.dirty {
+            self.refresh();
+        }
+        if self.events_for.is_none() && Instant::now() >= self.detail_at {
+            self.load_events();
+            self.need_draw = true;
+        }
+    }
+
+    fn invalidate_detail(&mut self) {
+        self.events_for = None;
+        self.events = vec![Line::from("…").dark_gray()];
+        self.detail_at = Instant::now() + Duration::from_millis(40);
+        self.need_draw = true;
     }
 
     /// After an agent op, jump the tree to a touched entity so the right pane is not
@@ -273,10 +299,19 @@ impl App {
     }
 
     pub fn handle_key(&mut self, event: &Event) {
-        let Event::Key(key) = event else { return };
-        if key.kind != KeyEventKind::Press {
+        if matches!(event, Event::Resize(_, _)) {
+            self.need_draw = true;
             return;
         }
+        let Event::Key(key) = event else { return };
+        let repeatable = matches!(
+            key.code,
+            KeyCode::Char('j') | KeyCode::Char('k') | KeyCode::Down | KeyCode::Up
+        );
+        if key.kind != KeyEventKind::Press && !(key.kind == KeyEventKind::Repeat && repeatable) {
+            return;
+        }
+        self.need_draw = true;
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             KeyCode::Tab => {
@@ -349,7 +384,7 @@ impl App {
         let next = (cur + delta).clamp(0, len as i32 - 1) as usize;
         state.select(Some(next));
         if self.focus == Pane::Tree {
-            self.load_events();
+            self.invalidate_detail();
         }
     }
 
@@ -377,6 +412,7 @@ impl App {
     }
 
     pub fn on_agent_event(&mut self, ev: AgentEvent) {
+        self.need_draw = true;
         match ev {
             AgentEvent::Ready { session_id } => {
                 self.status = format!("agent session {session_id}");
@@ -891,5 +927,39 @@ mod tests {
             .collect();
         assert!(text.contains("added"), "{text}");
         assert!(text.contains("new change"), "{text}");
+    }
+
+    fn def(id: &str, name: &str, ordinal: u32) -> Definition {
+        Definition {
+            id: id.into(),
+            name: name.into(),
+            kind: svc_core::Kind::Fn,
+            file: "src/main.rs".into(),
+            parent: None,
+            ordinal,
+        }
+    }
+
+    #[test]
+    fn moving_the_tree_does_not_spawn_show_def_on_each_j() {
+        let mut app = App::new(Svc::new(PathBuf::from("svc"), PathBuf::from("/nonexistent")));
+        app.defs = vec![def("id-read", "read", 0), def("id-load", "load", 1)];
+        app.rows = tree_rows(&app.defs);
+        app.tree_state.select(Some(0));
+        app.events_for = Some("id-read".into());
+        app.events = vec![Line::from("stale")];
+        app.dirty = false;
+        app.handle_key(&key('j'));
+        assert_eq!(app.tree_state.selected(), Some(1));
+        assert!(
+            app.events_for.is_none(),
+            "right pane waits until the selection settles"
+        );
+        assert!(app.need_draw);
+        app.pump();
+        assert!(
+            app.events_for.is_none(),
+            "pump must not shell out in the same millisecond as j"
+        );
     }
 }
