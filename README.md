@@ -54,7 +54,7 @@ $ svc blame --entity crates/svc-repo/src/bundle.rs:import
 - **A rename follows.** `svc rename --entity parse --new-name parse_config`
   rewrites every resolved mention and says what it could not resolve:
   `1 method call .parse(…) left unchanged: receiver types are not resolved`.
-  On `tokio`, renaming `asyncify` across 25 files is one log line.
+  On `tokio`, renaming `asyncify` (55 mentions in 25 files) is one log line.
 - **The merge git gets wrong is a conflict.** See the block below; `svc
   conflicts` lists it; a content conflict is resolved with `svc resolve <n>
   --take a|b|base`, a binding conflict by fixing the code (`svc edit-def`) and
@@ -134,7 +134,7 @@ build -p svc` gets:
 | … or opened from the shipped pack | seconds, verified against the bundles | `demo/dogfood.sh --tui` |
 | the rendered tree still builds | `cargo test --workspace` from an empty checkout: 0 failures | `demo/selfhost-full.sh` |
 | `syn` (97 files) | 7,365 entities in 3.0 s; `status` 0.1–0.2 s | `svc init` in a `syn` checkout |
-| `tokio` (555 files) | 11,786 entities in 3.7 s; rename of `asyncify` across 25 files 1.1–1.8 s (measured at 05:00 UTC when `cargo check --features full` passed after it; a later resolver change misses the call sites inside `cfg_fs!{}` modules — being fixed, re-measured at 14:30) | `svc rename --entity asyncify --new-name …` |
+| `tokio` (555 files) | 11,986 entities in 3.7–12.4 s by load; rename of `asyncify` across 25 files (55 mentions) 1.1–2.2 s, `cargo check --features full` passes after it; git shows 25 files, 55/55 lines | `svc rename --entity asyncify --new-name …` |
 | one store, many checkouts | 32 checkouts publishing at once: 30 renames, indices contiguous, no loss | `tests/concurrency/workspace_stress.sh 32` |
 | kill it mid-write | 12 `SIGKILL`s at random points of a rename: never a snapshot ahead of the log | `demo/crash.sh` |
 | the whole gate | `cargo test --workspace` 357/0; `demo/run.sh` 138 checks, 0 failures | `demo/run.sh target/debug/svc` |
