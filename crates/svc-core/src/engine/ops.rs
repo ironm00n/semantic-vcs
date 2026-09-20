@@ -1323,20 +1323,79 @@ fn remap_tokens(tokens: Vec<Token>, map: &BTreeMap<EntityId, EntityId>) -> Vec<T
         .collect()
 }
 
-/// Keep the entity's leading trivia (blank lines / docs attached by extent)
-/// and tolerate a missing trailing newline (source_file vs item range tie).
+/// Keep the entity's leading trivia (blank lines / docs / attributes attached
+/// by extent) and tolerate a missing trailing newline.
 fn item_text(store: &dyn Store, snap: &Snapshot, id: EntityId, text: &[u8]) -> Result<Vec<u8>> {
     let (old, _) = super::render_entity(snap, store, id, false)?;
-    let lead = old.iter().take_while(|b| b.is_ascii_whitespace()).count();
+    let old_lead = leading_trivia_len(&old);
+    let new_ws = text.iter().take_while(|b| b.is_ascii_whitespace()).count();
+    let new_lead = leading_trivia_len(text);
     let mut out = Vec::new();
-    if !text.first().is_some_and(|b| b.is_ascii_whitespace()) {
-        out.extend_from_slice(&old[..lead]);
+    // A definition that starts at the item (`fn f`, `isValid()`) must not wipe
+    // `///` / `#[attr]` that extent glued onto this entity.
+    if new_lead == new_ws && old_lead > 0 {
+        out.extend_from_slice(&old[..old_lead]);
+        let rest = {
+            let n = text.iter().take_while(|b| b.is_ascii_whitespace()).count();
+            &text[n..]
+        };
+        out.extend_from_slice(rest);
+    } else {
+        out.extend_from_slice(text);
     }
-    out.extend_from_slice(text);
     if !out.ends_with(b"\n") {
         out.push(b'\n');
     }
     Ok(out)
+}
+
+/// Whitespace, `//`/`///` line comments, `/* */` blocks, and `#[]` / `#![]`
+/// attributes. Stops at the item keyword (`fn`, `pub`, `isValid`, …).
+fn leading_trivia_len(src: &[u8]) -> usize {
+    let mut i = 0;
+    loop {
+        while i < src.len() && src[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= src.len() {
+            return i;
+        }
+        if src[i] == b'/' && src.get(i + 1) == Some(&b'/') {
+            while i < src.len() && src[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+        if src[i] == b'/' && src.get(i + 1) == Some(&b'*') {
+            i += 2;
+            while i + 1 < src.len() && !(src[i] == b'*' && src[i + 1] == b'/') {
+                i += 1;
+            }
+            i = i.saturating_add(2).min(src.len());
+            continue;
+        }
+        if src[i] == b'#' {
+            let mut j = i + 1;
+            if src.get(j) == Some(&b'!') {
+                j += 1;
+            }
+            if src.get(j) == Some(&b'[') {
+                j += 1;
+                let mut depth = 1usize;
+                while j < src.len() && depth > 0 {
+                    match src[j] {
+                        b'[' => depth += 1,
+                        b']' => depth -= 1,
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                i = j;
+                continue;
+            }
+        }
+        return i;
+    }
 }
 
 /// Re-indent `id` and everything nested in it from the level it had to the level of its
