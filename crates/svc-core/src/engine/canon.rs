@@ -379,7 +379,11 @@ fn collect_refs<'a>(
                 || is_type_qualified_ref(node, src, lang, env)
             {
                 refs.push((r, IdentRef::Free(name.into())));
-            } else if let Some(id) = env.lookup(&name, ns) {
+            } else if let Some(id) = if is_crate_or_super_path(node, src, lang) {
+                env.lookup_module(&name, ns)
+            } else {
+                env.lookup(&name, ns)
+            } {
                 refs.push((r, IdentRef::Entity(id)));
             } else if let Some(ident) = const_generic_arg_ref(
                 node,
@@ -993,6 +997,21 @@ fn is_foreign_scoped_ref(
     }
     env.lookup_global(name, Namespace::Value).is_none()
         && env.lookup_global(name, Namespace::Type).is_none()
+}
+
+/// `crate::f` / `super::f` inside `mod inner` still name the outer item.
+fn is_crate_or_super_path(node: tree_sitter::Node<'_>, src: &[u8], lang: &dyn Lang) -> bool {
+    if lang.name() != "rust" {
+        return false;
+    }
+    let Some(root) = scoped_path_root(node) else {
+        return false;
+    };
+    if root.id() == node.id() {
+        return false;
+    }
+    let name = std::str::from_utf8(&src[root.start_byte()..root.end_byte()]).unwrap_or("");
+    matches!(name, "crate" | "super")
 }
 
 fn scoped_path_root(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {

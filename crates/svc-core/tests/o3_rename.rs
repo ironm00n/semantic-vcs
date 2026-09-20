@@ -1138,3 +1138,59 @@ fn rename_of_const_rewrites_unbraced_const_generic_not_the_shadowing_local() {
     assert!(text.contains("let n = 2usize"), "{text}");
     assert!(text.contains("let _ = n;"), "{text}");
 }
+
+#[test]
+fn rename_of_file_level_fn_does_not_rewrite_a_nested_mod_call() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn parse() {}\nmod inner {\n    fn f() { parse(); }\n}\nfn g() { parse(); }\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let file_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.parent.is_none())
+        .map(|(id, _)| *id)
+        .expect("file-level parse");
+    let next = rename(&store, &snap, file_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(text.contains("fn parse_file()"), "{text}");
+    assert!(text.contains("fn g() { parse_file(); }"), "{text}");
+    assert!(
+        text.contains("fn f() { parse(); }"),
+        "nested mod must not see the outer item: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_crate_path_inside_a_nested_mod() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        path.clone(),
+        b"fn parse() {}\nmod inner {\n    fn f() { crate::parse(); }\n}\n"
+            .to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let file_parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.parent.is_none())
+        .map(|(id, _)| *id)
+        .expect("file-level parse");
+    let next = rename(&store, &snap, file_parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&path].clone()).unwrap();
+    assert!(
+        text.contains("crate::parse_file()"),
+        "crate::parse inside the nested mod must follow: {text}"
+    );
+}

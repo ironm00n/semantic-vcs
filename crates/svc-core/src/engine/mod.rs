@@ -164,6 +164,31 @@ fn is_block_local_raw(raw: &[RawEntity], i: usize) -> bool {
         .is_some_and(|p| hosts_block_items(raw[p].kind))
 }
 
+fn under_nested_mod_raw(raw: &[RawEntity], i: usize) -> bool {
+    let mut walk = raw[i].parent_idx;
+    while let Some(p) = walk {
+        if raw[p].kind == Kind::Mod {
+            return true;
+        }
+        walk = raw[p].parent_idx;
+    }
+    false
+}
+
+pub(crate) fn under_nested_mod_rec(snapshot: &Snapshot, id: EntityId) -> bool {
+    let mut walk = snapshot.entities.get(&id).and_then(|r| r.parent);
+    while let Some(pid) = walk {
+        let Some(prec) = snapshot.entities.get(&pid) else {
+            break;
+        };
+        if prec.kind == Kind::Mod {
+            return true;
+        }
+        walk = prec.parent;
+    }
+    false
+}
+
 /// Associated types of the enclosing impl/trait are in scope for signatures
 /// (`fn f() -> Item`) without occupying the file map. Methods stay out: a
 /// bare `f()` is not the sibling method.
@@ -539,6 +564,7 @@ fn materialize(
                 .unwrap_or_default();
         }
         fill_nested_items_from_raw(&mut local_env, raw, ids, i);
+        local_env.in_nested_mod = under_nested_mod_raw(raw, i);
         let res = resolve(node, src, lang, &local_env)?;
         let children: Vec<(ByteRange, EntityId)> = ent
             .children

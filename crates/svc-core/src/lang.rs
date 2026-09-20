@@ -35,6 +35,9 @@ pub struct Env {
     pub nested_items: HashMap<(String, Namespace), EntityId>,
     /// When set, [`Self::lookup`] prefers [`Self::by_file`] for this path.
     pub current_file: Option<RelPath>,
+    /// Inside `mod inner { … }`, bare names are the module's own items only.
+    /// `crate::` / `super::` still use [`Self::lookup_module`].
+    pub in_nested_mod: bool,
 }
 
 impl Env {
@@ -42,6 +45,15 @@ impl Env {
         if let Some(id) = Self::lookup_in_map(Some(&self.nested_items), name, ns) {
             return Some(id);
         }
+        if self.in_nested_mod {
+            return None;
+        }
+        self.lookup_module(name, ns)
+    }
+
+    /// File / crate / repo names, skipping nested-mod isolation. `crate::f`
+    /// and `super::f` inside `mod inner` still bind the outer item.
+    pub fn lookup_module(&self, name: &str, ns: Namespace) -> Option<EntityId> {
         if let Some(file) = &self.current_file {
             if let Some(id) = Self::lookup_in_map(self.by_file.get(file), name, ns) {
                 return Some(id);
