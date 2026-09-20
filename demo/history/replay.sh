@@ -26,8 +26,8 @@ if [ -e "$DIR" ] && [ ! -d "$DIR" ]; then
   echo "refusing replay target that is not a directory: $DIR" >&2
   exit 2
 fi
-mkdir -p -- "$DIR"
-cd -P -- "$DIR"
+mkdir -p -- "$DIR" || exit 2
+cd -P -- "$DIR" || exit 2
 DIR="$(pwd -P)"
 first_entry="$(find . -mindepth 1 -maxdepth 1 -print -quit)"
 if [ -n "$first_entry" ]; then
@@ -49,7 +49,7 @@ for bundle in $ordered; do
   base="$(echo "$name" | cut -d- -f2)"
   git --git-dir="$GITDIR" cat-file -e "$base^{tree}" || { echo "no git tree for $base"; exit 2; }
   # git's tree at the base: replace every tracked file, drop the ones no longer there.
-  find . -mindepth 1 -maxdepth 1 ! -name .svc -exec rm -rf {} +
+  find "$DIR" -mindepth 1 -maxdepth 1 ! -name .svc -exec rm -rf {} +
   git --git-dir="$GITDIR" archive "$base" | tar -xm -C "$DIR" || { echo "no git tree for $base"; exit 2; }
   if [ ! -d .svc ]; then
     "$SVC" init --json >/dev/null || exit 2
