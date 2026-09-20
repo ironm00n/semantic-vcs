@@ -821,3 +821,58 @@ fn nested_fn_is_not_a_crate_name_collision() {
         "nested parse stays: {a_txt}"
     );
 }
+
+#[test]
+fn type_path_open_is_not_the_free_fn() {
+    // Adding a file-level `fn open` must not rebind `RedbStore::open()` in
+    // another file. `crate::open()` still follows the unique crate fn.
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let store_rs = RelPath::new("crates/svc-repo/src/store.rs").unwrap();
+    let sync_rs = RelPath::new("crates/svc-repo/src/sync.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        store_rs.clone(),
+        b"pub struct RedbStore;\nimpl RedbStore {\n    pub fn open() -> RedbStore { RedbStore }\n}\npub fn open_with() {\n    let _ = RedbStore::open();\n}\npub fn via_crate() {\n    crate::open();\n}\n"
+            .to_vec(),
+    );
+    files.insert(sync_rs.clone(), b"pub fn helper() {}\n".to_vec());
+    let before = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let open_with = named_in_file(&before, "open_with", &store_rs);
+    files.insert(sync_rs.clone(), b"pub fn open() {}\n".to_vec());
+    let after = snapshot_files(&store, &langs, &files, Some(&before), ChangeId::new()).unwrap();
+    assert_eq!(
+        after.entities[&open_with].content, before.entities[&open_with].content,
+        "RedbStore::open must not rebind to the new fn"
+    );
+    assert_eq!(
+        after.entities[&open_with].bytes, before.entities[&open_with].bytes
+    );
+    let open_id = named_in_file(&after, "open", &sync_rs);
+    let content = store
+        .get_content(after.entities[&open_with].content)
+        .unwrap();
+    assert!(
+        !content.tokens.iter().any(|t| matches!(t, Token::Ident(IdentRef::Entity(id)) if *id == open_id)),
+        "type path must stay Free, got {:?}",
+        content.tokens
+    );
+    let via = named_in_file(&after, "via_crate", &store_rs);
+    let via_c = store.get_content(after.entities[&via].content).unwrap();
+    assert!(
+        via_c
+            .tokens
+            .iter()
+            .any(|t| matches!(t, Token::Ident(IdentRef::Entity(id)) if *id == open_id)),
+        "crate::open still binds, got {:?}",
+        via_c.tokens
+    );
+    let renamed = rename(&after, open_id, "open_store").unwrap();
+    let rendered = render(&renamed, &store, &langs, false).unwrap();
+    let store_txt = String::from_utf8(rendered.files[&store_rs].clone()).unwrap();
+    let sync_txt = String::from_utf8(rendered.files[&sync_rs].clone()).unwrap();
+    assert!(store_txt.contains("RedbStore::open()"), "{store_txt}");
+    assert!(!store_txt.contains("RedbStore::open_store()"), "{store_txt}");
+    assert!(store_txt.contains("crate::open_store()"), "{store_txt}");
+    assert!(sync_txt.contains("fn open_store"), "{sync_txt}");
+}

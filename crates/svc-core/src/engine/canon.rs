@@ -372,7 +372,9 @@ fn collect_refs<'a>(
                 local.filter(|_| !is_rust_nonlocal_ident(node, lang))
             {
                 refs.push((r, IdentRef::Local(binder.slot, ns)));
-            } else if is_foreign_scoped_ref(node, src, lang, env) {
+            } else if is_foreign_scoped_ref(node, src, lang, env)
+                || is_type_qualified_ref(node, src, lang, env)
+            {
                 refs.push((r, IdentRef::Free(name.into())));
             } else if let Some(id) = env.lookup(&name, ns) {
                 refs.push((r, IdentRef::Entity(id)));
@@ -829,6 +831,73 @@ fn is_rust_nonlocal_ident(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool 
             break;
         }
         current = parent;
+    }
+    false
+}
+
+/// `RedbStore::open` is not a free `fn open`. Type-relative names stay Free
+/// (SPEC §9) unless they are same-impl inherent methods, which return earlier.
+/// `use crate::a::f` still binds: import paths are not type-qualified calls.
+fn is_type_qualified_ref(
+    node: tree_sitter::Node<'_>,
+    src: &[u8],
+    lang: &dyn Lang,
+    env: &Env,
+) -> bool {
+    if lang.name() != "rust" {
+        return false;
+    }
+    if under_use_tree(node) {
+        return false;
+    }
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    if !matches!(
+        parent.kind(),
+        "scoped_identifier" | "scoped_type_identifier"
+    ) {
+        return false;
+    }
+    if parent.child_by_field_name("name").map(|n| n.id()) != Some(node.id()) {
+        return false;
+    }
+    let Some(path) = parent.child_by_field_name("path") else {
+        return false;
+    };
+    let Some(qual) = scoped_qualifier(path) else {
+        return false;
+    };
+    let name = std::str::from_utf8(&src[qual.start_byte()..qual.end_byte()]).unwrap_or("");
+    if matches!(name, "crate" | "super" | "self" | "Self") {
+        return false;
+    }
+    env.lookup_global(name, Namespace::Type).is_some()
+}
+
+fn scoped_qualifier(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
+    loop {
+        match node.kind() {
+            "scoped_identifier" | "scoped_type_identifier" => {
+                node = node.child_by_field_name("name")?;
+            }
+            "generic_type" => {
+                node = node.child_by_field_name("type")?;
+            }
+            _ => return Some(node),
+        }
+    }
+}
+
+fn under_use_tree(mut node: tree_sitter::Node<'_>) -> bool {
+    while let Some(parent) = node.parent() {
+        if matches!(
+            parent.kind(),
+            "use_declaration" | "use_as_clause" | "use_list" | "use_wildcard"
+        ) {
+            return true;
+        }
+        node = parent;
     }
     false
 }
