@@ -827,7 +827,21 @@ pub fn note(repo: &Repo, to: NoteTo, kind: NoteKind, text: impl Into<String>) ->
 
 pub fn resolve_changeset(repo: &Repo, spec: &str) -> Result<svc_core::ChangeSet> {
     let all = repo.store().changesets()?;
-    let named: Vec<_> = all.iter().filter(|c| c.name == spec).cloned().collect();
+    let mut named: Vec<_> = all.iter().filter(|c| c.name == spec).cloned().collect();
+    if named.len() > 1 {
+        // A pulled changeset may share a name with one begun here (everyone calls theirs
+        // "mail"): the one this checkout has written to is the one meant. Its own ops carry
+        // no checkout stamp; pulled ops carry their sender's.
+        let own = |cs: &svc_core::ChangeSet| {
+            repo.store().ops(OpIx(0), false).ok().is_some_and(|ops| {
+                ops.iter().any(|(ix, e)| e.group == Some(cs.id) && repo.redb().op_workspace(*ix).ok().flatten().is_none_or(|w| w.is_empty()))
+            })
+        };
+        let mine: Vec<_> = named.iter().filter(|cs| own(cs)).cloned().collect();
+        if mine.len() == 1 {
+            named = mine;
+        }
+    }
     match named.len() {
         1 => return Ok(named.into_iter().next().unwrap()),
         n if n > 1 => {
