@@ -246,6 +246,62 @@ impl S {
 }
 
 #[test]
+fn rename_rewrites_same_impl_type_path_calls() {
+    const SRC: &str = r#"
+struct S;
+struct Other;
+impl S {
+    fn make() -> S {
+        S
+    }
+    fn load() {
+        let _ = S::make();
+        let _ = Other::make();
+    }
+}
+impl Other {
+    fn make() -> Other {
+        Other
+    }
+}
+"#;
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, SRC.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let impl_s = snap
+        .entities
+        .iter()
+        .find(|(_, rec)| rec.kind == svc_core::Kind::Impl && rec.name == "impl<S>")
+        .map(|(id, _)| *id)
+        .expect("impl S");
+    let method = named_child(&snap, "make", Some(impl_s));
+    let load = lookup_name(&snap, "load").unwrap();
+    let content = store.get_content(snap.entities[&load].content).unwrap();
+    let hits = content
+        .tokens
+        .iter()
+        .filter(|t| matches!(t, Token::Ident(IdentRef::Entity(id)) if *id == method))
+        .count();
+    assert_eq!(
+        hits, 1,
+        "S::make must be the impl method; Other::make must not, got {:?}",
+        content.tokens
+    );
+
+    let next = rename(&snap, method, "create").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files.values().next().unwrap().clone()).unwrap();
+    assert!(text.contains("fn create() -> S"), "{text}");
+    assert!(text.contains("S::create()"), "{text}");
+    assert!(text.contains("Other::make()"), "{text}");
+    assert!(text.contains("fn make() -> Other"), "{text}");
+    assert!(!text.contains("S::make()"), "{text}");
+}
+
+#[test]
 fn rename_leaves_typed_receiver_method_calls_untracked() {
     const SRC: &str = r#"
 struct S;
@@ -323,4 +379,45 @@ impl S {
         "edit-def must keep same-impl calls as entity holes, got {:?}",
         content.tokens
     );
+}
+
+#[test]
+fn rename_rewrites_generic_impl_type_path_calls() {
+    const SRC: &str = r#"
+struct Wrap<T>(T);
+impl<T> Wrap<T> {
+    fn make() {}
+    fn load() {
+        Wrap::make();
+    }
+}
+"#;
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(path, SRC.as_bytes().to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let impl_id = snap
+        .entities
+        .iter()
+        .find(|(_, rec)| rec.kind == svc_core::Kind::Impl)
+        .map(|(id, _)| *id)
+        .expect("impl");
+    let method = named_child(&snap, "make", Some(impl_id));
+    let load = lookup_name(&snap, "load").unwrap();
+    let content = store.get_content(snap.entities[&load].content).unwrap();
+    assert!(
+        content
+            .tokens
+            .iter()
+            .any(|t| matches!(t, Token::Ident(IdentRef::Entity(id)) if *id == method)),
+        "Wrap::make must be the impl method, got {:?}",
+        content.tokens
+    );
+    let next = rename(&snap, method, "create").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files.values().next().unwrap().clone()).unwrap();
+    assert!(text.contains("Wrap::create()"), "{text}");
+    assert!(!text.contains("Wrap::make()"), "{text}");
 }

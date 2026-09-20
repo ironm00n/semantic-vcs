@@ -590,9 +590,10 @@ fn is_opaque_node(node: tree_sitter::Node<'_>, lang: &dyn Lang) -> bool {
     lang.opaque_nodes().iter().any(|k| *k == node.kind())
 }
 
-/// Method name of `self.foo()`, `Self::foo()`, or JS `this.foo()` — bound to a
-/// sibling under the enclosing impl/class, not the flat Value env (a free `fn
-/// foo` is a different target). `x.foo()` stays Free: that needs types.
+/// Method name of `self.foo()`, `Self::foo()`, `S::foo()` inside `impl S`, or JS
+/// `this.foo()` — bound to a sibling under the enclosing impl/class, not the
+/// flat Value env (a free `fn foo` is a different target). `x.foo()` stays
+/// Free: that needs types.
 fn is_inherent_method_ref(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
     match node.kind() {
         "field_identifier" => rust_self_field_call(node),
@@ -654,7 +655,11 @@ fn rust_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
     };
     let start = path.start_byte();
     let end = path.end_byte();
-    if end > src.len() || start >= end || &src[start..end] != b"Self" {
+    if end > src.len() || start >= end {
+        return false;
+    }
+    let path_text = &src[start..end];
+    if path_text != b"Self" && Some(path_text) != enclosing_impl_type_name(node, src) {
         return false;
     }
     let Some(grand) = parent.parent() else {
@@ -662,6 +667,42 @@ fn rust_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
     };
     grand.kind() == "call_expression"
         && grand.child_by_field_name("function").map(|n| n.id()) == Some(parent.id())
+}
+
+/// The `Self` type of the enclosing `impl` (`S` in `impl S` / `impl Trait for S` /
+/// `impl<T> S<T>`). Used so `S::foo()` binds like `Self::foo()`.
+fn enclosing_impl_type_name<'a>(
+    mut node: tree_sitter::Node<'a>,
+    src: &'a [u8],
+) -> Option<&'a [u8]> {
+    loop {
+        let Some(parent) = node.parent() else {
+            return None;
+        };
+        if parent.kind() == "impl_item" {
+            return parent
+                .child_by_field_name("type")
+                .and_then(|ty| impl_type_base_name(ty, src));
+        }
+        node = parent;
+    }
+}
+
+fn impl_type_base_name<'a>(ty: tree_sitter::Node<'a>, src: &'a [u8]) -> Option<&'a [u8]> {
+    match ty.kind() {
+        "type_identifier" | "identifier" => {
+            let start = ty.start_byte();
+            let end = ty.end_byte();
+            (end <= src.len() && start < end).then(|| &src[start..end])
+        }
+        "generic_type" => ty
+            .child_by_field_name("type")
+            .and_then(|inner| impl_type_base_name(inner, src)),
+        "scoped_type_identifier" => ty
+            .child_by_field_name("name")
+            .and_then(|inner| impl_type_base_name(inner, src)),
+        _ => None,
+    }
 }
 
 fn is_ident_leaf(node: tree_sitter::Node<'_>) -> bool {
