@@ -24,9 +24,36 @@
           # The ACP integration suite launches its scripted fake agent during
           # checkPhase, so Node is a test-time build dependency as well as a
           # development-shell convenience.
-          nativeBuildInputs = [ pkgs.pkg-config pkgs.nodejs_24 ];
+          nativeBuildInputs = [ pkgs.pkg-config pkgs.nodejs_24 pkgs.makeWrapper ];
           nativeCheckInputs = [ pkgs.gitMinimal ];
           buildInputs = [ pkgs.openssl ];
+          postInstall = ''
+            mkdir -p $out/libexec
+            mv $out/bin/svc $out/libexec/svc
+            makeWrapper $out/libexec/svc $out/bin/svc \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.nodejs_24 ]}
+          '';
+          doInstallCheck = true;
+          installCheckPhase = ''
+            runHook preInstallCheck
+            work=$(mktemp -d)
+            mv harness "$work/build-harness"
+            mkdir "$work/repo"
+            (
+              cd "$work/repo"
+              "$out/bin/svc" init --json >/dev/null
+              if env -i HOME="$work" PATH="$work/no-programs" \
+                OPENROUTER_API_KEY=packaging-test-not-a-key \
+                "$out/libexec/svc" agent "installation asset check"; then
+                echo "agent unexpectedly started without npx" >&2
+                exit 1
+              fi
+            )
+            cmp "$work/build-harness/svc-tools.mjs" "$work/repo/.svc/svc-tools.mjs"
+            grep -F "$work/repo/.svc/svc-tools.mjs" "$work/repo/.svc/dsh-overlay.yml"
+            mv "$work/build-harness" harness
+            runHook postInstallCheck
+          '';
           meta = {
             description = "Compiler-grade version control";
             license = pkgs.lib.licenses.agpl3Plus;

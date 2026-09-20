@@ -49,16 +49,15 @@ pub fn has_model_credentials() -> bool {
 /// A later `--patch` replaces a row's `config`, never its `name`, so the inserted plugin
 /// row must carry the absolute path from the start: rewrite the whole overlay.
 pub fn runtime_overlay(root: &Path) -> Result<PathBuf, String> {
-    let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let overlay = assets.join("harness/overlay.yml");
-    let plugin = assets.join("harness/svc-tools.mjs");
-    if !overlay.is_file() || !plugin.is_file() {
-        return Err("harness assets are missing beside the source checkout".into());
-    }
-    let runtime_overlay = root.join(".svc/dsh-overlay.yml");
-    let mut text = std::fs::read_to_string(&overlay)
-        .map_err(|e| e.to_string())?
-        .replace(PLUGIN_PLACEHOLDER, &plugin.display().to_string());
+    let metadata = root.join(".svc");
+    let plugin = metadata.join("svc-tools.mjs");
+    let quoted_plugin = serde_json::to_string(&plugin).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&metadata).map_err(|e| e.to_string())?;
+    std::fs::write(&plugin, include_str!("../../../harness/svc-tools.mjs"))
+        .map_err(|e| e.to_string())?;
+    let runtime_overlay = metadata.join("dsh-overlay.yml");
+    let mut text = include_str!("../../../harness/overlay.yml")
+        .replace(PLUGIN_PLACEHOLDER, &quoted_plugin);
     // SVC_MODEL=<openrouter id> swaps the overlay's default model (deepseek-chat writes tool
     // calls as prose about one run in three; anthropic/claude-sonnet-5 does not).
     if let Ok(model) = std::env::var("SVC_MODEL") {
@@ -152,4 +151,49 @@ fn open_agent_changeset(root: &Path) -> Result<(), String> {
 fn close_agent_changeset(root: &Path) -> Result<(), String> {
     let repo = Repo::open(root, Repo::default_langs()).map_err(|e| e.to_string())?;
     changeset_end(&repo).map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_runtime_assets(root: &Path) {
+        let overlay = runtime_overlay(root).unwrap();
+        let plugin = root.join(".svc/svc-tools.mjs");
+        assert_eq!(
+            std::fs::read_to_string(&plugin).unwrap(),
+            include_str!("../../../harness/svc-tools.mjs")
+        );
+        let text = std::fs::read_to_string(overlay).unwrap();
+        let quoted = serde_json::to_string(&plugin).unwrap();
+        assert!(text.contains(&format!("name: {quoted}")));
+        assert!(!text.contains(PLUGIN_PLACEHOLDER));
+    }
+
+    #[test]
+    fn runtime_overlay_materializes_and_refreshes_assets_with_quoted_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["plain", "quoted \"name\" # tag: checkout"] {
+            let root = dir.path().join(name);
+            std::fs::create_dir_all(root.join(".svc")).unwrap();
+            assert_runtime_assets(&root);
+            std::fs::write(root.join(".svc/svc-tools.mjs"), "stale plugin").unwrap();
+            assert_runtime_assets(&root);
+        }
+    }
+
+    #[test]
+    fn runtime_overlay_creates_named_checkout_metadata_without_a_second_store() {
+        let original = tempfile::tempdir().unwrap();
+        let repo = Repo::init(original.path(), Repo::default_langs()).unwrap();
+        let workspace = tempfile::tempdir().unwrap();
+        svc_repo::workspace::add(&repo, "agent", workspace.path(), None).unwrap();
+        assert!(!workspace.path().join(".svc").exists());
+        assert_runtime_assets(workspace.path());
+        assert!(!workspace.path().join(".svc/store.redb").exists());
+        let named = Repo::open(workspace.path(), Repo::default_langs()).unwrap();
+        assert_eq!(named.workspace(), Some("agent"));
+        assert_eq!(named.store_path(), repo.store_path());
+        assert!(named.working_copy_clean().unwrap());
+    }
 }
