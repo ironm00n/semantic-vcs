@@ -187,6 +187,9 @@ pub fn diff(
 }
 
 /// Bytes-in → snapshot-out. Does not write the snapshot, set root/heads, or append an op.
+/// `files` is the whole tree; `prev` lends ids only. Names resolve against what is parsed
+/// here — never against `prev`, whose entities may be exactly what this edit deleted (a
+/// reference kept bound to a gone id renders as `?`).
 pub fn snapshot_files(
     store: &dyn Store,
     langs: &Langs,
@@ -227,7 +230,7 @@ pub fn snapshot_files(
             }
         }
     }
-    let mut env = prev.map(env_from_snapshot).unwrap_or_default();
+    let mut env = Env::default();
     for p in &parsed {
         for (i, ent) in p.raw.iter().enumerate() {
             if is_inherent_raw(&p.raw, i) {
