@@ -34,9 +34,11 @@ enum Command {
     Resolve { conflict: usize, #[arg(long, help = "a = current change, b = merged-in, base, or accept (the code as it stands, for a binding conflict)")] take: String },
     Undo,
     #[command(subcommand)] Op(OpCommand),
+    /// Group the ops that follow under one name: the unit of review, undo and sync.
     #[command(subcommand)] Changeset(ChangeSetCommand),
     /// The local forge (crates/svc-forge): `export` writes its catalog from this store.
     #[command(subcommand)] Forge(ForgeCommand),
+    /// The op log as a bundle: export a range, replay one into a store on the same tree.
     #[command(subcommand)] History(HistoryCommand),
     /// Send a changeset (its ops and their verdicts) to the checkout at DIR; a second push sends only what is new.
     Push { changeset: String, dir: PathBuf },
