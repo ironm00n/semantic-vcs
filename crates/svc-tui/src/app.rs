@@ -676,7 +676,7 @@ impl App {
                 }
                 v
             }
-            QueueItem::Binding { .. } => vec![Line::from("      fix the code, or `svc resolve <n> --accept`").dark_gray()],
+            QueueItem::Binding { .. } => vec![Line::from("      fix the code, then `svc resolve <n> --take accept`").dark_gray()],
             QueueItem::Note { op } => {
                 let mut v = vec![Line::from(format!("      op #{}  at {}", op.ix.0, op.at)).dark_gray()];
                 if let Op::Note { text, .. } = &op.op {
