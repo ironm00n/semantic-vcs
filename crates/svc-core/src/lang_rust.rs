@@ -391,7 +391,21 @@ fn rust_roles(node: tree_sitter::Node<'_>, field: Option<&str>) -> Vec<Role> {
                 when: When::Always,
             }],
         }],
-        "function_type" | "higher_ranked_trait_bound" | "abstract_type" => vec![Role::Scope {
+        "function_type" | "abstract_type" => vec![Role::Scope {
+            opens: &[Namespace::Lifetime],
+            barriers: &[],
+        }],
+        // `where for<'a> T: Fn(&'a u8)`: the HRTB is only the left of the
+        // predicate; `'a` must cover the bounds too (SPEC).
+        "higher_ranked_trait_bound"
+            if node.parent().is_some_and(|p| {
+                p.kind() == "where_predicate"
+                    && p.child_by_field_name("left").map(|n| n.id()) == Some(node.id())
+            }) =>
+        {
+            vec![]
+        }
+        "higher_ranked_trait_bound" | "where_predicate" => vec![Role::Scope {
             opens: &[Namespace::Lifetime],
             barriers: &[],
         }],

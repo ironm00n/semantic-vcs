@@ -754,3 +754,33 @@ fn rust_impl_for_lifetime_does_not_leak() {
         "a later type must not see impl-for 'a: {refs:?}"
     );
 }
+
+#[test]
+fn rust_where_clause_hrtb_is_a_slot() {
+    let src = "fn f<T>() where for<'a> T: Fn(&'a u8) {}\n";
+    let refs = rust_item_refs(src);
+    assert!(
+        refs.iter()
+            .any(|(n, ident)| n == "'a" && matches!(ident, IdentRef::Local(_, Namespace::Lifetime))),
+        "where for<'a> T: Trait must bind 'a: {refs:?}"
+    );
+}
+
+#[test]
+fn rust_where_clause_hrtb_does_not_leak_into_the_body() {
+    let src = "fn f<T>() where for<'a> T: Fn(&'a u8) { let _: &'a u8; }\n";
+    let refs = rust_item_refs(src);
+    let lifetimes: Vec<_> = refs.iter().filter(|(n, _)| n == "'a").cloned().collect();
+    assert!(
+        lifetimes
+            .iter()
+            .any(|(_, ident)| matches!(ident, IdentRef::Local(_, Namespace::Lifetime))),
+        "where-clause use is the HRTB binder: {refs:?}"
+    );
+    assert!(
+        lifetimes
+            .iter()
+            .any(|(_, ident)| matches!(ident, IdentRef::Free(_))),
+        "the fn body must not see where-clause 'a: {refs:?}"
+    );
+}
