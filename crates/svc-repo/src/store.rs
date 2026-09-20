@@ -79,6 +79,9 @@ pub struct RedbStore {
     /// `None` = the default checkout (`META` rows); `Some(name)` = a `WORKSPACES` row.
     workspace: Option<String>,
     staged: std::sync::Mutex<Option<Staged>>,
+    /// Decoded snapshots, by id. A snapshot is immutable, so a hit is always right; a verb
+    /// asks for the current one several times and decoding 10k entities is the cost.
+    decoded: std::sync::Mutex<BTreeMap<SnapshotId, Snapshot>>,
 }
 
 impl RedbStore {
@@ -99,7 +102,7 @@ impl RedbStore {
     /// Creates the file and seeds every table, so readers never see `TableDoesNotExist`.
     pub fn create(path: &Path) -> Result<Self> {
         let db = Self::database(path, true)?;
-        let store = Self { db, workspace: None, staged: Default::default() };
+        let store = Self { db, workspace: None, staged: Default::default(), decoded: Default::default() };
         store.write(|txn| {
             txn.open_table(OBJECTS).map_err(Error::backend)?;
             txn.open_table(SNAPSHOTS).map_err(Error::backend)?;
@@ -169,7 +172,7 @@ impl RedbStore {
 
     pub fn open(path: &Path) -> Result<Self> {
         let db = Self::database(path, false)?;
-        Ok(Self { db, workspace: None, staged: Default::default() })
+        Ok(Self { db, workspace: None, staged: Default::default(), decoded: Default::default() })
     }
 
     /// Re-scope this handle to checkout `name` (`None` = default). The row must exist.
@@ -416,15 +419,25 @@ impl Store for RedbStore {
     }
 
     fn get_snapshot(&self, id: SnapshotId) -> Result<Snapshot> {
+        if let Some(s) = self.decoded.lock().unwrap().get(&id) {
+            return Ok(s.clone());
+        }
+        // A held snapshot is not cached: it is gone if the verb is discarded.
         if let Some(b) = self.staged.lock().unwrap().as_ref().and_then(|s| s.snapshots.get(&id)) {
             return decode(b);
         }
         let txn = self.read()?;
         let table = txn.open_table(SNAPSHOTS).map_err(Error::backend)?;
-        match table.get(&id.0).map_err(Error::backend)? {
-            Some(g) => decode(g.value()),
-            None => Err(Error::NoSuchSnapshot),
+        let snap: Snapshot = match table.get(&id.0).map_err(Error::backend)? {
+            Some(g) => decode(g.value())?,
+            None => return Err(Error::NoSuchSnapshot),
+        };
+        let mut decoded = self.decoded.lock().unwrap();
+        if decoded.len() >= 8 {
+            decoded.clear();
         }
+        decoded.insert(id, snap.clone());
+        Ok(snap)
     }
 
     fn append_op(&self, e: &OpLogEntry) -> Result<OpIx> {

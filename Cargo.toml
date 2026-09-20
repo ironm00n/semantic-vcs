@@ -26,3 +26,20 @@ tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync"] }
 agent-client-protocol = "2.1.0"
 svc-core = { path = "crates/svc-core" }
 svc-repo = { path = "crates/svc-repo" }
+
+# The dev build is what every gate and demo runs. Our own crates stay unoptimised and
+# checked; the libraries doing the byte work do not: redb's debug build walks every
+# allocated page on open, and parsing, hashing and decoding dominate a verb's time.
+[profile.dev.package.redb]
+opt-level = 3
+debug-assertions = false
+[profile.dev.package.postcard]
+opt-level = 3
+[profile.dev.package.blake3]
+opt-level = 3
+[profile.dev.package.tree-sitter]
+opt-level = 3
+[profile.dev.package.tree-sitter-rust]
+opt-level = 3
+[profile.dev.package.tree-sitter-javascript]
+opt-level = 3
