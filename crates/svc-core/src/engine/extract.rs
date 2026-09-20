@@ -68,6 +68,31 @@ fn node_text(src: &[u8], node: tree_sitter::Node<'_>) -> String {
     String::from_utf8_lossy(&src[node.start_byte()..node.end_byte()]).into_owned()
 }
 
+fn parse_path_lit(lit: &str) -> Option<String> {
+    let lit = lit.trim();
+    if let Some(inner) = lit.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+        return nonempty_path(inner);
+    }
+    parse_raw_string(lit)
+}
+
+fn parse_raw_string(lit: &str) -> Option<String> {
+    let rest = lit.strip_prefix('r')?;
+    let hashes = rest.chars().take_while(|&c| c == '#').count();
+    let rest = rest.get(hashes..)?;
+    let rest = rest.strip_prefix('"')?;
+    let suffix = format!("\"{}", "#".repeat(hashes));
+    nonempty_path(rest.strip_suffix(&suffix)?)
+}
+
+fn nonempty_path(inner: &str) -> Option<String> {
+    if inner.is_empty() {
+        None
+    } else {
+        Some(inner.to_string())
+    }
+}
+
 fn path_from_attr_token_tree(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<String> {
     let mut c = node.walk();
     let kids: Vec<_> = node.children(&mut c).collect();
@@ -82,15 +107,12 @@ fn path_from_attr_token_tree(node: tree_sitter::Node<'_>, src: &[u8]) -> Option<
     if i < kids.len() && kids[i].kind() == "=" {
         i += 1;
     }
-    if i >= kids.len() || kids[i].kind() != "string_literal" {
+    if i >= kids.len() {
         return None;
     }
-    let lit = node_text(src, kids[i]);
-    let inner = lit.strip_prefix('"')?.strip_suffix('"')?;
-    if inner.is_empty() {
-        None
-    } else {
-        Some(inner.to_string())
+    match kids[i].kind() {
+        "string_literal" | "raw_string_literal" => parse_path_lit(&node_text(src, kids[i])),
+        _ => None,
     }
 }
 
@@ -130,12 +152,7 @@ fn path_eq_literal(attr: &str) -> Option<String> {
     let rest = attr.trim().strip_prefix("#[")?.strip_suffix(']')?.trim();
     let rest = rest.strip_prefix("path")?.trim();
     let rest = rest.strip_prefix('=')?.trim();
-    let inner = rest.strip_prefix('"')?.strip_suffix('"')?;
-    if inner.is_empty() {
-        None
-    } else {
-        Some(inner.to_string())
-    }
+    parse_path_lit(rest)
 }
 
 fn emit<'a>(
