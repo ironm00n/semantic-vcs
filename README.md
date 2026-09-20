@@ -214,6 +214,7 @@ Claude Code, Muse, Cursor, Devin, Warp and DeepSeek Harness. Rust,
 tree-sitter (Rust and JavaScript), redb, postcard, BLAKE3, similar, clap,
 ratatui, agent-client-protocol, axum, Node.js,
 `@deepseek-ai/dsh@0.1.5-rc.2`.
+Token usage per agent and harness, from the logs on the build machine: [`USAGE.md`](USAGE.md).
 
 Prior art: MolhadoRef, Mergiraf, jj, Serena, semedit, CODESTRUCT, IDE
 refactorings. The experiment is their intersection in a store that is not
