@@ -134,7 +134,7 @@ pub fn merge(
         conflicts,
         message: String::new(),
     };
-    signature_pass(&mut snap);
+    signature_pass(&mut snap, &base_s);
     binding_post(store, langs, &base_s, &a_s, &b_s, &mut snap)?;
     Ok(snap)
 }
@@ -400,7 +400,7 @@ fn merge_files(o: &Snapshot, a: &Snapshot, b: &Snapshot) -> BTreeMap<RelPath, Fi
     out
 }
 
-fn signature_pass(snap: &mut Snapshot) {
+fn signature_pass(snap: &mut Snapshot, base: &Snapshot) {
     let mut seen: HashMap<SigKey, EntityId> = HashMap::new();
     let mut extra = Vec::new();
     for (id, rec) in &snap.entities {
@@ -409,6 +409,11 @@ fn signature_pass(snap: &mut Snapshot) {
             continue;
         }
         if let Some(prev) = seen.insert(rec.sig_key(), *id) {
+            // Two object-literal methods can share `(parent, kind, name)` in a
+            // snapshot that already shipped; that is not both sides adding.
+            if base.entities.contains_key(&prev) && base.entities.contains_key(id) {
+                continue;
+            }
             extra.push(Conflict::AddAdd {
                 key: rec.sig_key(),
                 a: prev,

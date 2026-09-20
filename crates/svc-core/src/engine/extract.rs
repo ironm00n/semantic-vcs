@@ -14,6 +14,10 @@ fn rule_for<'a>(lang: &'a dyn Lang, kind: &str) -> Option<&'a EntityKindRule> {
     lang.entity_kinds().iter().find(|r| r.node_kind == kind)
 }
 
+fn is_class_body_member(node: tree_sitter::Node<'_>) -> bool {
+    node.parent().is_some_and(|p| p.kind() == "class_body")
+}
+
 pub fn find_node<'a>(
     node: tree_sitter::Node<'a>,
     range: ByteRange,
@@ -43,6 +47,16 @@ fn collect<'a>(
         // of the enclosing item. Extracting them as children made the
         // parent resolver skip their binders.
         if rule.node_kind == "variable_declarator" && parent_idx.is_some() {
+            let mut cursor = node.walk();
+            for child in node.named_children(&mut cursor) {
+                collect(child, src, lang, parent_idx, raw, nodes);
+            }
+            return;
+        }
+        // Object-literal `{ async execute() {} }` is not a class member. Treating
+        // it as `JsMethod` under the enclosing function made two `execute`
+        // methods share a SigKey and every merge of svc's own harness AddAdd.
+        if rule.node_kind == "method_definition" && !is_class_body_member(node) {
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
                 collect(child, src, lang, parent_idx, raw, nodes);

@@ -4,7 +4,7 @@ use svc_core::engine::{edit_def, lookup_name, merge, rust_langs, snapshot_files}
 use svc_core::ids::{ChangeId, RelPath};
 use svc_core::lang::Langs;
 use svc_core::store::{MemStore, Store};
-use svc_core::{Conflict, IdentRef, JsLang, RustLang};
+use svc_core::{Conflict, IdentRef, JsLang, Kind, RustLang};
 
 const BASE: &str = r#"
 fn read(path: &str) -> String { path.to_string() }
@@ -52,16 +52,21 @@ fn o7_demo_line_6_is_a_binding_conflict_on_raw() {
         .conflicts
         .iter()
         .filter_map(|c| match c {
-            Conflict::Binding { id, name, was, was_at, now, .. } if *id == load => {
-                Some((name.clone(), was.clone(), now.clone(), was_at.is_some()))
-            }
+            Conflict::Binding {
+                id,
+                name,
+                was,
+                was_at,
+                now,
+                ..
+            } if *id == load => Some((name.clone(), was.clone(), now.clone(), was_at.is_some())),
             _ => None,
         })
         .collect();
     assert!(
-        binds.iter().any(|(name, was, now, located)| {
-            name == "raw" && was != now && *located
-        }),
+        binds
+            .iter()
+            .any(|(name, was, now, located)| { name == "raw" && was != now && *located }),
         "expected a Binding conflict on raw with was_at, got {:?}",
         merged.conflicts
     );
@@ -102,7 +107,10 @@ fn o7_git_twin_load_is_a_binding_conflict_on_raw() {
     let langs = rust_langs();
     let path = RelPath::new("src/main.rs").unwrap();
     let mut files = BTreeMap::new();
-    files.insert(path, include_bytes!("../../../demo/config/src/main.rs").to_vec());
+    files.insert(
+        path,
+        include_bytes!("../../../demo/config/src/main.rs").to_vec(),
+    );
     let base = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let load = lookup_name(&base, "load").unwrap();
     assert_ne!(LOAD_A.last(), Some(&b'\n'));
@@ -117,21 +125,29 @@ fn o7_git_twin_load_is_a_binding_conflict_on_raw() {
         .conflicts
         .iter()
         .filter_map(|c| match c {
-            Conflict::Binding { id, name, was, was_at, now, .. } if *id == load => {
-                Some((name.clone(), was.clone(), now.clone(), was_at.is_some()))
-            }
+            Conflict::Binding {
+                id,
+                name,
+                was,
+                was_at,
+                now,
+                ..
+            } if *id == load => Some((name.clone(), was.clone(), now.clone(), was_at.is_some())),
             _ => None,
         })
         .collect();
     assert!(
-        merged.conflicts.iter().any(|c| matches!(c, Conflict::Binding { id, .. } if *id == load)),
+        merged
+            .conflicts
+            .iter()
+            .any(|c| matches!(c, Conflict::Binding { id, .. } if *id == load)),
         "expected Binding on load, got {:?}",
         merged.conflicts
     );
     assert!(
-        binds.iter().any(|(name, was, now, located)| {
-            name == "raw" && was != now && *located
-        }),
+        binds
+            .iter()
+            .any(|(name, was, now, located)| { name == "raw" && was != now && *located }),
         "expected a Binding conflict on raw with was_at, got {:?}",
         merged.conflicts
     );
@@ -161,9 +177,15 @@ fn js_comment_only_both_sides_is_not_a_binding_conflict() {
     );
     let base = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
     let mut a_files = files.clone();
-    a_files.get_mut(&cfg).unwrap().extend_from_slice(b"\n// a\n");
+    a_files
+        .get_mut(&cfg)
+        .unwrap()
+        .extend_from_slice(b"\n// a\n");
     let mut b_files = files.clone();
-    b_files.get_mut(&cfg).unwrap().extend_from_slice(b"\n// b\n");
+    b_files
+        .get_mut(&cfg)
+        .unwrap()
+        .extend_from_slice(b"\n// b\n");
     let a = snapshot_files(&store, &langs, &a_files, Some(&base), ChangeId::new()).unwrap();
     let b = snapshot_files(&store, &langs, &b_files, Some(&base), ChangeId::new()).unwrap();
     let merged = merge(
@@ -182,5 +204,69 @@ fn js_comment_only_both_sides_is_not_a_binding_conflict() {
     assert!(
         binds.is_empty(),
         "comment-only JS merge must not invent Binding conflicts: {binds:?}"
+    );
+}
+
+#[test]
+fn object_literal_execute_methods_are_not_class_members_and_do_not_add_add() {
+    let js = concat!(
+        "export function apply(ctx) {\n",
+        "  ctx.tools.register({ async execute(args) { return 1; } });\n",
+        "  ctx.tools.register({ async execute(args) { return 2; } });\n",
+        "}\n",
+        "class Tool { async execute(args) { return 3; } }\n",
+    );
+    let rust = "fn a() {}\nfn b() {}\n";
+    let store = MemStore::new();
+    let langs = js_langs();
+    let js_path = RelPath::new("harness/svc-tools.mjs").unwrap();
+    let rs_path = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(js_path, js.as_bytes().to_vec());
+    files.insert(rs_path.clone(), rust.as_bytes().to_vec());
+    let base = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let object_executes = base
+        .entities
+        .values()
+        .filter(|r| r.name == "execute" && r.parent.is_some())
+        .count();
+    assert_eq!(
+        object_executes,
+        1,
+        "only the class method is an entity, got {:?}",
+        base.entities
+            .values()
+            .filter(|r| r.name == "execute")
+            .map(|r| (r.kind, r.parent, r.ordinal))
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        base.entities
+            .values()
+            .any(|r| r.name == "execute" && r.kind == Kind::JsMethod)
+    );
+
+    let mut a_files = files.clone();
+    a_files.insert(rs_path.clone(), b"fn a() { 1 }\nfn b() {}\n".to_vec());
+    let mut b_files = files.clone();
+    b_files.insert(rs_path, b"fn a() {}\nfn b() { 2 }\n".to_vec());
+    let a = snapshot_files(&store, &langs, &a_files, Some(&base), ChangeId::new()).unwrap();
+    let b = snapshot_files(&store, &langs, &b_files, Some(&base), ChangeId::new()).unwrap();
+    let merged = merge(
+        &store,
+        &langs,
+        store.put_snapshot(&base).unwrap(),
+        store.put_snapshot(&a).unwrap(),
+        store.put_snapshot(&b).unwrap(),
+    )
+    .unwrap();
+    let add_add: Vec<_> = merged
+        .conflicts
+        .iter()
+        .filter(|c| matches!(c, Conflict::AddAdd { .. }))
+        .collect();
+    assert!(
+        add_add.is_empty(),
+        "unrelated rust edits must not AddAdd object-literal execute: {add_add:?}"
     );
 }
