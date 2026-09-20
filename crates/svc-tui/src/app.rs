@@ -160,18 +160,27 @@ impl App {
         app
     }
 
+    /// `None` when the verb was refused with `checkout busy`: another `svc` holds this
+    /// checkout (a rename or blame in a second terminal outlasting the 800 ms wait), so the
+    /// panes keep what they show and the read is retried shortly — not an error, not an
+    /// emptied pane.
+    fn unless_busy<T>(&mut self, read: Result<T, String>) -> Option<Result<T, String>> {
+        match read {
+            Err(e) if e.contains("checkout busy") => {
+                self.dirty = true;
+                self.retry_at = Instant::now() + Duration::from_millis(300);
+                None
+            }
+            read => Some(read),
+        }
+    }
+
     /// Re-read everything from `svc --json`. Pending asks survive; verdict rows replace answered asks.
     pub fn refresh(&mut self) {
         self.dirty = false;
         let selected_change = self.selected_change().map(|change| change.change);
-        match self.svc.heads() {
-            // Another `svc` holds this checkout (a long rename in a second terminal): not an
-            // error to show, just try again shortly.
-            Err(e) if e.contains("checkout busy") => {
-                self.dirty = true;
-                self.retry_at = Instant::now() + Duration::from_millis(300);
-                return;
-            }
+        let Some(heads) = self.unless_busy(self.svc.heads()) else { return };
+        match heads {
             Ok(changes) => {
                 self.changes = changes;
                 let selected = selected_change
@@ -183,12 +192,8 @@ impl App {
             }
             Err(e) => self.error = Some(e),
         }
-        match self.svc.list_defs() {
-            Err(e) if e.contains("checkout busy") => {
-                self.dirty = true;
-                self.retry_at = Instant::now() + Duration::from_millis(300);
-                return;
-            }
+        let Some(defs) = self.unless_busy(self.svc.list_defs()) else { return };
+        match defs {
             Ok(defs) => {
                 self.defs = defs;
                 self.rows = self.filtered_rows();
@@ -201,14 +206,19 @@ impl App {
             }
             Err(e) => self.error = Some(e),
         }
-        let log = self.svc.log().unwrap_or_default();
-        self.ops = self.svc.op_log().unwrap_or_else(|_| log.clone());
+        // The queue and the op-log pane are rebuilt from these three reads; a busy checkout
+        // keeps the current ones instead of showing them emptied until the next refresh.
+        let Some(log) = self.unless_busy(self.svc.log()) else { return };
+        let log = log.unwrap_or_default();
+        let Some(ops) = self.unless_busy(self.svc.op_log()) else { return };
+        let Some(conflicts) = self.unless_busy(self.svc.conflicts()) else { return };
+        self.ops = ops.unwrap_or_else(|_| log.clone());
         if self.ops.is_empty() {
             self.op_state.select(None);
         } else if self.op_state.selected().is_none_or(|index| index >= self.ops.len()) {
             self.op_state.select(Some(0));
         }
-        let conflicts = self.svc.conflicts().unwrap_or_default();
+        let conflicts = conflicts.unwrap_or_default();
         self.roots = log.iter().map(|o| (o.ix.0, o.root_after.to_string())).collect();
         self.edit_diffs.clear();
         self.rebuild_queue(&log, &conflicts);
@@ -1685,5 +1695,43 @@ mod tests {
         assert!(app.retry_at > Instant::now(), "and not before a pause");
         app.pump();
         assert!(app.dirty, "pump waits out the pause instead of spawning again");
+    }
+
+    #[test]
+    fn a_busy_log_keeps_the_queue_and_op_log_and_retries() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = dir.path().join("svc");
+        // heads and list-defs answer; by the time `log` runs another `svc` holds the checkout
+        // (a blame in a second terminal outlasts the TUI's 800 ms wait).
+        std::fs::write(
+            &fake,
+            "#!/bin/sh\ncase \"$1\" in\n  heads) echo '[]' ;;\n  list-defs) echo '{\"definitions\":[]}' ;;\n  *) echo '{\"error\":\"checkout busy: another svc session held it\"}' >&2; exit 1 ;;\nesac\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&fake, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        let mut app = App::new(Svc::new(fake, dir.path().to_path_buf()));
+        let note = OpOut {
+            ix: OpIx(3),
+            op: Op::Note {
+                to: svc_core::NoteTo::Checkout("claude".into()),
+                kind: NoteKind::Note,
+                text: "the queue before the busy read".into(),
+            },
+            declared: None,
+            observed: None,
+            flagged: false,
+            at: 0,
+            group: None,
+            root_after: SnapshotId::of(&()),
+            subject: None,
+            workspace: None,
+        };
+        app.ops = vec![note.clone()];
+        app.queue = vec![QueueItem::Note { op: note }];
+        app.refresh();
+        assert!(app.dirty, "still to be read");
+        assert!(app.error.is_none(), "not an error to show");
+        assert_eq!(app.queue.len(), 1, "a busy `svc log` must not empty the review queue");
+        assert_eq!(app.ops.len(), 1, "nor the op log");
     }
 }

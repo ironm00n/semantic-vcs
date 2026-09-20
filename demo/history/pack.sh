@@ -19,7 +19,7 @@ ops="$(cd "$WORK/history" && "$SVC" op log --json | jq length)"
 # The forge catalog is a derived file the replay wrote; it is large and regenerable.
 rm -f "$WORK/history/.svc/forge.json" "$WORK/history/.svc/checkout.lock"
 mkdir -p "$ROOT/artifacts"
-tar -C "$WORK/history" -cf - . | xz -T0 -3 > "$ROOT/artifacts/history-store.tar.xz"
+tar -C "$WORK/history" -cf - . | xz -T0 -6 > "$ROOT/artifacts/history-store.tar.xz"
 ls "$HERE"/[0-9]*.json | xargs -n1 basename | jq -R . | jq -s --argjson ops "$ops" --arg svc "$(cd "$ROOT" && (jj --ignore-working-copy log -r @- --no-graph -T "commit_id.short(8)" 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo unknown))" \
   '{bundles: ., ops: $ops, packed_at: (now | todate), svc: $svc}' > "$ROOT/artifacts/history-store.json"
 echo "packed $(jq -r '.bundles|length' "$ROOT/artifacts/history-store.json") bundles, $ops ops: $(du -h "$ROOT/artifacts/history-store.tar.xz" | cut -f1) at artifacts/history-store.tar.xz"

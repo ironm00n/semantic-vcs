@@ -63,7 +63,7 @@ for bundle in $ordered; do
   # checkout); agents.txt maps each bundle to the Agent trailer of its landing commit
   # (written where jj is; a git clone has no jj), and jj is asked for a bundle it lacks.
   change="$(echo "$name" | cut -d- -f3-)"
-  agent="$(awk -v n="$name" '$1 == n { print $2 }' "$HERE/agents.txt" 2>/dev/null | head -1)"
+  agent="$(awk -v n="$name" '$1 == n { print $NF }' "$HERE/agents.txt" 2>/dev/null | head -1)"
   if [ -z "$agent" ] || [ "$agent" = "?" ]; then
     agent="$( (cd "$ROOT" && jj --ignore-working-copy log -r "$change" --no-graph -T description 2>/dev/null || true) | sed -n 's/^Agent: *//p' | head -1)"
   fi

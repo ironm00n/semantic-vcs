@@ -207,7 +207,6 @@ fn is_rust_keyword(name: &str) -> bool {
             | "box"
             | "do"
             | "final"
-            | "gen"
             | "macro"
             | "override"
             | "priv"
