@@ -23,7 +23,7 @@ pub enum ViewMode {
     Oplog,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Pane {
     Browse,
     Queue,
@@ -54,7 +54,7 @@ pub enum QueueItem {
 }
 
 impl QueueItem {
-    fn pending(&self) -> bool {
+    pub fn pending(&self) -> bool {
         matches!(self, QueueItem::Ask { ask: Some(_), .. })
     }
 }

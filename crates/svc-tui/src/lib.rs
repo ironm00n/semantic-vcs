@@ -13,8 +13,8 @@ use crossterm::event::{self, Event};
 use svc_agent::AgentConfig;
 use tokio::sync::mpsc;
 
-use app::{AgentLink, App};
-use data::Svc;
+pub use app::{AgentLink, App, Pane, QueueItem, ViewMode};
+pub use data::{Definition, Svc};
 
 pub struct TuiOptions {
     pub svc_bin: PathBuf,

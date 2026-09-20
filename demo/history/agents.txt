@@ -47,3 +47,4 @@
 0015-63352a5b-vvtznyooxolt claude
 0016-298e5b83-lylwtqwkulyu claude
 0017-84ef4f6b-nzpswpnqlktz claude
+0058-13c13d19-sqvxzlxyolrq cursor
