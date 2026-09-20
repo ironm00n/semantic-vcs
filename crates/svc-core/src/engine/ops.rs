@@ -4,7 +4,7 @@ use crate::content::{Bytes, Chunk, Content, IdentRef, Token};
 use crate::delta::{Delta, ObservedClass};
 use crate::entity::{EntityRecord, SigKey};
 use crate::error::{Error, Result};
-use crate::ids::{ByteRange, ChangeId, EntityId, RelPath, resolve_spec};
+use crate::ids::{ByteRange, EntityId, RelPath, resolve_spec};
 use crate::lang::{Lang, Langs};
 use crate::op::Intent;
 use crate::snapshot::Snapshot;
@@ -12,7 +12,7 @@ use crate::store::Store;
 
 use super::{
     classify, env_from_snapshot, fill_self_methods_from_snapshot, ingest_file_prev,
-    ingest_file_with_env, parse, render, render_entity, snapshot_files,
+    ingest_file_with_env, parse, render, render_entity,
 };
 
 pub fn lookup_name(snap: &Snapshot, name: &str) -> Result<EntityId> {
@@ -787,16 +787,6 @@ impl StatusReport {
             )
         }
     }
-}
-
-pub fn snapshot_working_copy(
-    store: &dyn Store,
-    langs: &Langs,
-    files: &BTreeMap<RelPath, Vec<u8>>,
-    prev: Option<&Snapshot>,
-    change: ChangeId,
-) -> Result<Snapshot> {
-    snapshot_files(store, langs, files, prev, change)
 }
 
 /// Entities whose content or bytes *name* `id`. Child holes are containment,

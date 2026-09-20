@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::content::{Bytes, Content, IdentRef};
 use crate::entity::{EntityRecord, FileRecord, Kind, SigKey};
 use crate::error::{Error, Result};
-use crate::ids::{ByteRange, BytesId, ChangeId, ContentId, EntityId, RelPath};
+use crate::ids::{ByteRange, ChangeId, EntityId, RelPath};
 use crate::lang::{Env, Lang, Langs, RawEntity, Resolution};
 use crate::snapshot::Snapshot;
 use crate::store::Store;
@@ -23,7 +23,7 @@ pub use merge::{lca, merge};
 pub use ops::{
     StatusReport, add_def, add_def_at, classify_def, commit_snapshot, delete, edit_def,
     extract_hoist, format_tokens, inline, lookup, lookup_name, move_def, redefine, relocate,
-    rename, resolve_add_def_file, rust_langs, show, snapshot_working_copy, status_report,
+    rename, resolve_add_def_file, rust_langs, show, status_report,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -124,14 +124,6 @@ pub fn canonicalize(
     lang: &dyn Lang,
 ) -> Result<Content> {
     canon::canonicalize(item, src, res, children, lang)
-}
-
-pub fn match_entities(
-    prev: &Snapshot,
-    parsed: &[RawEntity],
-    hashes: &[(ContentId, BytesId)],
-) -> Vec<(usize, Option<EntityId>)> {
-    diff_impl::match_entities(prev, parsed, hashes)
 }
 
 pub fn render(

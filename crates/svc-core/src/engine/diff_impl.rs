@@ -1,47 +1,8 @@
 use crate::delta::Delta;
 use crate::entity::Kind;
-use crate::ids::EntityId;
-use crate::ids::{BytesId, ContentId};
-use crate::lang::{Lang, RawEntity};
+use crate::lang::Lang;
 use crate::snapshot::Snapshot;
 use crate::{JsLang, RustLang};
-
-pub fn match_entities(
-    prev: &Snapshot,
-    parsed: &[RawEntity],
-    hashes: &[(ContentId, BytesId)],
-) -> Vec<(usize, Option<EntityId>)> {
-    let mut used = std::collections::BTreeSet::new();
-    let mut out = Vec::with_capacity(parsed.len());
-    for (i, ent) in parsed.iter().enumerate() {
-        let by_name = prev.entities.iter().find(|(id, rec)| {
-            !used.contains(*id)
-                && rec.name == ent.name
-                && rec.kind == ent.kind
-                && rec.parent.is_some() == ent.parent_idx.is_some()
-        });
-        if let Some((id, _)) = by_name {
-            used.insert(*id);
-            out.push((i, Some(*id)));
-            continue;
-        }
-        let hash = hashes.get(i).map(|(c, _)| *c);
-        let mut hits: Vec<EntityId> = prev
-            .entities
-            .iter()
-            .filter(|(id, rec)| !used.contains(*id) && Some(rec.content) == hash)
-            .map(|(id, _)| *id)
-            .collect();
-        if hits.len() == 1 {
-            let id = hits.pop().unwrap();
-            used.insert(id);
-            out.push((i, Some(id)));
-        } else {
-            out.push((i, None));
-        }
-    }
-    out
-}
 
 pub fn diff(prev: &Snapshot, next: &Snapshot) -> Vec<Delta> {
     let mut out = Vec::new();

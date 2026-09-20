@@ -182,12 +182,6 @@ pub struct TokenIx(pub u32);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct AtomIx(pub u32);
 
-impl AtomIx {
-    pub fn as_u32(self) -> u32 {
-        self.0
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct ByteRange {
     pub start: u32,

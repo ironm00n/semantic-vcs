@@ -29,18 +29,6 @@ impl<T> Merge<T> {
         }
     }
 
-    pub fn from_adds_removes(mut adds: Vec<T>, removes: Vec<T>) -> Result<Self> {
-        if adds.len() != removes.len() + 1 {
-            return Err(Error::MergeArity {
-                adds: adds.len(),
-                removes: removes.len(),
-            });
-        }
-        let head = adds.remove(0);
-        let tail = removes.into_iter().zip(adds).collect();
-        Ok(Self { head, tail })
-    }
-
     pub fn adds(&self) -> impl Iterator<Item = &T> {
         std::iter::once(&self.head).chain(self.tail.iter().map(|(_, a)| a))
     }
@@ -51,10 +39,6 @@ impl<T> Merge<T> {
 
     pub fn resolved(&self) -> Option<&T> {
         self.tail.is_empty().then_some(&self.head)
-    }
-
-    pub fn is_resolved(&self) -> bool {
-        self.tail.is_empty()
     }
 }
 
@@ -168,7 +152,11 @@ impl Snapshot {
 
     pub fn rename(&mut self, id: EntityId, new: &str) -> Result<()> {
         let rec = self.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-        refuse_duplicate(self, id, &SigKey::new(rec.parent, &rec.file, rec.kind, new.to_string()))?;
+        refuse_duplicate(
+            self,
+            id,
+            &SigKey::new(rec.parent, &rec.file, rec.kind, new.to_string()),
+        )?;
         self.entities.get_mut(&id).unwrap().name = new.to_string();
         Ok(())
     }
@@ -180,7 +168,11 @@ impl Snapshot {
         ordinal: Option<u32>,
     ) -> Result<()> {
         let rec = self.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-        refuse_duplicate(self, id, &SigKey::new(parent, &rec.file, rec.kind, rec.name.clone()))?;
+        refuse_duplicate(
+            self,
+            id,
+            &SigKey::new(parent, &rec.file, rec.kind, rec.name.clone()),
+        )?;
         let rec = self.entities.get_mut(&id).unwrap();
         rec.parent = parent;
         if let Some(o) = ordinal {
@@ -194,7 +186,11 @@ impl Snapshot {
             return Err(Error::Other(format!("no file record for {file}")));
         }
         let rec = self.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
-        refuse_duplicate(self, id, &SigKey::new(rec.parent, &file, rec.kind, rec.name.clone()))?;
+        refuse_duplicate(
+            self,
+            id,
+            &SigKey::new(rec.parent, &file, rec.kind, rec.name.clone()),
+        )?;
         let rec = self.entities.get_mut(&id).unwrap();
         rec.file = file;
         rec.ordinal = ordinal;
