@@ -155,6 +155,39 @@ fn path_eq_literal(attr: &str) -> Option<String> {
     parse_path_lit(rest)
 }
 
+fn attr_body_is(inner: &str, name: &str) -> bool {
+    let inner = inner.trim();
+    if inner == name || inner.starts_with(&format!("{name}(")) {
+        return true;
+    }
+    let Some(rest) = inner.strip_prefix("cfg_attr(").and_then(|s| s.strip_suffix(')')) else {
+        return false;
+    };
+    cfg_attr_args(rest).iter().skip(1).any(|a| {
+        let a = a.trim();
+        a == name || a.starts_with(&format!("{name}("))
+    })
+}
+
+fn cfg_attr_args(s: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    let mut depth: i32 = 0;
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                out.push(&s[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(&s[start..]);
+    out
+}
+
 fn attr_is(attr: &str, name: &str) -> bool {
     let inner = attr
         .trim()
@@ -162,13 +195,17 @@ fn attr_is(attr: &str, name: &str) -> bool {
         .and_then(|s| s.strip_suffix(']'))
         .unwrap_or(attr.trim())
         .trim();
-    inner == name || inner.starts_with(&format!("{name}("))
+    attr_body_is(inner, name)
 }
 
 fn token_tree_is_attr(node: tree_sitter::Node<'_>, src: &[u8], name: &str) -> bool {
     let text = node_text(src, node);
     let t = text.trim();
-    t == format!("[{name}]") || t.starts_with(&format!("[{name}("))
+    let inner = t
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(t);
+    attr_body_is(inner, name)
 }
 
 fn has_attr(node: tree_sitter::Node<'_>, src: &[u8], name: &str) -> bool {

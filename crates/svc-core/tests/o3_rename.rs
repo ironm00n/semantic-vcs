@@ -3613,3 +3613,31 @@ fn rename_follows_macro_use_on_a_file_module() {
         "#[macro_use] mod fs; must export macros from fs.rs: {text}"
     );
 }
+
+#[test]
+fn rename_follows_cfg_attr_macro_export() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let caller = RelPath::new("src/caller.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib,
+        b"mod fs {\n    #[cfg_attr(all(), macro_export)]\n    macro_rules! parse { () => {}; }\n}\nmod caller;\n".to_vec(),
+    );
+    files.insert(caller.clone(), b"fn f() { parse!(); }\n".to_vec());
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let id = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, id, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&caller].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "#[cfg_attr(_, macro_export)] must occupy the crate root: {text}"
+    );
+}
