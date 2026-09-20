@@ -1889,7 +1889,187 @@ fn js_this_member_call(node: tree_sitter::Node<'_>) -> bool {
         && grand.child_by_field_name("function").map(|n| n.id()) == Some(parent.id())
 }
 
+fn prev_token(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
+    loop {
+        node = node.prev_sibling()?;
+        if node.is_extra() {
+            continue;
+        }
+        return Some(node);
+    }
+}
+
+fn next_token(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
+    loop {
+        node = node.next_sibling()?;
+        if node.is_extra() {
+            continue;
+        }
+        return Some(node);
+    }
+}
+
+fn node_bytes<'a>(node: tree_sitter::Node<'_>, src: &'a [u8]) -> Option<&'a [u8]> {
+    let start = node.start_byte();
+    let end = node.end_byte();
+    (end <= src.len() && start < end).then(|| &src[start..end])
+}
+
+/// Soup `impl S { Self::parse() }` has no `scoped_identifier` — just tokens.
+fn soup_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    if !matches!(parent.kind(), "token_tree" | "ERROR") {
+        return false;
+    }
+    let Some(colon1) = prev_token(node) else {
+        return false;
+    };
+    let qual = if colon1.kind() == "::" {
+        prev_token(colon1)
+    } else if colon1.kind() == ":" {
+        let Some(colon0) = prev_token(colon1) else {
+            return false;
+        };
+        if colon0.kind() != ":" {
+            return false;
+        }
+        prev_token(colon0)
+    } else {
+        return false;
+    };
+    let Some(qual) = qual else {
+        return false;
+    };
+    if !matches!(qual.kind(), "identifier" | "type_identifier" | "self") {
+        return false;
+    }
+    let Some(qt) = node_bytes(qual, src) else {
+        return false;
+    };
+    // `self::parse` is a module path, not `Self::parse`.
+    if qt == b"self" {
+        return false;
+    }
+    qt == b"Self"
+        || Some(qt) == enclosing_impl_type_name(node, src)
+        || Some(qt) == enclosing_impl_trait_name(node, src)
+        || Some(qt) == soup_enclosing_impl_type_name(node, src)
+        || Some(qt) == soup_enclosing_impl_trait_name(node, src)
+}
+
+/// Soup `self.parse()` — `.` plus identifier, not `field_expression`.
+/// The `()` args are a nested `token_tree`, not a `(` sibling.
+fn soup_self_field_call(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    if !matches!(parent.kind(), "token_tree" | "ERROR") {
+        return false;
+    }
+    let Some(dot) = prev_token(node) else {
+        return false;
+    };
+    if dot.kind() != "." {
+        return false;
+    }
+    let Some(recv) = prev_token(dot) else {
+        return false;
+    };
+    if !matches!(recv.kind(), "self" | "identifier") {
+        return false;
+    }
+    if node_bytes(recv, src) != Some(b"self") {
+        return false;
+    }
+    next_token(node).is_some_and(|n| matches!(n.kind(), "(" | "token_tree"))
+}
+
+fn soup_impl_header_before<'a>(
+    body: tree_sitter::Node<'a>,
+    src: &'a [u8],
+) -> Option<(Option<&'a [u8]>, Option<&'a [u8]>)> {
+    let mut nodes = Vec::new();
+    let mut saw_impl = false;
+    let mut n = body.prev_sibling();
+    while let Some(p) = n {
+        if p.is_extra() {
+            n = p.prev_sibling();
+            continue;
+        }
+        if matches!(p.kind(), "fn" | "mod" | "struct" | "enum" | "trait" | "union") {
+            break;
+        }
+        nodes.push(p);
+        if p.kind() == "impl" {
+            saw_impl = true;
+            break;
+        }
+        n = p.prev_sibling();
+    }
+    if !saw_impl {
+        return None;
+    }
+    nodes.reverse();
+    let mut idents: Vec<&'a [u8]> = Vec::new();
+    let mut saw_for = false;
+    let mut depth = 0i32;
+    for p in nodes.iter().skip(1) {
+        match p.kind() {
+            "<" | "type_parameters" | "type_arguments" => depth += 1,
+            ">" => depth = depth.saturating_sub(1),
+            "for" if depth == 0 => saw_for = true,
+            "identifier" | "type_identifier" if depth == 0 => {
+                if let Some(t) = node_bytes(*p, src) {
+                    idents.push(t);
+                }
+            }
+            _ => {}
+        }
+    }
+    if idents.is_empty() {
+        return None;
+    }
+    if saw_for && idents.len() >= 2 {
+        Some((Some(idents[idents.len() - 1]), Some(idents[idents.len() - 2])))
+    } else {
+        Some((Some(idents[idents.len() - 1]), None))
+    }
+}
+
+fn soup_enclosing_impl_type_name<'a>(
+    mut node: tree_sitter::Node<'a>,
+    src: &'a [u8],
+) -> Option<&'a [u8]> {
+    loop {
+        if node.kind() == "token_tree" {
+            if let Some((ty, _)) = soup_impl_header_before(node, src) {
+                return ty;
+            }
+        }
+        node = node.parent()?;
+    }
+}
+
+fn soup_enclosing_impl_trait_name<'a>(
+    mut node: tree_sitter::Node<'a>,
+    src: &'a [u8],
+) -> Option<&'a [u8]> {
+    loop {
+        if node.kind() == "token_tree" {
+            if let Some((_, tr)) = soup_impl_header_before(node, src) {
+                return tr;
+            }
+        }
+        node = node.parent()?;
+    }
+}
+
 fn rust_self_path_method(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
+    if soup_self_path_method(node, src) || soup_self_field_call(node, src) {
+        return true;
+    }
     let Some(parent) = node.parent().filter(|p| p.kind() == "scoped_identifier") else {
         return false;
     };

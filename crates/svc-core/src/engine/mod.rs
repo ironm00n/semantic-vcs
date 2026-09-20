@@ -1355,11 +1355,18 @@ fn materialize(
         let node = extract::find_node(tree.root_node(), ent.item_range)
             .ok_or_else(|| Error::Parse(format!("no node for {}", ent.name)))?;
         if !caller_supplied {
-            local_env.self_methods = ent
-                .parent_idx
-                .and_then(|p| sibs.get(&p))
-                .cloned()
-                .unwrap_or_default();
+            // Methods resolve against sibling callables on the enclosing impl.
+            // The impl body itself also needs that map: soup `impl S { … }` is
+            // a token_tree, so `Self::parse()` lives on the impl entity, not
+            // on a spanning `function_item`.
+            local_env.self_methods = if matches!(ent.kind, Kind::Impl | Kind::Trait) {
+                sibs.get(&i).cloned().unwrap_or_default()
+            } else {
+                ent.parent_idx
+                    .and_then(|p| sibs.get(&p))
+                    .cloned()
+                    .unwrap_or_default()
+            };
         }
         fill_nested_items_from_raw(&mut local_env, raw, ids, i);
         fill_mod_env_from_raw(&mut local_env, raw, ids, i);

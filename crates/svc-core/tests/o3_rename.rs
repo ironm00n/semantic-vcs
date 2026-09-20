@@ -3975,3 +3975,135 @@ fn rename_follows_include_inside_a_soup_mod() {
         "include! inside a soup mod must attach: {text}"
     );
 }
+
+#[test]
+fn rename_follows_soup_impl_self_call() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"struct S;\nmacro_rules! m { ($($t:tt)*) => {}; }\nm! {\n    impl S {\n        fn parse() {}\n        fn load() { Self::parse(); }\n    }\n}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.kind == svc_core::Kind::Fn)
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("Self::parse_file()"),
+        "soup impl method body must bind Self::parse: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_soup_impl_type_path() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"struct S;\nmacro_rules! m { ($($t:tt)*) => {}; }\nm! {\n    impl S {\n        fn parse() {}\n        fn load() { S::parse(); }\n    }\n}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.kind == svc_core::Kind::Fn)
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("S::parse_file()"),
+        "soup impl method body must bind S::parse: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_soup_impl_self_field_call() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"struct S;\nmacro_rules! m { ($($t:tt)*) => {}; }\nm! {\n    impl S {\n        fn parse(&self) {}\n        fn load(&self) { self.parse(); }\n    }\n}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.kind == svc_core::Kind::Fn)
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("self.parse_file()"),
+        "soup impl method body must bind self.parse(): {text}"
+    );
+}
+
+#[test]
+fn soup_impl_method_does_not_steal_crate_parse() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"fn parse() {}\nstruct S;\nmacro_rules! m { ($($t:tt)*) => {}; }\nm! {\n    impl S {\n        fn parse() {}\n    }\n}\nfn f() { parse(); }\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| {
+            r.name == "parse" && r.kind == svc_core::Kind::Fn && r.parent.is_none()
+        })
+        .map(|(id, _)| *id)
+        .expect("crate parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("fn f() { parse_file(); }"),
+        "soup impl method must stay out of the crate map: {text}"
+    );
+}
+
+#[test]
+fn rename_follows_soup_trait_self_call() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"macro_rules! m { ($($t:tt)*) => {}; }\nm! {\n    trait Tr {\n        fn parse() {}\n        fn load() { Self::parse(); }\n    }\n}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse" && r.kind == svc_core::Kind::Fn)
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let next = rename(&store, &snap, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("Self::parse_file()"),
+        "soup trait method body must bind Self::parse: {text}"
+    );
+}

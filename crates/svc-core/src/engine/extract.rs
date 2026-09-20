@@ -813,6 +813,77 @@ fn collect_macro_mod_decls<'a>(
         while f < kids.len() && is_macro_item_prefix(kids[f]) {
             f += 1;
         }
+        let mut impl_at = f;
+        while impl_at < kids.len() && is_macro_impl_qualifier(kids[impl_at]) {
+            impl_at += 1;
+        }
+        if impl_at < kids.len() && kids[impl_at].kind() == "impl" {
+            if let Some(body_k) = soup_impl_body_index(&kids, impl_at) {
+                let name = soup_impl_name(&kids, impl_at, body_k, src);
+                if !name.is_empty() {
+                    emit(
+                        kids[body_k],
+                        src,
+                        lang,
+                        parent_idx,
+                        Kind::Impl,
+                        name,
+                        None,
+                        raw,
+                        nodes,
+                    );
+                    let impl_idx = raw.len() - 1;
+                    collect_macro_mod_decls(
+                        kids[body_k],
+                        src,
+                        lang,
+                        Some(impl_idx),
+                        raw,
+                        nodes,
+                    );
+                    i = body_k + 1;
+                    continue;
+                }
+            }
+        }
+        let mut trait_at = f;
+        while trait_at < kids.len() && is_macro_impl_qualifier(kids[trait_at]) {
+            trait_at += 1;
+        }
+        if trait_at + 1 < kids.len()
+            && kids[trait_at].kind() == "trait"
+            && kids[trait_at + 1].kind() == "identifier"
+        {
+            let mut body_k = trait_at + 2;
+            while body_k < kids.len() && kids[body_k].kind() != "token_tree" {
+                body_k += 1;
+            }
+            if body_k < kids.len() && kids[body_k].kind() == "token_tree" {
+                let name_node = kids[trait_at + 1];
+                emit(
+                    kids[body_k],
+                    src,
+                    lang,
+                    parent_idx,
+                    Kind::Trait,
+                    node_text(src, name_node),
+                    Some(byte_range(name_node)),
+                    raw,
+                    nodes,
+                );
+                let trait_idx = raw.len() - 1;
+                collect_macro_mod_decls(
+                    kids[body_k],
+                    src,
+                    lang,
+                    Some(trait_idx),
+                    raw,
+                    nodes,
+                );
+                i = body_k + 1;
+                continue;
+            }
+        }
         let mut q = f;
         while q < kids.len() && is_macro_fn_qualifier(kids[q]) {
             q += 1;
@@ -933,6 +1004,53 @@ fn is_macro_fn_qualifier(node: tree_sitter::Node<'_>) -> bool {
         node.kind(),
         "async" | "const" | "unsafe" | "extern" | "string_literal" | "raw_string_literal"
     )
+}
+
+fn is_macro_impl_qualifier(node: tree_sitter::Node<'_>) -> bool {
+    matches!(node.kind(), "unsafe" | "default" | "const")
+}
+
+fn soup_impl_body_index(kids: &[tree_sitter::Node<'_>], impl_at: usize) -> Option<usize> {
+    let mut k = impl_at + 1;
+    while k < kids.len() {
+        if kids[k].kind() == "token_tree" {
+            return Some(k);
+        }
+        k += 1;
+    }
+    None
+}
+
+fn soup_impl_name(
+    kids: &[tree_sitter::Node<'_>],
+    impl_at: usize,
+    body_k: usize,
+    src: &[u8],
+) -> String {
+    let mut idents: Vec<String> = Vec::new();
+    let mut saw_for = false;
+    let mut depth = 0i32;
+    for kid in kids.iter().take(body_k).skip(impl_at + 1) {
+        match kid.kind() {
+            "<" | "type_parameters" | "type_arguments" => depth += 1,
+            ">" => depth = depth.saturating_sub(1),
+            "for" if depth == 0 => saw_for = true,
+            "identifier" | "type_identifier" if depth == 0 => {
+                idents.push(node_text(src, *kid));
+            }
+            _ => {}
+        }
+    }
+    if idents.is_empty() {
+        return String::new();
+    }
+    if saw_for && idents.len() >= 2 {
+        let ty = idents.last().unwrap();
+        let tr = &idents[idents.len() - 2];
+        format!("impl<{tr} for {ty}>")
+    } else {
+        format!("impl<{}>", idents.last().unwrap())
+    }
 }
 
 fn macro_named_item_kind(kw: &str) -> Option<Kind> {
