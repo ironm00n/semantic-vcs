@@ -46,15 +46,15 @@ cargo test --workspace        # the rendered tree is the working copy
 
 `jj describe` as usual and paste the `svc op log` lines for this change into the body.
 After `jj rebase` / `jj new main` the tree moves under the store: the next `svc status`
-absorbs trunk's changes as hand edits — run it before your own edit.
+absorbs trunk's changes as hand edits — run it before your own edit. Then leave the bundle
+(`demo/history/README.md`): `svc history export --since <first op of this change> --out
+demo/history/NNNN-<git sha your tree was clean at>-<change>.json`, landed with the change;
+the checkout must hold no git-ignored files (svc tracks them; the base tree then differs).
 
 ## Known edges (owners in the coordination plan)
 
-- The name env is flat across the repo: two file-level items with one name in different
-  crates alias — `svc delete` sees phantom referrers, `svc rename` would rewrite both.
-  Check `svc show-def --json | jq .canonical` for the `#name⟨id⟩` you expect first.
-- svc reads `.svcignore`, not `.gitignore`; other untracked root entries (a `result`
-  link, a second build dir) become hand edits on the next verb.
-- `edit-def` calls an edit that touches a `let` line binding-changing even when every
-  use of that binder is unchanged (the binder's own line moved, so it is unmapped).
-- `svc status` / `svc diff` print removed entities as bare ids and omit opaque files.
+- Names resolve same file → same crate → repo; two file-level items with one name in one
+  crate still alias. Check `svc show-def --json | jq .canonical` for the `#name⟨id⟩`.
+- svc reads `.svcignore`, not `.gitignore`: a `result` link or demo scratch dir gets tracked.
+- Relocating an item to the front of a file renders it glued to the old first item.
+- A merge where one side deletes a definition and the other edits a caller of it is clean.
