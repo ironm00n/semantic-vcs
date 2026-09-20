@@ -161,6 +161,56 @@ fn static_block_id_is_stable_under_edits_above_it() {
 }
 
 #[test]
+fn computed_member_ids_are_stable_under_edits_above_it() {
+    let src = "export class C {\n  ['computed']() {}\n  static [k + 'x'] = 2;\n}\n";
+    let store = MemStore::new();
+    let langs = Langs::new(vec![Box::new(JsLang)]);
+    let path = RelPath::new("src/config.js").unwrap();
+    let snap_of = |src: &[u8], prev: Option<&svc_core::Snapshot>| {
+        let mut files = BTreeMap::new();
+        files.insert(path.clone(), src.to_vec());
+        snapshot_files(&store, &langs, &files, prev, ChangeId::new()).unwrap()
+    };
+    let id_of = |snap: &svc_core::Snapshot, kind: Kind, name: &str| {
+        snap.entities
+            .iter()
+            .find(|(_, r)| r.kind == kind && r.name == name)
+            .map(|(id, _)| *id)
+            .unwrap_or_else(|| panic!("a {kind:?} entity named {name}"))
+    };
+    let before = snap_of(src.as_bytes(), None);
+    // Computed names keep their source text — never the offset fallback.
+    for (kind, name) in [
+        (Kind::JsMethod, "['computed']"),
+        (Kind::JsStaticField, "[k + 'x']"),
+    ] {
+        let rec = before
+            .entities
+            .values()
+            .find(|r| r.kind == kind && r.name == name)
+            .unwrap_or_else(|| panic!("a {kind:?} entity named {name}"));
+        assert!(
+            !rec.name.contains('«'),
+            "no offset-fallback name: {}",
+            rec.name
+        );
+    }
+    // Insert a line ABOVE the class; member text is unchanged, so ids hold.
+    let after_src = "// a comment line\n".to_owned() + src;
+    let after = snap_of(after_src.as_bytes(), Some(&before));
+    for (kind, name) in [
+        (Kind::JsMethod, "['computed']"),
+        (Kind::JsStaticField, "[k + 'x']"),
+    ] {
+        assert_eq!(
+            id_of(&before, kind, name),
+            id_of(&after, kind, name),
+            "{kind:?} {name} must keep its id when text above it moves"
+        );
+    }
+}
+
+#[test]
 fn a_bare_method_that_does_not_parse_is_still_refused() {
     let (store, langs, _, snap) = setup();
     let class = lookup_name(&snap, "Config").unwrap();
