@@ -3,6 +3,7 @@
 //! history verbs (`new`, `describe`, `branch`, `evolog`, `log`, `undo`, …) as library
 //! functions returning serialisable records. The CLI is a thin layer over these.
 
+pub mod bundle;
 pub mod forge;
 pub mod history;
 pub mod merge;
