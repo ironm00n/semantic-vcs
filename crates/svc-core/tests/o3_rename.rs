@@ -3687,3 +3687,106 @@ fn rename_follows_only_the_macros_listed_in_macro_use() {
         "other must stay a nested macro: {text}"
     );
 }
+
+#[test]
+fn edit_def_of_a_macro_export_call_follows() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod fs {\n    #[macro_export]\n    macro_rules! parse { () => {}; }\n}\nfn f() {}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let f = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "f")
+        .map(|(id, _)| *id)
+        .expect("f");
+    let (next, _) = edit_def(&store, &langs, &snap, f, b"fn f() { parse!(); }\n").unwrap();
+    let next = rename(&store, &next, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "edit-def of parse!() after #[macro_export] must bind: {text}"
+    );
+}
+
+#[test]
+fn edit_def_does_not_bind_a_private_nested_macro() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"mod fs {\n    macro_rules! parse { () => {}; }\n}\nfn f() {}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let f = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "f")
+        .map(|(id, _)| *id)
+        .expect("f");
+    let (next, _) = edit_def(&store, &langs, &snap, f, b"fn f() { parse!(); }\n").unwrap();
+    let next = rename(&store, &next, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("parse!();"),
+        "edit-def must not export a private nested macro: {text}"
+    );
+    assert!(
+        !text.contains("parse_file!();"),
+        "private nested macro must stay Free: {text}"
+    );
+}
+
+#[test]
+fn edit_def_of_a_macro_use_call_follows() {
+    let store = MemStore::new();
+    let langs = rust_langs();
+    let lib = RelPath::new("src/lib.rs").unwrap();
+    let mut files = BTreeMap::new();
+    files.insert(
+        lib.clone(),
+        b"#[macro_use]\nmod fs {\n    macro_rules! parse { () => {}; }\n}\nfn f() {}\n".to_vec(),
+    );
+    let snap = snapshot_files(&store, &langs, &files, None, ChangeId::new()).unwrap();
+    let parse = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "parse")
+        .map(|(id, _)| *id)
+        .expect("parse");
+    let f = snap
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "f")
+        .map(|(id, _)| *id)
+        .expect("f");
+    let (next, _) = edit_def(&store, &langs, &snap, f, b"fn f() { parse!(); }\n").unwrap();
+    let next = rename(&store, &next, parse, "parse_file").unwrap();
+    let rendered = render(&next, &store, &langs, false).unwrap();
+    let text = String::from_utf8(rendered.files[&lib].clone()).unwrap();
+    assert!(
+        text.contains("parse_file!();"),
+        "edit-def of parse!() after #[macro_use] must bind: {text}"
+    );
+}

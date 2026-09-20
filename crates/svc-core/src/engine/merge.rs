@@ -14,7 +14,7 @@ use super::align::{
     equal_lines, map_range, pair_unmapped_by_spelling, pair_unmapped_by_unique_line, slot_bijection,
 };
 use super::{
-    env_from_snapshot, fill_nested_items_from_snapshot, fill_self_methods_from_snapshot,
+    env_from_snapshot_store, fill_nested_items_from_snapshot, fill_self_methods_from_snapshot,
     ingest_file_prev, parse, render_entity,
 };
 
@@ -104,7 +104,7 @@ pub fn merge(
             (Some(ro), Some(ra), Some(rb)) => {
                 let rb = rewrite_record(rb, &rewrite);
                 let parent_kind = ra.parent.and_then(|p| a_s.entities.get(&p).map(|r| r.kind));
-                let mut env = env_from_snapshot(&a_s);
+                let mut env = env_from_snapshot_store(&a_s, store);
                 env.current_file = Some(ra.file.clone());
                 fill_self_methods_from_snapshot(&mut env, &a_s, ra.parent);
                 fill_nested_items_from_snapshot(&mut env, &a_s, id);
@@ -579,7 +579,7 @@ fn binding_post(
     b: &Snapshot,
     snap: &mut Snapshot,
 ) -> Result<()> {
-    let base_env = env_from_snapshot(snap);
+    let base_env = env_from_snapshot_store(snap, store);
     let ids: Vec<_> = snap.entities.keys().copied().collect();
     for id in ids {
         let rec = snap.entities[&id].clone();

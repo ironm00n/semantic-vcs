@@ -198,6 +198,44 @@ fn attr_is(attr: &str, name: &str) -> bool {
     attr_body_is(inner, name)
 }
 
+pub(crate) fn attrs_in(src: &str) -> Vec<&str> {
+    let b = src.as_bytes();
+    let mut i = 0;
+    let mut out = Vec::new();
+    while i + 1 < b.len() {
+        if b[i] == b'#' && b[i + 1] == b'[' {
+            let start = i;
+            i += 2;
+            let mut depth = 1;
+            while i < b.len() && depth > 0 {
+                match b[i] {
+                    b'[' => depth += 1,
+                    b']' => depth -= 1,
+                    _ => {}
+                }
+                i += 1;
+            }
+            out.push(&src[start..i]);
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+pub(crate) fn bytes_has_macro_export(src: &str) -> bool {
+    attrs_in(src).iter().any(|a| attr_is(a, "macro_export"))
+}
+
+pub(crate) fn bytes_macro_use_spec(src: &str) -> Option<Option<Vec<String>>> {
+    for a in attrs_in(src) {
+        if let Some(spec) = macro_use_from_attr_body(attr_inner(a)) {
+            return Some(spec);
+        }
+    }
+    None
+}
+
 fn token_tree_is_attr(node: tree_sitter::Node<'_>, src: &[u8], name: &str) -> bool {
     let text = node_text(src, node);
     let t = text.trim();

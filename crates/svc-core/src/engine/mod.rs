@@ -73,6 +73,66 @@ pub fn env_from_snapshot(snapshot: &Snapshot) -> Env {
     env
 }
 
+pub(crate) fn env_from_snapshot_store(snapshot: &Snapshot, store: &dyn Store) -> Env {
+    let mut env = env_from_snapshot(snapshot);
+    fill_macro_exports_from_snapshot(&mut env, snapshot, store);
+    env
+}
+
+fn rec_src(store: &dyn Store, rec: &EntityRecord) -> Option<String> {
+    store
+        .get_bytes_blob(rec.bytes)
+        .ok()
+        .and_then(|b| String::from_utf8(b.src().to_vec()).ok())
+}
+
+/// Postcard cannot persist `#[macro_export]` / `#[macro_use]`. Recover them from
+/// the stored bytes (leading attrs sit in the item's extent).
+fn fill_macro_exports_from_snapshot(env: &mut Env, snapshot: &Snapshot, store: &dyn Store) {
+    let mut use_mods = HashMap::new();
+    for (id, rec) in &snapshot.entities {
+        if rec.kind != Kind::Mod {
+            continue;
+        }
+        let Some(src) = rec_src(store, rec) else {
+            continue;
+        };
+        if let Some(only) = extract::bytes_macro_use_spec(&src) {
+            use_mods.insert(*id, only);
+        }
+    }
+    for (id, rec) in &snapshot.entities {
+        if rec.kind != Kind::Macro {
+            continue;
+        }
+        let src = rec_src(store, rec).unwrap_or_default();
+        let from_export = extract::bytes_has_macro_export(&src);
+        let from_parent = rec.parent.is_some_and(|p| {
+            use_mods
+                .get(&p)
+                .is_some_and(|only| macro_use_allows(only, &rec.name))
+        });
+        if from_export || from_parent {
+            env.export_macro(&rec.name, *id);
+        }
+    }
+    let file_of_mod = env.file_of_mod.clone();
+    for (path, mid) in file_of_mod {
+        let Some(only) = use_mods.get(&mid) else {
+            continue;
+        };
+        for (id, rec) in &snapshot.entities {
+            if rec.kind == Kind::Macro
+                && rec.parent.is_none()
+                && rec.file == path
+                && macro_use_allows(only, &rec.name)
+            {
+                env.export_macro(&rec.name, *id);
+            }
+        }
+    }
+}
+
 fn fill_reexports_from_snapshot(env: &mut Env, snapshot: &Snapshot) {
     env.bind_reexports = true;
     let rust = crate::RustLang;

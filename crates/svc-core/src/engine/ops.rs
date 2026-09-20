@@ -12,7 +12,7 @@ use crate::store::Store;
 
 use super::diff_impl::lang_for_ext;
 use super::{
-    classify_entity, env_from_snapshot, fill_self_methods_from_snapshot, ingest_file_prev,
+    classify_entity, env_from_snapshot_store, fill_self_methods_from_snapshot, ingest_file_prev,
     ingest_file_with_env, parse, render, render_entity,
 };
 
@@ -183,7 +183,7 @@ fn reresolve_subtree(
         .files
         .get(&rec.file)
         .ok_or_else(|| Error::Other(format!("re-resolve missing file {}", rec.file)))?;
-    let env = env_from_snapshot(snap);
+    let env = env_from_snapshot_store(snap, store);
     let part = ingest_file_prev(
         src,
         rec.file.clone(),
@@ -1192,7 +1192,7 @@ fn ingest_item_tree(
             lang.name()
         )));
     }
-    let mut env = env_from_snapshot(snap);
+    let mut env = env_from_snapshot_store(snap, store);
     fill_self_methods_from_snapshot(&mut env, snap, parent);
     let mut part = ingest_file_with_env(&wrapped, file.clone(), lang, store, snap.change, &env)?;
     let roots: Vec<EntityId> = part
