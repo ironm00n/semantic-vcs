@@ -64,6 +64,7 @@ fn catalog() -> Catalog {
     });
     rename.ix = Some(7);
     rename.change = Some("c2".into());
+    rename.group_name = Some("sol: parser refactor".into());
     rename.subject = Some(OperationSubject {
         id: entity.to_string(),
         before_name: "parse".into(),
@@ -83,6 +84,7 @@ fn catalog() -> Catalog {
             path: "/tmp/svc".into(),
             description: "semantic vcs".into(),
             head: "s2".into(),
+            heads: vec!["s2".into()],
             operations: vec![rename, op(Op::Undo)],
             review_queue: vec![
                 ReviewItem::EditReview {
@@ -183,6 +185,7 @@ async fn populated_repository_response_preserves_semantic_types() {
     assert_eq!(status, StatusCode::OK);
     let value: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert_eq!(value["head"], "s2");
+    assert_eq!(value["heads"], serde_json::json!(["s2"]));
     assert_eq!(value["snapshots"][1]["change"], "c2");
     assert_eq!(value["snapshots"][1]["entities"][0]["name"], "parse_config");
     assert_eq!(
@@ -196,6 +199,7 @@ async fn populated_repository_response_preserves_semantic_types() {
     );
     assert_eq!(value["operations"][0]["ix"], 7);
     assert_eq!(value["operations"][0]["change"], "c2");
+    assert_eq!(value["operations"][0]["group_name"], "sol: parser refactor");
     assert_eq!(value["operations"][0]["subject"]["before_name"], "parse");
     assert!(
         value["operations"][0]["subject"]["before_source_html"]
@@ -274,6 +278,10 @@ async fn browser_contract_has_typed_labels_change_navigation_and_entity_filters(
         "semantic development history",
         "word==='entity'?'entities'",
         "buildChanges",
+        "repo.heads?.length",
+        "groupSummary",
+        "repositoryDescription",
+        "Semantic history recorded by svc.",
         "renderChangeList",
         "renderChangeDetail",
         "operationIx",

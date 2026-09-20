@@ -53,6 +53,8 @@ pub struct Repository {
     pub description: String,
     pub head: String,
     #[serde(default)]
+    pub heads: Vec<String>,
+    #[serde(default)]
     pub snapshots: Vec<SnapshotView>,
     #[serde(default)]
     pub operations: Vec<OperationView>,
@@ -124,6 +126,8 @@ pub struct OperationView {
     pub change: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subject: Option<OperationSubject>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_name: Option<String>,
     #[serde(flatten)]
     pub entry: OpLogEntry,
 }
@@ -134,6 +138,7 @@ impl From<OpLogEntry> for OperationView {
             ix: None,
             change: None,
             subject: None,
+            group_name: None,
             entry,
         }
     }
