@@ -161,21 +161,41 @@ fn attach_unowned_mods_from_snapshot(
     spliced: &RelPath,
     pending: &mut Vec<(RelPath, EntityId)>,
 ) {
-    let mods: Vec<(EntityId, String, Option<String>)> = snapshot
+    let mods: Vec<(EntityId, String, Option<String>, Vec<String>)> = snapshot
         .entities
         .iter()
-        .filter(|(_, rec)| rec.file == *spliced && rec.kind == Kind::Mod && rec.parent.is_none())
-        .filter(|(id, _)| !snapshot.entities.values().any(|c| c.parent == Some(**id)))
+        .filter(|(_, rec)| rec.file == *spliced && rec.kind == Kind::Mod)
+        .filter(|(id, rec)| {
+            if snapshot.entities.values().any(|c| c.parent == Some(**id)) {
+                return false;
+            }
+            let mut walk = rec.parent;
+            while let Some(p) = walk {
+                let Some(prec) = snapshot.entities.get(&p) else {
+                    return false;
+                };
+                if prec.kind != Kind::Mod {
+                    return false;
+                }
+                walk = prec.parent;
+            }
+            true
+        })
         .map(|(id, rec)| {
             let attr = rec_src(store, rec).and_then(|s| extract::bytes_path_attr(&s));
-            (*id, rec.name.clone(), attr)
+            (
+                *id,
+                rec.name.clone(),
+                attr,
+                enclosing_inline_mods_rec(snapshot, *id),
+            )
         })
         .collect();
-    for (id, name, attr) in mods {
+    for (id, name, attr, inline) in mods {
         let cands = if let Some(a) = attr {
             resolve_path_attr(spliced, &a).into_iter().collect()
         } else {
-            same_dir_mod_paths(spliced, &name)
+            unowned_mod_paths(spliced, &inline, &name)
         };
         for cand in cands {
             if !snapshot.files.contains_key(&cand) {
@@ -686,22 +706,31 @@ fn file_module_paths(parent_file: &RelPath, inline: &[String], name: &str) -> Ve
 }
 
 /// rustc `UnownedViaInclude`: `mod bar;` in an `include!`d file loads
-/// `bar.rs` next to that file, not `<stem>/bar.rs`.
-fn same_dir_mod_paths(parent_file: &RelPath, name: &str) -> Vec<RelPath> {
+/// `bar.rs` next to that file. Inline `mod outer { mod inner; }` loads
+/// `outer/inner.rs` next to that file, not `<stem>/outer/inner.rs`.
+fn unowned_mod_paths(parent_file: &RelPath, inline: &[String], name: &str) -> Vec<RelPath> {
     let path = parent_file.as_str();
     let dir = match path.rfind('/') {
         Some(i) => &path[..i],
         None => "",
     };
-    let rs = if dir.is_empty() {
+    let mut base = dir.to_string();
+    for seg in inline {
+        base = if base.is_empty() {
+            seg.clone()
+        } else {
+            format!("{base}/{seg}")
+        };
+    }
+    let rs = if base.is_empty() {
         format!("{name}.rs")
     } else {
-        format!("{dir}/{name}.rs")
+        format!("{base}/{name}.rs")
     };
-    let modrs = if dir.is_empty() {
+    let modrs = if base.is_empty() {
         format!("{name}/mod.rs")
     } else {
-        format!("{dir}/{name}/mod.rs")
+        format!("{base}/{name}/mod.rs")
     };
     [&rs, &modrs]
         .into_iter()
@@ -855,13 +884,26 @@ fn attach_unowned_mods_raw(
     pending: &mut Vec<RelPath>,
 ) {
     for (i, ent) in raw.iter().enumerate() {
-        if ent.kind != Kind::Mod || ent.parent_idx.is_some() || !ent.children.is_empty() {
+        if ent.kind != Kind::Mod || !ent.children.is_empty() {
             continue;
         }
+        let mut walk = ent.parent_idx;
+        let mut ok = true;
+        while let Some(p) = walk {
+            if raw[p].kind != Kind::Mod {
+                ok = false;
+                break;
+            }
+            walk = raw[p].parent_idx;
+        }
+        if !ok {
+            continue;
+        }
+        let inline = enclosing_inline_mods_raw(raw, i);
         let cands = if let Some(attr) = ent.path_attr.as_deref() {
             resolve_path_attr(spliced, attr).into_iter().collect()
         } else {
-            same_dir_mod_paths(spliced, &ent.name)
+            unowned_mod_paths(spliced, &inline, &ent.name)
         };
         for cand in cands {
             let Some((sraw, sids)) = by_path.get(&cand) else {
