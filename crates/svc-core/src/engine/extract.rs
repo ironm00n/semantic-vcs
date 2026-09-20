@@ -524,10 +524,10 @@ fn collect_macro_mod_decls<'a>(
         }
         if is_macro_kw(kids[f], src)
             && f + 1 < kids.len()
-            && kids[f + 1].kind() == "identifier"
+            && let Some(name_node) = macro_name_after(kids[f + 1])
         {
             emit_macro_named(
-                kids[f + 1],
+                name_node,
                 src,
                 lang,
                 parent_idx,
@@ -559,6 +559,21 @@ fn is_macro_rules_kw(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
 fn is_macro_kw(node: tree_sitter::Node<'_>, src: &[u8]) -> bool {
     !is_macro_rules_kw(node, src)
         && (node.kind() == "macro" || node_text(src, node) == "macro")
+}
+
+/// Crate-root `pub macro parse` is ERROR whose next sibling of `macro` is a
+/// `binary_expression`, not an identifier. Nested mods still have a bare ident.
+fn macro_name_after(node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
+    if node.kind() == "identifier" {
+        return Some(node);
+    }
+    let mut c = node.walk();
+    for ch in node.named_children(&mut c) {
+        if let Some(id) = macro_name_after(ch) {
+            return Some(id);
+        }
+    }
+    None
 }
 
 fn is_macro_item_prefix(node: tree_sitter::Node<'_>) -> bool {
