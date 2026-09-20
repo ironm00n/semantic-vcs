@@ -495,7 +495,7 @@ fn run_text(cli: &Cli) -> Option<Result<String, String>> {
                             rows.iter()
                                 .map(|c| {
                                     let mark = if c.open { "*" } else { " " };
-                                    format!("{mark} {} ({:?}, {} ops)", c.name, c.intent, c.ops.len())
+                                    format!("{mark} {} {} ({:?}, {} ops{})", c.id.short(), c.name, c.intent, c.ops.len(), if c.reviews.is_empty() { String::new() } else { format!(", {} reviews", c.reviews.len()) })
                                 })
                                 .collect::<Vec<_>>()
                                 .join("\n")

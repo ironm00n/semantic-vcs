@@ -48,9 +48,10 @@ replayed, not staged.
    shadow, `svc resolve 0 --take accept` records the code as the resolution;
    `svc conflicts` is empty and `svc log` shows the merge, the fix and the
    resolution as three operations.
-4. `svc changeset show mail` / `svc inbox` — the review and the mail between
-   the agents are operations in the same log; `svc push mail ../clone` moves a
-   changeset with its verdicts to another clone.
+4. `svc changeset list`, then `svc changeset show <id prefix>` of a mail one, and
+   `svc inbox` — the review and the mail between the agents are operations in
+   the same log; `svc push <changeset> ../clone` moves a changeset with its
+   verdicts to another clone.
 5. `demo/history/replay.sh /tmp/x` — every recorded tree reproduces, or the
    line names the op that today's engine computes differently and takes the
    record. Replay is the proof that nothing was smuggled around the journal.
