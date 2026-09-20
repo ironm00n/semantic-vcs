@@ -502,7 +502,7 @@ fn move_cmd(repo: &Repo, args: &MoveArgs) -> Result<Value, String> {
     let parent = resolve_parent(repo, &args.new_parent)?;
     let op = Op::Move { id, parent, ordinal: args.ordinal };
     let m = repo
-        .mutate(op, None, |repo, cur| repo.amend(cur, move_def(repo.store(), cur, id, parent, args.ordinal)?))
+        .mutate(op, None, |repo, cur| repo.amend(cur, move_def(repo.store(), repo.langs(), cur, id, parent, args.ordinal)?))
         .map_err(|e| e.to_string())?;
     mutation_value(m)
 }
@@ -534,7 +534,7 @@ fn extract_cmd(repo: &Repo, args: &ExtractArgs) -> Result<Value, String> {
         .ok_or_else(|| format!("no such entity: {}", args.entity))?;
     let op = Op::Extract { id, new_parent: parent, ordinal };
     let m = repo
-        .mutate(op, None, |repo, cur| repo.amend(cur, extract_hoist(repo.store(), cur, id, parent, ordinal)?))
+        .mutate(op, None, |repo, cur| repo.amend(cur, extract_hoist(repo.store(), repo.langs(), cur, id, parent, ordinal)?))
         .map_err(|e| e.to_string())?;
     mutation_value(m)
 }

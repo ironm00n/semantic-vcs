@@ -105,13 +105,13 @@ impl Replay<'_> {
                 self.amend(&cur, rename(&cur, *id, new)?)?;
             }
             Op::Move { id, parent, ordinal } => {
-                self.amend(&cur, move_def(&self.store, &cur, *id, *parent, *ordinal)?)?;
+                self.amend(&cur, move_def(&self.store, self.langs, &cur, *id, *parent, *ordinal)?)?;
             }
             Op::Relocate { id, file, ordinal } => {
                 self.amend(&cur, relocate(&cur, *id, file.clone(), *ordinal)?)?;
             }
             Op::Extract { id, new_parent, ordinal } => {
-                self.amend(&cur, move_def(&self.store, &cur, *id, *new_parent, Some(*ordinal))?)?;
+                self.amend(&cur, move_def(&self.store, self.langs, &cur, *id, *new_parent, Some(*ordinal))?)?;
             }
             Op::Inline { id } => {
                 self.amend(&cur, inline(&self.store, self.langs, &cur, *id)?)?;

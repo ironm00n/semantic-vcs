@@ -84,10 +84,10 @@ fn assert_holes(store: &MemStore, snap: &Snapshot) {
 
 #[test]
 fn extract_hoists_inner_out_of_outer() {
-    let (store, _, snap) = fixture();
+    let (store, langs, snap) = fixture();
     let inner = lookup_name(&snap, "inner").unwrap();
     let outer = lookup_name(&snap, "outer").unwrap();
-    let next = extract_hoist(&store, &snap, inner, None, 0).unwrap();
+    let next = extract_hoist(&store, &langs, &snap, inner, None, 0).unwrap();
     assert!(next.entities[&inner].parent.is_none());
     assert_holes(&store, &next);
     let src = rendered(&store, &next);
@@ -106,7 +106,7 @@ fn extract_hoists_inner_out_of_outer() {
 
 #[test]
 fn move_into_an_impl_renders_inside_it() {
-    let (store, _, snap) = fixture();
+    let (store, langs, snap) = fixture();
     let log = lookup_name(&snap, "log").unwrap();
     let imp = snap
         .entities
@@ -114,7 +114,7 @@ fn move_into_an_impl_renders_inside_it() {
         .find(|(_, r)| r.kind == Kind::Impl)
         .map(|(id, _)| *id)
         .unwrap();
-    let next = move_def(&store, &snap, log, Some(imp), Some(1)).unwrap();
+    let next = move_def(&store, &langs, &snap, log, Some(imp), Some(1)).unwrap();
     assert_eq!(next.entities[&log].parent, Some(imp));
     assert_holes(&store, &next);
     let src = rendered(&store, &next);
@@ -176,10 +176,10 @@ fn delete_nested_does_not_leave_a_dangling_child_hole() {
 
 #[test]
 fn move_under_a_descendant_is_refused() {
-    let (store, _, snap) = fixture();
+    let (store, langs, snap) = fixture();
     let outer = lookup_name(&snap, "outer").unwrap();
     let inner = lookup_name(&snap, "inner").unwrap();
-    let err = move_def(&store, &snap, outer, Some(inner), None)
+    let err = move_def(&store, &langs, &snap, outer, Some(inner), None)
         .unwrap_err()
         .to_string();
     assert!(err.contains("cycle"), "{err}");

@@ -11,7 +11,8 @@ use crate::snapshot::Snapshot;
 use crate::store::Store;
 
 use super::{
-    classify, env_from_snapshot, ingest_file_with_env, parse, render_entity, snapshot_files,
+    classify, env_from_snapshot, ingest_file_prev, ingest_file_with_env, parse, render,
+    render_entity, snapshot_files,
 };
 
 pub fn lookup_name(snap: &Snapshot, name: &str) -> Result<EntityId> {
@@ -57,6 +58,7 @@ pub fn relocate(snap: &Snapshot, id: EntityId, file: RelPath, ordinal: u32) -> R
 
 pub fn move_def(
     store: &dyn Store,
+    langs: &Langs,
     snap: &Snapshot,
     id: EntityId,
     new_parent: Option<EntityId>,
@@ -100,17 +102,75 @@ pub fn move_def(
         kids.insert(at.min(kids.len()), id);
         apply_child_holes(store, &mut next, p, &kids)?;
     }
+    reresolve_subtree(store, langs, &mut next, id)?;
     Ok(next)
 }
 
 pub fn extract_hoist(
     store: &dyn Store,
+    langs: &Langs,
     snap: &Snapshot,
     id: EntityId,
     new_parent: Option<EntityId>,
     ordinal: u32,
 ) -> Result<Snapshot> {
-    move_def(store, snap, id, new_parent, Some(ordinal))
+    move_def(store, langs, snap, id, new_parent, Some(ordinal))
+}
+
+/// Parse the destination file so inherited generics / outer locals match the
+/// new parent, then copy the subtree's content and bytes back. Reorder under
+/// the same parent does not call this — the env did not change.
+fn reresolve_subtree(
+    store: &dyn Store,
+    langs: &Langs,
+    snap: &mut Snapshot,
+    id: EntityId,
+) -> Result<()> {
+    let rec = snap
+        .entities
+        .get(&id)
+        .ok_or(Error::NoSuchEntity(id))?
+        .clone();
+    let lang = langs
+        .for_path(&rec.file)
+        .ok_or_else(|| Error::NoLanguage(rec.file.clone()))?;
+    let rendered = render(snap, store, langs, false)?;
+    let src = rendered
+        .files
+        .get(&rec.file)
+        .ok_or_else(|| Error::Other(format!("re-resolve missing file {}", rec.file)))?;
+    let env = env_from_snapshot(snap);
+    let part = ingest_file_prev(
+        src,
+        rec.file.clone(),
+        lang,
+        store,
+        snap.change,
+        Some(snap),
+        &env,
+    )?;
+    for eid in subtree(snap, id) {
+        let (name, kind, parent) = {
+            let rec = snap.entities.get(&eid).ok_or(Error::NoSuchEntity(eid))?;
+            (rec.name.clone(), rec.kind, rec.parent)
+        };
+        let fresh = part
+            .entities
+            .get(&eid)
+            .or_else(|| {
+                part.entities
+                    .values()
+                    .find(|r| r.name == name && r.kind == kind && r.parent == parent)
+            })
+            .ok_or_else(|| Error::Other(format!("re-resolve lost {name}")))?;
+        let content = fresh.content;
+        let bytes = fresh.bytes;
+        if let Some(dest) = snap.entities.get_mut(&eid) {
+            dest.content = content;
+            dest.bytes = bytes;
+        }
+    }
+    Ok(())
 }
 
 pub fn delete(snap: &Snapshot, store: &dyn Store, id: EntityId) -> Result<Snapshot> {

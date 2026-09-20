@@ -57,7 +57,7 @@ fn add_def_of_a_duplicate_is_refused() {
 
 #[test]
 fn move_def_into_a_parent_that_has_the_name_is_refused() {
-    let (store, _, snap) = fixture("struct S;\nimpl S { fn go() {} }\nfn go() {}\n");
+    let (store, langs, snap) = fixture("struct S;\nimpl S { fn go() {} }\nfn go() {}\n");
     let top = lookup_name(&snap, "go").err().map(|e| e.to_string());
     assert!(
         top.is_some_and(|e| e.contains("ambiguous")),
@@ -75,7 +75,7 @@ fn move_def_into_a_parent_that_has_the_name_is_refused() {
         .find(|(_, r)| r.name == "go" && r.parent.is_none())
         .map(|(id, _)| *id)
         .unwrap();
-    let err = move_def(&store, &snap, free_go, Some(imp), None)
+    let err = move_def(&store, &langs, &snap, free_go, Some(imp), None)
         .unwrap_err()
         .to_string();
     assert!(err.contains("already exists"), "{err}");
