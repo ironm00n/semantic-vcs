@@ -635,3 +635,33 @@ fn move_a_fn_into_an_impl_renders_inside_it() {
         "log should render inside the Config impl:\n{src}"
     );
 }
+
+#[test]
+fn add_def_of_an_impl_writes_the_method() {
+    let dir = fixture();
+    json(dir.path(), &["init"]);
+    json(dir.path(), &["new"]);
+    json(
+        dir.path(),
+        &[
+            "add-def",
+            "--ordinal",
+            "20",
+            "--intent",
+            "feature",
+            "--definition",
+            "impl Extra {\n    fn extra() {}\n}\n",
+        ],
+    );
+    let defs = json(dir.path(), &["list-defs"]);
+    assert!(
+        defs["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|d| d["name"] == "extra"),
+        "{defs}"
+    );
+    let src = fs::read_to_string(dir.path().join("src/main.rs")).unwrap();
+    assert!(src.contains("fn extra"), "{src}");
+}

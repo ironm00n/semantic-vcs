@@ -184,3 +184,28 @@ fn move_under_a_descendant_is_refused() {
         .to_string();
     assert!(err.contains("cycle"), "{err}");
 }
+
+#[test]
+fn add_def_of_an_impl_keeps_its_methods() {
+    let (store, langs, snap) = fixture();
+    let id = EntityId::new();
+    let src = b"impl Extra {\n    fn extra() {}\n}\n";
+    let next = add_def(&store, &langs, &snap, id, None, 20, src, Intent::Feature).unwrap();
+    let extra = next
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "extra")
+        .unwrap_or_else(|| panic!("method extra missing: {:?}", next.entities.values().map(|r| &r.name).collect::<Vec<_>>()));
+    assert_eq!(extra.1.parent, Some(id));
+    assert_holes(&store, &next);
+    let rendered = rendered(&store, &next);
+    assert!(rendered.contains("fn extra"), "{rendered}");
+    let again = add_def(&store, &langs, &snap, id, None, 20, src, Intent::Feature).unwrap();
+    let extra2 = again
+        .entities
+        .iter()
+        .find(|(_, r)| r.name == "extra")
+        .map(|(i, _)| *i)
+        .unwrap();
+    assert_eq!(*extra.0, extra2, "nested ids must be derived from the AddDef id");
+}

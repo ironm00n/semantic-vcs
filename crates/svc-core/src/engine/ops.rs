@@ -265,13 +265,22 @@ pub fn add_def_at(
         .for_path(&file)
         .ok_or_else(|| Error::NoLanguage(file.clone()))?;
     let definition = add_def_text(parent, definition);
-    let mut rec = ingest_one_item("add-def", store, snap, &file, lang, &definition)?;
-    rec.parent = parent;
-    rec.file = file.clone();
-    rec.ordinal = ordinal;
+    let (root_old, part) = ingest_item_tree("add-def", store, snap, &file, lang, &definition)?;
+    let mapped = remap_tree(store, part.entities, root_old, id)?;
     let mut next = snap.clone();
-    next.ensure_file(file);
-    next.insert(id, rec)?;
+    next.ensure_file(file.clone());
+    let mut root = mapped.get(&id).cloned().ok_or_else(|| Error::Other("add-def lost the root item".into()))?;
+    root.parent = parent;
+    root.file = file.clone();
+    root.ordinal = ordinal;
+    next.insert(id, root)?;
+    for (cid, mut rec) in mapped {
+        if cid == id {
+            continue;
+        }
+        rec.file = file.clone();
+        next.insert(cid, rec)?;
+    }
     if let Some(p) = parent {
         let mut kids = child_ids_of(store, &next, p)?;
         kids.retain(|c| *c != id);
@@ -663,14 +672,14 @@ pub fn redefine(
 /// The one item a verb body must be: parses without error nodes, exactly one root
 /// entity. Ingest itself is lenient (a checked-in file may be mid-edit); the typed
 /// write path is not.
-fn ingest_one_item(
+fn ingest_item_tree(
     verb: &str,
     store: &dyn Store,
     snap: &Snapshot,
     file: &RelPath,
     lang: &dyn crate::lang::Lang,
     text: &[u8],
-) -> Result<EntityRecord> {
+) -> Result<(EntityId, Snapshot)> {
     if super::parse(text, lang)?.root_node().has_error() {
         return Err(Error::Parse(format!(
             "{verb} definition does not parse as {}",
@@ -685,13 +694,205 @@ fn ingest_one_item(
         snap.change,
         &env_from_snapshot(snap),
     )?;
-    let mut roots = part.entities.into_values().filter(|r| r.parent.is_none());
-    match (roots.next(), roots.next()) {
-        (Some(rec), None) => Ok(rec),
+    let roots: Vec<EntityId> = part
+        .entities
+        .iter()
+        .filter(|(_, r)| r.parent.is_none())
+        .map(|(id, _)| *id)
+        .collect();
+    match roots.as_slice() {
+        [id] => Ok((*id, part)),
         _ => Err(Error::Other(format!(
             "{verb} definition must parse to exactly one item"
         ))),
     }
+}
+
+fn ingest_one_item(
+    verb: &str,
+    store: &dyn Store,
+    snap: &Snapshot,
+    file: &RelPath,
+    lang: &dyn crate::lang::Lang,
+    text: &[u8],
+) -> Result<EntityRecord> {
+    let (root_id, part) = ingest_item_tree(verb, store, snap, file, lang, text)?;
+    let mut rec = part
+        .entities
+        .get(&root_id)
+        .cloned()
+        .ok_or(Error::NoSuchEntity(root_id))?;
+    if part.entities.values().any(|r| r.parent == Some(root_id)) {
+        let old_content = store.get_content(rec.content)?;
+        rec.bytes = store.put_bytes_blob(&flatten_bytes(store, &part, root_id)?)?;
+        rec.content = store.put_content(&Content {
+            tokens: flatten_tokens(store, &part, old_content.tokens)?,
+        })?;
+    }
+    Ok(rec)
+}
+
+fn derived_id(parent: EntityId, rec: &EntityRecord) -> EntityId {
+    let mut h = blake3::Hasher::new();
+    h.update(parent.0.as_bytes());
+    h.update(&[0]);
+    h.update(format!("{:?}", rec.kind).as_bytes());
+    h.update(&[0]);
+    h.update(rec.name.as_bytes());
+    h.update(&[0]);
+    h.update(&rec.ordinal.to_le_bytes());
+    let hash = h.finalize();
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&hash.as_bytes()[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x80;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    EntityId(uuid::Uuid::from_bytes(bytes))
+}
+
+fn remap_tree(
+    store: &dyn Store,
+    tree: BTreeMap<EntityId, EntityRecord>,
+    root_old: EntityId,
+    root_new: EntityId,
+) -> Result<BTreeMap<EntityId, EntityRecord>> {
+    let mut id_map = BTreeMap::new();
+    id_map.insert(root_old, root_new);
+    let mut queue = vec![root_old];
+    while let Some(old) = queue.pop() {
+        let parent_new = id_map[&old];
+        let mut kids: Vec<(EntityId, EntityRecord)> = tree
+            .iter()
+            .filter(|(_, r)| r.parent == Some(old))
+            .map(|(i, r)| (*i, r.clone()))
+            .collect();
+        kids.sort_by_key(|(_, r)| r.ordinal);
+        for (old_id, rec) in kids {
+            id_map.insert(old_id, derived_id(parent_new, &rec));
+            queue.push(old_id);
+        }
+    }
+    let mut out = BTreeMap::new();
+    for (old, rec) in &tree {
+        let new_id = *id_map.get(old).unwrap_or(old);
+        let mut rec = rec.clone();
+        rec.parent = rec.parent.map(|p| *id_map.get(&p).unwrap_or(&p));
+        let bytes = remap_bytes(&store.get_bytes_blob(rec.bytes)?, &id_map)?;
+        let content = Content {
+            tokens: remap_tokens(store.get_content(rec.content)?.tokens, &id_map),
+        };
+        rec.bytes = store.put_bytes_blob(&bytes)?;
+        rec.content = store.put_content(&content)?;
+        out.insert(new_id, rec);
+    }
+    Ok(out)
+}
+
+fn remap_id(id: EntityId, map: &BTreeMap<EntityId, EntityId>) -> EntityId {
+    if id == EntityId::SELF {
+        id
+    } else {
+        *map.get(&id).unwrap_or(&id)
+    }
+}
+
+fn remap_bytes(bytes: &Bytes, map: &BTreeMap<EntityId, EntityId>) -> Result<Bytes> {
+    let chunks: Vec<Chunk> = bytes
+        .chunks()
+        .iter()
+        .map(|c| match c {
+            Chunk::Child(id) => Chunk::Child(remap_id(*id, map)),
+            Chunk::Name(id) => Chunk::Name(remap_id(*id, map)),
+            other => other.clone(),
+        })
+        .collect();
+    let locals: Vec<(ByteRange, IdentRef)> = bytes
+        .local_ranges()
+        .iter()
+        .map(|(r, ident)| {
+            let ident = match ident {
+                IdentRef::Entity(id) => IdentRef::Entity(remap_id(*id, map)),
+                other => other.clone(),
+            };
+            (*r, ident)
+        })
+        .collect();
+    Bytes::new(bytes.src().to_vec(), chunks, locals)
+}
+
+fn remap_tokens(tokens: Vec<Token>, map: &BTreeMap<EntityId, EntityId>) -> Vec<Token> {
+    tokens
+        .into_iter()
+        .map(|t| match t {
+            Token::Child(id) => Token::Child(remap_id(id, map)),
+            Token::Ident(IdentRef::Entity(id)) => {
+                Token::Ident(IdentRef::Entity(remap_id(id, map)))
+            }
+            other => other,
+        })
+        .collect()
+}
+
+fn flatten_bytes(store: &dyn Store, snap: &Snapshot, id: EntityId) -> Result<Bytes> {
+    let rec = snap.entities.get(&id).ok_or(Error::NoSuchEntity(id))?;
+    let bytes = store.get_bytes_blob(rec.bytes)?;
+    let mut src = Vec::new();
+    let mut chunks = Vec::new();
+    let mut locals = Vec::new();
+    for c in bytes.chunks() {
+        match c {
+            Chunk::Literal(r) => {
+                let start = src.len() as u32;
+                let a = r.start as usize;
+                let b = r.end as usize;
+                src.extend_from_slice(&bytes.src()[a.min(bytes.src().len())..b.min(bytes.src().len())]);
+                let end = src.len() as u32;
+                if end > start {
+                    chunks.push(Chunk::Literal(ByteRange { start, end }));
+                }
+                for (lr, ident) in bytes.local_ranges() {
+                    if lr.start >= r.start && lr.end <= r.end {
+                        locals.push((
+                            ByteRange {
+                                start: start + (lr.start - r.start),
+                                end: start + (lr.end - r.start),
+                            },
+                            ident.clone(),
+                        ));
+                    }
+                }
+            }
+            Chunk::Name(nid) => chunks.push(Chunk::Name(*nid)),
+            Chunk::Child(cid) => {
+                let (child, _) = render_entity(snap, store, *cid, false)?;
+                let start = src.len() as u32;
+                src.extend_from_slice(&child);
+                let end = src.len() as u32;
+                if end > start {
+                    chunks.push(Chunk::Literal(ByteRange { start, end }));
+                }
+            }
+        }
+    }
+    Bytes::new(src, chunks, locals)
+}
+
+fn flatten_tokens(
+    store: &dyn Store,
+    snap: &Snapshot,
+    tokens: Vec<Token>,
+) -> Result<Vec<Token>> {
+    let mut out = Vec::new();
+    for t in tokens {
+        match t {
+            Token::Child(cid) => {
+                let rec = snap.entities.get(&cid).ok_or(Error::NoSuchEntity(cid))?;
+                let child = store.get_content(rec.content)?;
+                out.extend(flatten_tokens(store, snap, child.tokens)?);
+            }
+            other => out.push(other),
+        }
+    }
+    Ok(out)
 }
 
 /// Keep the entity's leading trivia (blank lines / docs attached by extent)
