@@ -30,7 +30,7 @@ enum Command {
     Evolog { change: String }, Show { entity: String }, ListDefs, ShowDef(ShowDefArgs),
     Search { query: String }, Diff { a: String, b: String }, Blame(EntityArg),
     Merge { change: String }, Conflicts,
-    Resolve { conflict: usize, #[arg(long)] take: String },
+    Resolve { conflict: usize, #[arg(long, help = "a = current change, b = merged-in, or base")] take: String },
     Undo,
     #[command(subcommand)] Op(OpCommand),
     #[command(subcommand)] Changeset(ChangeSetCommand),
@@ -522,7 +522,7 @@ fn parse_take(value: &str) -> Result<Take, String> {
         "a" => Ok(Take::A),
         "b" => Ok(Take::B),
         "base" => Ok(Take::Base),
-        _ => Err("--take must be a, b, or base".into()),
+        _ => Err("--take: a = current change, b = merged-in, or base".into()),
     }
 }
 
@@ -855,6 +855,7 @@ fn command_name(command: &Command) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::CommandFactory;
     #[test]
     fn harness_shapes_parse() {
         Cli::try_parse_from(["svc", "rename", "--entity", "parse", "--new-name", "parse_config", "--json"]).unwrap();
@@ -895,5 +896,17 @@ mod tests {
         Cli::try_parse_from(["svc", "search", "parse"]).unwrap();
         Cli::try_parse_from(["svc", "diff", "main", "feature"]).unwrap();
         Cli::try_parse_from(["svc", "show-def", "--entity", "parse", "--at", "deadbeef"]).unwrap();
+    }
+
+    #[test]
+    fn resolve_take_help_names_the_sides() {
+        let mut cmd = Cli::command();
+        let help = cmd
+            .find_subcommand_mut("resolve")
+            .expect("resolve")
+            .render_long_help()
+            .to_string();
+        assert!(help.contains("current change"), "{help}");
+        assert!(help.contains("merged-in"), "{help}");
     }
 }
